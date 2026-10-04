@@ -1,0 +1,45 @@
+# Source: Miyuki official size table. Lengths are derived as 100 / beads_per_10cm.
+# Display colors are picked by eye and approximate.
+brand: miyuki
+name: Miyuki
+country: JP
+sources:
+  - https://www.miyuki-beads.co.jp/english/seedbeads/seedgrain.html
+lines:
+  delica:
+    name: Delica
+    shape: cylinder
+    code: "{size}-{color}"
+    sizes:
+      DBS: { label: 15/0, outer_diameter: 1.3, length: 1.14, hole: 0.65, beads_per_gram: 350, beads_per_10cm: 88 }
+      DB:  { label: 11/0, outer_diameter: 1.6, length: 1.30, hole: 0.8,  beads_per_gram: 200, beads_per_10cm: 77 }
+      DBM: { label: 10/0, outer_diameter: 2.2, length: 1.69, hole: 1.0,  beads_per_gram: 108, beads_per_10cm: 59 }
+      DBL: { label: 8/0,  outer_diameter: 3.0, length: 2.70, hole: 1.5,  beads_per_gram: 30,  beads_per_10cm: 37 }
+    basis: { default: official, length: derived }
+    colors:
+      "0010": { name: black, display: { rgb: "#151515" } }
+      "0035": { name: galvanized silver, display: { rgb: "#b9bcc0", finish: [metallic] } }
+      "0201": { name: white pearl ceylon, display: { rgb: "#f1ede2", finish: [pearl] } }
+  round:
+    name: Round Rocailles
+    shape: round
+    code: "{size}-{color}"
+    sizes:
+      "15": { label: 15/0, outer_diameter: 1.5, length: 1.00, hole: 0.7, beads_per_gram: 250, beads_per_10cm: 100 }
+      "11": { label: 11/0, outer_diameter: 2.0, length: 1.45, hole: 0.8, beads_per_gram: 110, beads_per_10cm: 69 }
+      "8":  { label: 8/0,  outer_diameter: 3.0, length: 2.13, hole: 1.1, beads_per_gram: 39,  beads_per_10cm: 47 }
+      "6":  { label: 6/0,  outer_diameter: 4.5, length: 2.94, hole: 1.5, beads_per_gram: 12,  beads_per_10cm: 34 }
+    basis: { default: official, length: derived }
+    colors:
+      "1":   { name: silver-lined crystal, display: { rgb: "#e4e8ec", opacity: 0.6, finish: [silver-lined] } }
+      "401": { name: opaque black, display: { rgb: "#121212" } }
+      "402": { name: opaque white, display: { rgb: "#f6f6f2" } }
+  square:
+    name: Square (cube)
+    shape: cube
+    code: "SB{size}-{color}"
+    sizes:
+      "18": { label: 1.8 mm, outer_diameter: 1.8, length: 1.79, hole: 0.9, beads_per_gram: 87,  beads_per_10cm: 56 }
+      "3":  { label: 3 mm,   outer_diameter: 3.0, length: 3.03, hole: 1.3, beads_per_gram: 21,  beads_per_10cm: 33 }
+      "4":  { label: 4 mm,   outer_diameter: 4.0, length: 3.70, hole: 1.4, beads_per_gram: 10.7, beads_per_10cm: 27 }
+    basis: { default: official, length: derived }

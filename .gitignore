@@ -1,3 +1,10 @@
 # Licensed pattern screenshots (not ours to redistribute)
 docs/references/*.jpg
 docs/references/*.png
+
+# Dependencies and generated diagrams
+node_modules/
+out/
+
+# Web app build
+dist/

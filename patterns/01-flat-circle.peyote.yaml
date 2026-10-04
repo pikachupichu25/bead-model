@@ -1,0 +1,13 @@
+# Reference 1, see docs/references/01-flat-circle.md
+title: Flat circle, 7 increase points
+source: http://inspirationalbeading.blogspot.com/2016/04/peyote-stitch-master-class-circular.html
+status: unverified
+beads:
+  A: { size: 11/0, shape: cylinder, color: "any" }
+start: tube (1A) x14              # 14 beads, the source's "foundation"
+rounds:
+  3: (1A) x7                      # source round 1: 7 beads
+  4: (2A) x7                      # source round 2: 14 beads, a pair in each gap
+  5: (0, 1A) x7                   # source round 3: 7 beads, each pair passed as one unit
+  6: (3A) x7                      # source round 4: 21 beads
+  7: (0, 0, 2A) x7                # source round 5: 14 beads. Our guess at where they go

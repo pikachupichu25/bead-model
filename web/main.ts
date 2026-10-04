@@ -1,0 +1,362 @@
+// Step-by-step pattern viewer: instruction rows on the left, the diagram of
+// the selected round on the right with the other rounds faded.
+
+import { catalogFromFiles, type ResolvedBead, resolveBeads } from "../src/catalog/catalog.js";
+import { layoutPattern } from "../src/diagram/layout.js";
+import { type DiagramInput, renderDiagramSvg } from "../src/diagram/svg.js";
+import { type CompiledPattern, type CompiledRound, compilePattern } from "../src/pattern/compile.js";
+import { describeRound, summarizeStitches } from "../src/pattern/describe.js";
+import { parsePattern, PatternError } from "../src/pattern/load.js";
+
+// Bundled patterns and catalog, read as text at build time.
+const patternFiles = import.meta.glob<string>("../patterns/*.peyote.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+
+const catalog = catalogFromFiles(
+  Object.entries(catalogFiles).map(([path, text]) => ({ name: path.split("/").pop()!, text })),
+);
+
+interface PatternSource {
+  id: string;
+  name: string;
+  text: string;
+}
+
+const sources: PatternSource[] = Object.entries(patternFiles)
+  .map(([path, text]) => {
+    const id = path.split("/").pop()!.replace(/\.peyote\.ya?ml$/, "");
+    return { id, name: titleOf(text) ?? id, text };
+  })
+  .sort((a, b) => a.id.localeCompare(b.id));
+
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const els = {
+  select: $<HTMLSelectElement>("pattern-select"),
+  file: $<HTMLInputElement>("file-input"),
+  info: $("pattern-info"),
+  list: $<HTMLOListElement>("round-list"),
+  warnings: $("warnings"),
+  title: $("stage-title"),
+  subtitle: $("stage-subtitle"),
+  upcoming: $<HTMLInputElement>("upcoming-toggle"),
+  diagram: $("diagram"),
+  tooltip: $("tooltip"),
+  prev: $<HTMLButtonElement>("prev"),
+  next: $<HTMLButtonElement>("next"),
+  slider: $<HTMLInputElement>("round-slider"),
+  error: $("error"),
+  stage: document.querySelector<HTMLElement>(".stage")!,
+};
+
+const state: {
+  source?: PatternSource;
+  input?: DiagramInput;
+  index: number;
+} = { index: 0 };
+
+// ---- Loading ----
+
+function loadSource(source: PatternSource, roundNumber?: number): void {
+  state.source = source;
+  els.select.value = source.id;
+  try {
+    const pattern = parsePattern(source.text);
+    const compiled = compilePattern(pattern);
+    const beads = resolveBeads(pattern.beads, catalog);
+    state.input = { compiled, beads, layout: layoutPattern(compiled, beads) };
+    const index = compiled.rounds.findIndex((r) => r.round === roundNumber);
+    state.index = index >= 0 ? index : 0;
+    els.error.hidden = true;
+    els.stage.classList.remove("has-error");
+    renderPattern();
+    selectRound(state.index);
+  } catch (e) {
+    state.input = undefined;
+    showError(source, e);
+  }
+}
+
+function showError(source: PatternSource, e: unknown): void {
+  const issues = e instanceof PatternError ? e.issues : [e instanceof Error ? e.message : String(e)];
+  els.info.innerHTML = `<h2>${esc(source.name)}</h2>`;
+  els.list.innerHTML = "";
+  els.warnings.hidden = true;
+  els.diagram.innerHTML = "";
+  els.title.textContent = "This pattern can't be shown";
+  els.subtitle.textContent = "Fix the problems below and open it again.";
+  els.error.hidden = false;
+  els.stage.classList.add("has-error");
+  els.error.innerHTML = `<h2>Problems in the pattern</h2><ul>${issues.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  setControls(0, 0);
+}
+
+// ---- Left column: pattern info and one row per round ----
+
+function renderPattern(): void {
+  const { compiled, beads } = state.input!;
+  const { pattern } = compiled;
+  const verified = pattern.status === "verified";
+  const source = pattern.source
+    ? /^https?:\/\//.test(pattern.source)
+      ? `<a href="${esc(pattern.source)}" target="_blank" rel="noopener">source</a>`
+      : esc(pattern.source)
+    : "";
+  const totals = [...beads.values()].map((bead) => {
+    const count = compiled.beads.filter((b) => b.key === bead.key).length;
+    const grams = bead.beadsPerGram ? ` · ${formatGrams(count / bead.beadsPerGram)}` : "";
+    return `<li>${swatch(bead)}<span><b>${esc(bead.key)}</b>${esc(bead.label)}<br><span class="muted">${bead.outerDiameter} × ${bead.length} mm</span></span><span class="muted">${count}${grams}</span></li>`;
+  });
+
+  els.info.innerHTML = `
+    <h2>${esc(pattern.title)}${pattern.status ? `<span class="badge${verified ? " ok" : ""}">${esc(pattern.status)}</span>` : ""}</h2>
+    <p class="meta muted">${compiled.rounds.length} rounds · ${compiled.beads.length} beads${source ? ` · ${source}` : ""}</p>
+    <ul class="bead-legend">${totals.join("")}</ul>`;
+
+  els.list.innerHTML = compiled.rounds.map((round, i) => roundRow(compiled, beads, round, i)).join("");
+
+  const warnings = [...compiled.warnings, ...[...beads.values()].flatMap((b) => b.warnings)];
+  els.warnings.hidden = warnings.length === 0;
+  els.warnings.innerHTML = `<details><summary>${warnings.length} warning${warnings.length === 1 ? "" : "s"}</summary><ul>${warnings
+    .map((w) => `<li>${esc(w)}</li>`)
+    .join("")}</ul></details>`;
+
+  setControls(compiled.rounds.length, state.index);
+}
+
+function roundRow(
+  compiled: CompiledPattern,
+  beads: Map<string, ResolvedBead>,
+  round: CompiledRound,
+  index: number,
+): string {
+  const previous = compiled.rounds[index - 1];
+  const change = previous ? round.beads.length - previous.beads.length : 0;
+  const delta = previous && change !== 0 ? `<span class="delta">${change > 0 ? "+" : ""}${change}</span>` : "";
+  const { start } = compiled.pattern;
+  const summary =
+    round.stitches.length > 0
+      ? summarizeStitches(round.stitches)
+      : index === 0
+        ? `Start: ${start.kind === "center" ? "ring" : "tube"} of ${start.beads.length}`
+        : "Start ring, second half";
+  const tags = [
+    round.edge === "back" ? `<span class="tag">back edge</span>` : "",
+    round.tension !== "normal" ? `<span class="tag">${round.tension}</span>` : "",
+    round.note ? `<span class="tag note">note</span>` : "",
+  ].join("");
+  const counts = [...beads.values()]
+    .map((bead) => [bead, round.beads.filter((id) => compiled.beads[id]!.key === bead.key).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([bead, n]) => `<span>${swatch(bead)}${n} ${esc(bead.key)}</span>`)
+    .join("");
+
+  return `<li><button type="button" class="round-row" data-index="${index}">
+    <span class="round-num">${round.round}</span>
+    <span class="round-title">${round.beads.length} beads ${delta}<span class="tags">${tags}</span></span>
+    <span class="round-summary">${esc(summary)}</span>
+    <span class="round-detail">
+      <p>${esc(describeRound(compiled, round))}</p>
+      ${round.note ? `<p><strong>Note:</strong> ${esc(round.note)}</p>` : ""}
+      ${round.tension !== "normal" ? `<p>Keep the thread ${round.tension}.</p>` : ""}
+      <span class="counts">${counts}</span>
+    </span>
+  </button></li>`;
+}
+
+// ---- Right column: the diagram ----
+
+function selectRound(index: number): void {
+  const input = state.input;
+  if (!input) return;
+  const rounds = input.compiled.rounds;
+  state.index = Math.max(0, Math.min(rounds.length - 1, index));
+  const round = rounds[state.index]!;
+  const previous = rounds[state.index - 1];
+
+  els.diagram.innerHTML = renderDiagramSvg(input, round.round, { numbers: true, upcoming: els.upcoming.checked });
+  els.title.textContent = `Round ${round.round} of ${rounds[rounds.length - 1]!.round}`;
+  const change = previous ? round.beads.length - previous.beads.length : 0;
+  els.subtitle.textContent = [
+    `${round.beads.length} beads`,
+    previous ? `${change >= 0 ? "+" : ""}${change} from round ${previous.round}` : undefined,
+    round.stitches.length > 0 ? `${round.gaps} gaps` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  els.list.querySelectorAll<HTMLButtonElement>(".round-row").forEach((row) => {
+    const i = Number(row.dataset.index);
+    row.toggleAttribute("aria-current", i === state.index);
+    if (i === state.index) row.setAttribute("aria-current", "step");
+    row.classList.toggle("done", i < state.index);
+  });
+  revealRow(els.list.querySelector<HTMLElement>(`[data-index="${state.index}"]`));
+
+  setControls(rounds.length, state.index);
+  els.tooltip.hidden = true;
+  writeHash();
+}
+
+/**
+ * Scrolls the instruction column so the row shows. Only when the column
+ * scrolls by itself (wide screens): on phones the list sits below the
+ * diagram, and scrolling the page would move the diagram out of view.
+ */
+function revealRow(row: HTMLElement | null): void {
+  const box = els.list.closest<HTMLElement>(".steps");
+  if (!row || !box || box.scrollHeight <= box.clientHeight + 1) return;
+  const r = row.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  if (r.top < b.top) box.scrollBy({ top: r.top - b.top - 8, behavior: "smooth" });
+  else if (r.bottom > b.bottom) box.scrollBy({ top: r.bottom - b.bottom + 8, behavior: "smooth" });
+}
+
+function setControls(count: number, index: number): void {
+  els.slider.max = String(Math.max(count - 1, 0));
+  els.slider.value = String(index);
+  els.slider.disabled = count <= 1;
+  els.prev.disabled = index <= 0;
+  els.next.disabled = index >= count - 1;
+}
+
+// ---- Events ----
+
+els.select.addEventListener("change", () => {
+  const source = sources.find((s) => s.id === els.select.value);
+  if (source) loadSource(source);
+});
+
+els.file.addEventListener("change", async () => {
+  const file = els.file.files?.[0];
+  if (!file) return;
+  const text = await file.text();
+  const source = { id: `file:${file.name}`, name: titleOf(text) ?? file.name, text };
+  const existing = sources.findIndex((s) => s.id === source.id);
+  if (existing >= 0) sources[existing] = source;
+  else sources.push(source);
+  fillSelect();
+  loadSource(source);
+  els.file.value = "";
+});
+
+els.list.addEventListener("click", (event) => {
+  const row = (event.target as HTMLElement).closest<HTMLButtonElement>(".round-row");
+  if (row) selectRound(Number(row.dataset.index));
+});
+
+els.prev.addEventListener("click", () => selectRound(state.index - 1));
+els.next.addEventListener("click", () => selectRound(state.index + 1));
+els.slider.addEventListener("input", () => selectRound(Number(els.slider.value)));
+els.upcoming.addEventListener("change", () => selectRound(state.index));
+
+document.addEventListener("keydown", (event) => {
+  const target = event.target as HTMLElement;
+  if (target.matches("input[type=range], select, input[type=file]") || event.metaKey || event.ctrlKey) return;
+  const rounds = state.input?.compiled.rounds.length ?? 0;
+  const moves: Record<string, number> = {
+    ArrowLeft: state.index - 1,
+    ArrowUp: state.index - 1,
+    ArrowRight: state.index + 1,
+    ArrowDown: state.index + 1,
+    Home: 0,
+    End: rounds - 1,
+  };
+  if (event.key in moves) {
+    event.preventDefault();
+    selectRound(moves[event.key]!);
+  }
+});
+
+// Hovering a bead shows what it is; clicking it jumps to its round.
+els.diagram.addEventListener("pointermove", (event) => {
+  const bead = beadAt(event.target);
+  if (!bead) {
+    els.tooltip.hidden = true;
+    return;
+  }
+  const { compiled, beads } = state.input!;
+  const info = compiled.beads[bead]!;
+  const round = compiled.rounds.find((r) => r.round === info.round)!;
+  const resolved = beads.get(info.key)!;
+  els.tooltip.textContent = `Round ${info.round} · bead ${info.order} of ${round.beads.length} · ${info.key}: ${resolved.label}`;
+  const card = els.diagram.parentElement!.getBoundingClientRect();
+  els.tooltip.style.left = `${event.clientX - card.left}px`;
+  els.tooltip.style.top = `${event.clientY - card.top}px`;
+  els.tooltip.hidden = false;
+});
+els.diagram.addEventListener("pointerleave", () => (els.tooltip.hidden = true));
+els.diagram.addEventListener("click", (event) => {
+  const bead = beadAt(event.target);
+  if (bead === undefined || !state.input) return;
+  const round = state.input.compiled.beads[bead]!.round;
+  selectRound(state.input.compiled.rounds.findIndex((r) => r.round === round));
+});
+
+function beadAt(target: EventTarget | null): number | undefined {
+  const g = (target as Element | null)?.closest?.("[data-bead]");
+  return g ? Number(g.getAttribute("data-bead")) : undefined;
+}
+
+// ---- URL: #pattern=<id>&round=<n> so a step can be linked or reloaded ----
+
+function writeHash(): void {
+  if (!state.source || state.source.id.startsWith("file:") || !state.input) return;
+  const round = state.input.compiled.rounds[state.index]!.round;
+  history.replaceState(null, "", `#pattern=${encodeURIComponent(state.source.id)}&round=${round}`);
+}
+
+// Follow links and back/forward that change the hash.
+window.addEventListener("hashchange", () => {
+  const { id, round } = readHash();
+  const source = sources.find((s) => s.id === id);
+  if (!source) return;
+  if (source !== state.source) loadSource(source, round);
+  else if (round !== undefined && state.input) {
+    selectRound(state.input.compiled.rounds.findIndex((r) => r.round === round));
+  }
+});
+
+function readHash(): { id?: string; round?: number } {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const round = Number(params.get("round"));
+  return { id: params.get("pattern") ?? undefined, round: Number.isFinite(round) && round > 0 ? round : undefined };
+}
+
+// ---- Helpers ----
+
+function fillSelect(): void {
+  els.select.innerHTML = sources
+    .map((s) => `<option value="${esc(s.id)}">${esc(s.id.startsWith("file:") ? `${s.name} (your file)` : s.name)}</option>`)
+    .join("");
+}
+
+function titleOf(text: string): string | undefined {
+  return /^title:\s*(.+?)\s*$/m.exec(text)?.[1]?.replace(/^["']|["']$/g, "");
+}
+
+function formatGrams(grams: number): string {
+  return grams < 0.1 ? "<0.1 g" : `${grams.toFixed(1)} g`;
+}
+
+function swatch(bead: ResolvedBead): string {
+  const { rgb, opacity = 1 } = bead.display;
+  return `<span class="swatch" style="background:${esc(rgb)};opacity:${Math.max(opacity, 0.5)}"></span>`;
+}
+
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+// ---- Start ----
+
+fillSelect();
+const initial = readHash();
+loadSource(sources.find((s) => s.id === initial.id) ?? sources[0]!, initial.round);

@@ -1,0 +1,15 @@
+# Reference 2, see docs/references/02-rivoli-bezel-cup.md
+title: Peyote bezel for 12 mm rivoli
+source: https://www.aroundthebeadingtable.com/Tutorials/PeyoteBezel.html
+status: unverified
+beads:
+  A: { size: 11/0, shape: cylinder, color: "color 1" }
+  B: { size: 11/0, shape: cylinder, color: "color 2" }
+  C: { size: 15/0, shape: round, color: "any" }
+start: tube (1A, 1B) x16          # 32 beads: rounds 1 (A) and 2 (B), a 2-color ridge
+rounds:
+  3: (1A) x16
+  4: { stitches: "(1C) x16", tension: tight }
+  5: { stitches: "(1C) x16", tension: tight, note: "insert the rivoli after this round" }
+  6: { stitches: "(1C) x16", tension: tight, edge: back }
+  7: { stitches: "(1C) x16", tension: tight, edge: back }

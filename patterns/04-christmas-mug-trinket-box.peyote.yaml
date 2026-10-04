@@ -1,0 +1,10 @@
+# Reference 4, see docs/references/04-christmas-mug-trinket-box.md
+title: Christmas Mug Trinket Box, top (rounds 1-3 only)
+source: https://www.threadabead.com  # paid pattern, Lynsey James 2025
+status: unverified
+beads:
+  A: { size: unknown, shape: unknown, color: "unknown" }
+start: center 3A                     # source row 1, "make a loop"
+rounds:
+  2: 2A, 1A, 1A                      # source row 2: AA x1, A x2
+  3: { stitches: "2A, 1A, 1A, 1A", tension: tight }  # source row 3: AA x1, A x3

@@ -1,0 +1,11 @@
+# Reference 3, see docs/references/03-flat-triangle.md
+title: Flat peyote triangle
+source: https://www.clearlyhelena.com/2014/10/triangle-shape-with-peyote-stitch-how-to.html
+status: unverified
+beads:
+  A: { size: 11/0, shape: round, color: "corners" }
+  B: { size: 11/0, shape: round, color: "sides" }
+start: center 3A
+rounds:
+  2: (2A) x3                      # 3 corner pairs
+  3-10: (2A, 1B*) x3              # pair on top of each corner pair, singles along the sides

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Peyote Steps</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+      </div>
+      <div class="toolbar">
+        <label class="field">
+          <span class="visually-hidden">Pattern</span>
+          <select id="pattern-select"></select>
+        </label>
+        <label class="button" for="file-input">Open pattern…</label>
+        <input id="file-input" type="file" accept=".yaml,.yml" hidden />
+      </div>
+    </header>
+
+    <main class="app">
+      <aside class="steps" aria-label="Instructions">
+        <section class="pattern-info" id="pattern-info"></section>
+        <ol class="round-list" id="round-list"></ol>
+        <section class="warnings" id="warnings" hidden></section>
+      </aside>
+
+      <section class="stage" aria-live="polite">
+        <div class="stage-head">
+          <div>
+            <h1 id="stage-title"></h1>
+            <p id="stage-subtitle" class="muted"></p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="upcoming-toggle" checked />
+            <span>Show upcoming rounds</span>
+          </label>
+        </div>
+
+        <div class="diagram-card">
+          <div class="diagram" id="diagram"></div>
+          <div class="tooltip" id="tooltip" role="status" hidden></div>
+          <ul class="diagram-key muted">
+            <li><span class="key-swatch key-current"></span>This round, numbered in pickup order</li>
+            <li><span class="key-swatch key-stepup"></span>Step-up bead</li>
+            <li><span class="key-swatch key-up"></span>Beads you stitch into</li>
+            <li><span class="key-swatch key-done"></span>Earlier rounds</li>
+          </ul>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="button" id="prev">← Previous</button>
+          <input type="range" id="round-slider" min="0" max="0" value="0" aria-label="Round" />
+          <button type="button" class="button primary" id="next">Next →</button>
+        </div>
+        <p class="hint muted">Use the arrow keys to step through rounds. Click a bead to jump to its round.</p>
+
+        <div class="error" id="error" hidden></div>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

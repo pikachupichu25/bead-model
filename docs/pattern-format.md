@@ -55,7 +55,7 @@ There are two kinds of start:
 | `center N` | Small closed ring of N beads lying side by side (e.g. 3 or 5), as at the center of a disk | Round 1 | N |
 | `tube N` | Even-count ring of N beads that settles into two offset rounds, as in tubular peyote and bezels | Rounds 1 and 2 | N / 2 |
 
-For `tube`, the strung beads alternate between round 1 (odd positions) and round 2 (even positions). The colors are written in stringing order, for example `tube 32: (1A, 1B) x16`, which makes round 1 all A and round 2 all B.
+For `tube`, the strung beads alternate between round 1 (odd positions) and round 2 (even positions). The colors are written in stringing order, for example `tube (1A, 1B) x16`, which strings 32 beads and makes round 1 all A and round 2 all B. N is the number of beads listed, so it isn't written. (Writing it as `tube 32: ...` doesn't work unquoted in YAML, because the second colon starts a nested mapping.)
 
 A `tube` start has two edges. Rounds work outward from round 2 (the **front** edge) by default. `edge: back` works from round 1 instead, which is how the back of a bezel is made.
 
@@ -112,7 +112,7 @@ source: <URL or "original">
 status: unverified | verified
 beads:
   A: { size: 11/0, shape: round, color: "..." }
-start: center 3A          # or: tube 32: (1A, 1B) x16
+start: center 3A          # or: tube (1A, 1B) x16
 rounds:
   2: (2A) x3
   3-10: (2A, 1B*) x3
@@ -153,7 +153,7 @@ source: http://inspirationalbeading.blogspot.com/2016/04/peyote-stitch-master-cl
 status: unverified
 beads:
   A: { size: 11/0, shape: cylinder, color: "any" }
-start: tube 14: (1A) x14          # source's "foundation"
+start: tube (1A) x14              # 14 beads, the source's "foundation"
 rounds:
   3: (1A) x7                      # source round 1: 7 beads
   4: (2A) x7                      # source round 2: 14 beads, a pair in each gap
@@ -174,7 +174,7 @@ beads:
   A: { size: 11/0, shape: cylinder, color: "color 1" }
   B: { size: 11/0, shape: cylinder, color: "color 2" }
   C: { size: 15/0, shape: round, color: "any" }
-start: tube 32: (1A, 1B) x16      # rounds 1 (A) and 2 (B), a 2-color ridge
+start: tube (1A, 1B) x16          # 32 beads: rounds 1 (A) and 2 (B), a 2-color ridge
 rounds:
   3: (1A) x16
   4: { stitches: "(1C) x16", tension: tight }
