@@ -43,10 +43,19 @@ const sources: PatternSource[] = Object.entries(patternFiles)
   })
   .sort((a, b) => a.id.localeCompare(b.id));
 
+// A pattern sent over from the editor ("Step through it"), kept so a reload still shows it.
+try {
+  const draft = localStorage.getItem("bead-model:viewer-draft");
+  if (draft) sources.push({ id: "draft", name: `${titleOf(draft) ?? "Untitled"} (from the editor)`, text: draft });
+} catch {
+  // Storage can be off (private windows): there is just no draft to show.
+}
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
   select: $<HTMLSelectElement>("pattern-select"),
   file: $<HTMLInputElement>("file-input"),
+  edit: $<HTMLButtonElement>("edit-pattern"),
   info: $("pattern-info"),
   list: $<HTMLOListElement>("round-list"),
   warnings: $("warnings"),
@@ -291,6 +300,17 @@ els.file.addEventListener("change", async () => {
   fillSelect();
   loadSource(source);
   els.file.value = "";
+});
+
+// Opens the current pattern in the editor, which picks it up from storage.
+els.edit.addEventListener("click", () => {
+  if (!state.source) return;
+  try {
+    localStorage.setItem("bead-model:open-in-editor", state.source.text);
+  } catch {
+    // Without storage the editor opens with its own draft.
+  }
+  location.href = "./editor.html";
 });
 
 els.list.addEventListener("click", (event) => {

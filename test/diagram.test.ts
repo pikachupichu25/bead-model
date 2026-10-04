@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveBeads } from "../src/catalog/catalog.js";
 import { loadCatalog } from "../src/catalog/load-files.js";
 import { layoutPattern } from "../src/diagram/layout.js";
-import { renderDiagramSvg, renderSheetSvg, renderStepSvg } from "../src/diagram/svg.js";
+import { renderChartSheetSvg, renderChartSvg, renderDiagramSvg, renderSheetSvg, renderStepSvg } from "../src/diagram/svg.js";
 import { compilePattern } from "../src/pattern/compile.js";
 import { parsePattern } from "../src/pattern/load.js";
 
@@ -181,5 +181,26 @@ describe("svg", () => {
     const svg = renderSheetSvg(build("03-flat-triangle"));
     for (let r = 1; r <= 10; r++) expect(svg).toContain(`Round ${r}: ${3 * r} beads`);
     expect(renderSheetSvg(build("02-rivoli-bezel-cup"))).toContain("Rounds 1–2: 32 beads");
+  });
+});
+
+describe("design chart", () => {
+  it("draws every bead once, in full color, tagged with its round", () => {
+    const input = build("03-flat-triangle");
+    const svg = renderChartSvg(input);
+    const beads = [...svg.matchAll(/data-bead="(\d+)" data-round="(\d+)"[^>]*opacity="([\d.]+)"/g)];
+    expect(beads).toHaveLength(input.compiled.beads.length);
+    expect(beads.every((m) => m[3] === "1")).toBe(true);
+    expect(beads.every((m) => Number(m[2]) === input.compiled.beads[Number(m[1])]!.round)).toBe(true);
+  });
+
+  it("prints the chart with the bead list and every step", () => {
+    const input = build("02-rivoli-bezel-cup");
+    const sheet = renderChartSheetSvg(input);
+    expect(sheet).toContain("Peyote bezel for 12 mm rivoli");
+    for (const step of input.compiled.steps) {
+      expect(sheet).toContain(step.rounds.length > 1 ? "Rounds 1–2" : `Round ${step.rounds[0]!.round} ·`);
+    }
+    expect(sheet).toContain("insert the rivoli after this round");
   });
 });

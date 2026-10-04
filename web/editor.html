@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Peyote Editor</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="editor-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+        <nav class="page-nav" aria-label="Pages">
+          <a href="./index.html">Steps</a>
+          <a href="./editor.html" aria-current="page">Editor</a>
+        </nav>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="button" id="new-pattern">New</button>
+        <label class="button" for="file-input">Open file…</label>
+        <input id="file-input" type="file" accept=".yaml,.yml" hidden />
+        <button type="button" class="button icon" id="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button>
+        <button type="button" class="button icon" id="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
+        <button type="button" class="button" id="download-yaml">Download .yaml</button>
+        <button type="button" class="button primary" id="open-viewer">Step through it →</button>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <dialog class="new-dialog" id="new-dialog" aria-labelledby="new-title">
+      <form method="dialog" id="new-form">
+        <h2 id="new-title">New pattern</h2>
+        <label class="ed-field">
+          <span>Title</span>
+          <input type="text" id="new-name" value="Untitled pattern" />
+        </label>
+
+        <fieldset class="start-choice">
+          <legend>How does it start?</legend>
+          <label class="choice">
+            <input type="radio" name="new-kind" value="center" checked />
+            <span class="choice-art" aria-hidden="true">
+              <svg viewBox="0 0 40 40"><g fill="#4e79a7" stroke="#2c4a6e" stroke-width="0.8"><rect x="17" y="6" width="6" height="8" rx="2.5"/><rect x="17" y="6" width="6" height="8" rx="2.5" transform="rotate(120 20 20)"/><rect x="17" y="6" width="6" height="8" rx="2.5" transform="rotate(240 20 20)"/></g></svg>
+            </span>
+            <span class="choice-text">
+              <b>Ring</b>
+              <span class="muted">A few beads tied in a ring and worked outward. For disks, cups and triangles.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="new-kind" value="tube" />
+            <span class="choice-art" aria-hidden="true">
+              <svg viewBox="0 0 40 40"><g stroke-width="0.8"><g fill="#4e79a7" stroke="#2c4a6e"><rect x="6" y="9" width="5" height="8" rx="2"/><rect x="18" y="9" width="5" height="8" rx="2"/><rect x="30" y="9" width="5" height="8" rx="2"/></g><g fill="#e15759" stroke="#8c2f30"><rect x="12" y="20" width="5" height="8" rx="2"/><rect x="24" y="20" width="5" height="8" rx="2"/></g></g></svg>
+            </span>
+            <span class="choice-text">
+              <b>Tube</b>
+              <span class="muted">An even number of beads that settle into two rounds. For bezels, tubes and boxes.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <label class="ed-field">
+          <span>Number of start beads</span>
+          <input type="number" id="new-count" min="2" max="400" step="1" value="3" inputmode="numeric" />
+        </label>
+        <p class="ed-status" id="new-hint"></p>
+
+        <div class="dialog-actions">
+          <label class="example-pick">
+            <span class="muted">or copy</span>
+            <select id="new-example" aria-label="Copy an example"></select>
+          </label>
+          <span class="spacer"></span>
+          <button type="button" class="button" id="new-cancel">Cancel</button>
+          <button type="submit" class="button primary" id="new-create">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <main class="app">
+      <aside class="steps editor-panel" aria-label="Pattern">
+        <div class="view-switch panel-switch" role="tablist" aria-label="Edit as">
+          <button type="button" role="tab" id="tab-form" aria-selected="true">Form</button>
+          <button type="button" role="tab" id="tab-yaml" aria-selected="false">YAML</button>
+        </div>
+
+        <div id="form" data-tab="form">
+          <section class="ed-section">
+            <h2>Pattern</h2>
+            <label class="ed-field">
+              <span>Title</span>
+              <input type="text" id="f-title" />
+            </label>
+            <div class="ed-row">
+              <label class="ed-field grow">
+                <span>Source</span>
+                <input type="text" id="f-source" placeholder="original, or a URL" />
+              </label>
+              <label class="ed-field">
+                <span>Status</span>
+                <select id="f-status">
+                  <option value="">none</option>
+                  <option value="unverified">unverified</option>
+                  <option value="verified">verified</option>
+                </select>
+              </label>
+            </div>
+            <label class="ed-field">
+              <span>Step-up goes through</span>
+              <select id="f-stepup">
+                <option value="group">the whole first stitch (default)</option>
+                <option value="first">only the first bead of the first stitch</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="ed-section">
+            <div class="ed-head">
+              <h2>Beads</h2>
+              <button type="button" class="button small" id="add-bead">+ Add bead</button>
+            </div>
+            <p class="muted ed-help">Pick a bead to paint with, then click beads in the chart.</p>
+            <ul class="bead-editor" id="bead-list"></ul>
+          </section>
+
+          <section class="ed-section">
+            <h2>Start</h2>
+            <div class="ed-row">
+              <label class="ed-field">
+                <span>Kind</span>
+                <select id="f-start-kind">
+                  <option value="center">Ring (center)</option>
+                  <option value="tube">Tube (2 rounds)</option>
+                </select>
+              </label>
+              <label class="ed-field grow">
+                <span>Beads, in stringing order</span>
+                <input type="text" id="f-start" class="mono" spellcheck="false" placeholder="3A, or (1A, 1B) x16" />
+              </label>
+            </div>
+            <p class="ed-status" id="start-status"></p>
+          </section>
+
+          <section class="ed-section">
+            <div class="ed-head">
+              <h2>Rounds</h2>
+              <details class="cheatsheet">
+                <summary>Notation</summary>
+                <table>
+                  <tr><td><code>1A</code></td><td>1 bead A in a gap</td></tr>
+                  <tr><td><code>2A</code></td><td>2 beads in one gap (increase)</td></tr>
+                  <tr><td><code>1A+1B</code></td><td>A then B in one gap</td></tr>
+                  <tr><td><code>0</code></td><td>no bead: pass through (decrease)</td></tr>
+                  <tr><td><code>(2A, 1B) x3</code></td><td>repeat a group</td></tr>
+                  <tr><td><code>1B*</code></td><td>fill the rest of the group</td></tr>
+                </table>
+                <p class="muted">Each round needs one stitch per gap. The gaps are the beads the round before added.</p>
+              </details>
+            </div>
+            <ol class="round-editor" id="round-list"></ol>
+            <button type="button" class="button add-round" id="add-round">+ Add round</button>
+          </section>
+        </div>
+
+        <div class="yaml-pane" data-tab="yaml" hidden>
+          <p class="muted ed-help">The pattern file. Edits here update the chart as you type. Comments are not kept.</p>
+          <textarea id="yaml" class="mono" spellcheck="false" aria-label="Pattern YAML"></textarea>
+          <p class="ed-status bad" id="yaml-status" hidden></p>
+        </div>
+      </aside>
+
+      <section class="stage" aria-live="polite">
+        <div class="stage-head">
+          <div>
+            <h1 id="chart-title"></h1>
+            <p id="chart-subtitle" class="muted"></p>
+          </div>
+          <div class="view-switch" role="radiogroup" aria-label="Paint">
+            <button type="button" role="radio" id="tool-bead" aria-checked="true">Paint bead</button>
+            <button type="button" role="radio" id="tool-round" aria-checked="false">Paint round</button>
+          </div>
+        </div>
+
+        <div class="palette" id="palette" role="radiogroup" aria-label="Paint with"></div>
+
+        <div class="diagram-card">
+          <div class="diagram chart" id="chart"></div>
+          <style id="chart-focus"></style>
+          <div class="tooltip" id="tooltip" role="status" hidden></div>
+          <ul class="diagram-key muted">
+            <li><span class="key-swatch key-stepup"></span>Step-up bead of each round</li>
+            <li>Click or drag across beads to paint them. Shift-click paints a whole round.</li>
+          </ul>
+        </div>
+
+        <div class="chart-actions">
+          <label class="toggle">
+            <input type="checkbox" id="stepup-toggle" checked />
+            <span>Show step-up beads</span>
+          </label>
+          <span class="spacer"></span>
+          <button type="button" class="button" id="download-chart">Download chart (SVG)</button>
+          <button type="button" class="button" id="download-steps">Download step sheet (SVG)</button>
+        </div>
+
+        <section class="problems" id="problems" hidden></section>
+      </section>
+    </main>
+
+    <script type="module" src="./editor.ts"></script>
+  </body>
+</html>
