@@ -13,8 +13,9 @@ import { buildShape, type Shape, type ShapeModel, shapeModel, type Verdict } fro
 import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
 import type { BeadViewer } from "./viewer3d.js";
 
-// Bundled patterns and catalog, read as text at build time.
-const patternFiles = import.meta.glob<string>("../patterns/*.peyote.yaml", {
+// Bundled patterns and catalog, read as text at build time. The Thread A Bead
+// pattern is a paid pattern, so it stays out of the app (tests still use it).
+const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
   query: "?raw",
   import: "default",
   eager: true,
