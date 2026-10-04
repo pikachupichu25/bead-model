@@ -21,6 +21,17 @@ Choose a pattern format that is both readable by people and parseable by code.
 
 Render a pattern one round at a time as a 2D diagram of beads.
 
+### 3.1 Research commercial beads and design the bead catalog
+
+The diagram has to draw each bead to scale and in its real color, so first we need to know what real beads look like.
+
+- Research the shapes and sizes of beads from popular brands (Miyuki, Toho, Preciosa): outer diameter, length along the hole, hole size, beads per gram, and how product and color codes are written
+- Write the findings up in `docs/bead-research.md`
+- Design the data structure for a catalog of commercial beads (brand, product line, size, color), and how a pattern's `beads:` block points to it
+- Write the catalog spec in `docs/bead-catalog.md`, with worked examples from the research
+
+### 3.2 Render the round-by-round diagram
+
 - Draw each bead as an image or shape, colored according to the pattern
 - Show which beads are new in each round and where the step-up is
 - Output one image per round (or a combined sheet) so the pattern can be followed while stitching

@@ -17,6 +17,8 @@ See [docs/plan.md](docs/plan.md).
 1. Research how 3D peyote bead patterns are written
 2. Design how our system uses written patterns
 3. Create a step-by-step pattern with bead images
+   1. Research commercial beads (Miyuki, Toho, Preciosa) and design the bead catalog
+   2. Render the round-by-round diagram
 4. Create the expected 3D shape from the pattern
 
 ## Structure

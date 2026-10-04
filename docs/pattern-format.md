@@ -97,7 +97,7 @@ beads:
 - `shape`: `round` (seed bead) or `cylinder` (Delica, Aiko, Treasure)
 - `color`: free text. A manufacturer code is best, if known
 
-The physical size of each bead type (width, hole length) will be kept in a separate bead catalog in step 4, not in each pattern. Bead size changes the 3D shape (see the bezel), so it has to be measured, not guessed.
+The physical size of each bead type (width, length along the hole) is kept in a separate bead catalog, not in each pattern. See [bead-catalog.md](bead-catalog.md), which proposes a shorter way to name a bead (`A: miyuki DB-0010`) and keeps these three fields as the fallback. Bead size changes the 3D shape (see the bezel), so it has to be measured, not guessed.
 
 ## File format
 
