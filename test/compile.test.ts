@@ -24,6 +24,26 @@ describe("reference patterns", () => {
     expect(counts).toEqual([3, 6, 9, 12, 15, 18, 21, 24, 27, 30]);
   });
 
+  it("flat triangle stacks each corner pair inside the corner pair before it", () => {
+    const compiled = reference("03-flat-triangle");
+    for (const round of compiled.rounds.slice(2)) {
+      const pairs = round.beads.map((id) => compiled.beads[id]!).filter((b) => b.slotsInGap === 2);
+      expect(pairs).toHaveLength(6);
+      for (const bead of pairs) {
+        const [left, right] = bead.between!.map((id) => compiled.beads[id]!);
+        // Both up beads are the two beads of one pair in the round before.
+        expect([left!.slotsInGap, right!.slotsInGap, left!.gap === right!.gap]).toEqual([2, 2, true]);
+      }
+    }
+  });
+
+  it("starts each round's gaps after the bead the step-up comes out of", () => {
+    const compiled = reference("03-flat-triangle");
+    const round3 = compiled.rounds[2]!;
+    // Up bead 1 is bead 2 of round 2, the end of the step-up through the first pair.
+    expect(compiled.beads[round3.upBeads[0]!]!.order).toBe(2);
+  });
+
   it("flat circle matches the source counts", () => {
     const compiled = reference("01-flat-circle");
     expect(compiled.rounds.map((r) => r.beads.length)).toEqual([7, 7, 7, 14, 7, 21, 14]);
@@ -44,6 +64,26 @@ describe("reference patterns", () => {
     expect(compiled.rounds.map((r) => r.beads.length)).toEqual([3, 4, 5]);
     const [first, second] = compiled.rounds[1]!.beads.map((id) => compiled.beads[id]!);
     expect([first!.gap, second!.gap]).toEqual([0, 0]);
+  });
+});
+
+describe("steps", () => {
+  it("makes a tube start's two rounds one step, numbered in stringing order", () => {
+    const compiled = reference("02-rivoli-bezel-cup");
+    expect(compiled.steps.map((s) => s.rounds.map((r) => r.round))).toEqual([[1, 2], [3], [4], [5], [6], [7]]);
+    const first = compiled.steps[0]!.beads.map((id) => compiled.beads[id]!);
+    expect(first).toHaveLength(32);
+    expect(first.map((b) => b.order)).toEqual(Array.from({ length: 32 }, (_, i) => i + 1));
+    expect(first.slice(0, 4).map((b) => `${b.key}${b.round}`)).toEqual(["A1", "B2", "A1", "B2"]);
+    expect(first.every((b) => b.step === 0)).toBe(true);
+  });
+
+  it("makes every round of a center start its own step", () => {
+    const compiled = reference("03-flat-triangle");
+    expect(compiled.steps).toHaveLength(compiled.rounds.length);
+    expect(compiled.steps.every((s, i) => s.rounds[0] === compiled.rounds[i] && s.beads === s.rounds[0]!.beads)).toBe(
+      true,
+    );
   });
 });
 

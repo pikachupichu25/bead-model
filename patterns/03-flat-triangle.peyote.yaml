@@ -8,4 +8,8 @@ beads:
 start: center 3A
 rounds:
   2: (2A) x3                      # 3 corner pairs
-  3-10: (2A, 1B*) x3              # pair on top of each corner pair, singles along the sides
+  # Each side: a single, a new pair inside the corner pair, then singles.
+  # Round 2 starts with a pair, so its step-up goes through both beads and
+  # round 3 starts after the first corner (1B, 2A per side, no fill). Later
+  # rounds start with a single, just before a corner pair.
+  3-10: (1B, 2A, 1B*) x3

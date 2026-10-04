@@ -1,8 +1,9 @@
-// Renders round-by-round bead diagrams for one or more patterns.
+// Renders step-by-step bead diagrams for one or more patterns.
 //
 //   npm run render -- patterns/03-flat-triangle.peyote.yaml [more files] [--out out] [--catalog catalog/beads]
 //
-// Writes <out>/<pattern name>/round-NN.svg and sheet.svg, and prints a
+// Writes <out>/<pattern name>/step-NN.svg (one per step; a tube start's
+// rounds 1 and 2 are one step) and sheet.svg, and prints a
 // summary with bead counts and any warnings.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,7 +12,7 @@ import { parseArgs } from "node:util";
 import { checkCatalog, resolveBeads } from "./catalog/catalog.js";
 import { loadCatalog } from "./catalog/load-files.js";
 import { layoutPattern } from "./diagram/layout.js";
-import { renderRoundSvg, renderSheetSvg } from "./diagram/svg.js";
+import { renderSheetSvg, renderStepSvg } from "./diagram/svg.js";
 import { compilePattern } from "./pattern/compile.js";
 import { parsePattern, PatternError } from "./pattern/load.js";
 
@@ -53,9 +54,9 @@ function renderFile(file: string): void {
 
   const dir = join(values.out, basename(file).replace(/\.peyote\.ya?ml$|\.ya?ml$/, ""));
   mkdirSync(dir, { recursive: true });
-  for (const round of compiled.rounds) {
-    writeFileSync(join(dir, `round-${String(round.round).padStart(2, "0")}.svg`), renderRoundSvg(input, round.round));
-  }
+  compiled.steps.forEach((_, i) => {
+    writeFileSync(join(dir, `step-${String(i + 1).padStart(2, "0")}.svg`), renderStepSvg(input, i));
+  });
   writeFileSync(join(dir, "sheet.svg"), renderSheetSvg(input));
 
   console.log(`\n${pattern.title}  →  ${dir}/`);

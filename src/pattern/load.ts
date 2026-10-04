@@ -6,6 +6,12 @@ import { expandFixed, type Item, NotationError, parseStitchList, stitchBeads } f
 
 export type Edge = "front" | "back";
 export type Tension = "normal" | "tight" | "loose";
+/**
+ * How the step-up at the end of a round goes through the round's first stitch:
+ * through all of its beads ("group", e.g. both beads of a pair), or only the
+ * first bead ("first"). The next round starts from the bead the thread comes out of.
+ */
+export type StepUp = "group" | "first";
 
 export interface Start {
   kind: "center" | "tube";
@@ -32,6 +38,7 @@ export interface Pattern {
   /** Raw bead definitions by key. Resolved against the catalog later. */
   beads: Record<string, unknown>;
   start: Start;
+  stepUp: StepUp;
   rounds: RoundSpec[];
 }
 
@@ -76,6 +83,9 @@ export function parsePattern(yamlText: string): Pattern {
   }
   rounds.sort((a, b) => a.from - b.from);
 
+  const stepUp = doc.step_up ?? "group";
+  if (stepUp !== "group" && stepUp !== "first") issues.push("`step_up` must be group or first");
+
   if (issues.length > 0) throw new PatternError(issues);
   return {
     title,
@@ -83,6 +93,7 @@ export function parsePattern(yamlText: string): Pattern {
     status: typeof doc.status === "string" ? doc.status : undefined,
     beads,
     start,
+    stepUp: stepUp as StepUp,
     rounds,
   };
 }

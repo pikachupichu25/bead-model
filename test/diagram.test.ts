@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveBeads } from "../src/catalog/catalog.js";
 import { loadCatalog } from "../src/catalog/load-files.js";
 import { layoutPattern } from "../src/diagram/layout.js";
-import { renderRoundSvg, renderSheetSvg } from "../src/diagram/svg.js";
+import { renderDiagramSvg, renderSheetSvg, renderStepSvg } from "../src/diagram/svg.js";
 import { compilePattern } from "../src/pattern/compile.js";
 import { parsePattern } from "../src/pattern/load.js";
 
@@ -14,6 +14,43 @@ function build(name: string) {
   const compiled = compilePattern(pattern);
   const beads = resolveBeads(pattern.beads, catalog);
   return { compiled, beads, layout: layoutPattern(compiled, beads) };
+}
+
+type Vec = [number, number];
+
+/** The four corners of a placed bead (its local x is radial, y along the ring). */
+function corners(b: { x: number; y: number; theta: number; radial: number; tangential: number }): Vec[] {
+  const r: Vec = [Math.cos(b.theta), -Math.sin(b.theta)];
+  const t: Vec = [-Math.sin(b.theta), -Math.cos(b.theta)];
+  return [
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+    [-1, 1],
+  ].map(([i, j]) => [
+    b.x + (r[0] * i! * b.radial) / 2 + (t[0] * j! * b.tangential) / 2,
+    b.y + (r[1] * i! * b.radial) / 2 + (t[1] * j! * b.tangential) / 2,
+  ]);
+}
+
+/**
+ * Separating-axis test for two convex polygons: the largest gap between their
+ * shadows on any edge normal. Negative means they overlap.
+ */
+function separation(a: Vec[], b: Vec[]): number {
+  let best = -Infinity;
+  for (const poly of [a, b]) {
+    poly.forEach((p, i) => {
+      const q = poly[(i + 1) % poly.length]!;
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      const n: Vec = [(q[1] - p[1]) / len, -(q[0] - p[0]) / len];
+      const proj = (poly2: Vec[]) => poly2.map((v) => v[0] * n[0] + v[1] * n[1]);
+      const pa = proj(a);
+      const pb = proj(b);
+      best = Math.max(best, Math.min(...pb) - Math.max(...pa), Math.min(...pa) - Math.max(...pb));
+    });
+  }
+  return best;
 }
 
 /** Smallest angle between two directions, radians. */
@@ -29,15 +66,26 @@ describe.each(["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-
       for (const b of layout.beads) expect(Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
     });
 
-    it("doesn't overlap beads within a round", () => {
-      for (const round of compiled.rounds) {
-        const placed = round.beads.map((id) => layout.beads[id]!).sort((a, b) => a.theta - b.theta);
-        placed.forEach((bead, i) => {
-          const next = placed[(i + 1) % placed.length]!;
-          if (next === bead) return;
-          const gap = angleBetween(bead.theta, next.theta) * bead.radius;
-          expect(gap).toBeGreaterThanOrEqual((bead.tangential + next.tangential) / 2 - 1e-9);
-        });
+    it("doesn't overlap any two beads, in the same round or different rounds", () => {
+      const rects = layout.beads.map(corners);
+      const overlaps: string[] = [];
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          if (separation(rects[i]!, rects[j]!) < -1e-9) {
+            const [a, b] = [layout.beads[i]!, layout.beads[j]!];
+            overlaps.push(`round ${a.round} bead ${a.id} / round ${b.round} bead ${b.id}`);
+          }
+        }
+      }
+      expect(overlaps).toEqual([]);
+    });
+
+    it("keeps beads apart with no spacing at all", () => {
+      const { compiled, beads } = build(name);
+      const tight = layoutPattern(compiled, beads, { roundGap: 0, beadGap: 0 });
+      const rects = tight.beads.map(corners);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) expect(separation(rects[i]!, rects[j]!)).toBeGreaterThan(-1e-9);
       }
     });
 
@@ -52,6 +100,23 @@ describe.each(["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-
     });
   },
 );
+
+describe("spacing", () => {
+  it("moves rounds further apart as roundGap grows", () => {
+    const { compiled, beads } = build("03-flat-triangle");
+    const near = layoutPattern(compiled, beads, { roundGap: 0.1 });
+    const far = layoutPattern(compiled, beads, { roundGap: 1 });
+    const step = (l: typeof near) => l.radius.get(5)! - l.radius.get(4)!;
+    expect(step(far) - step(near)).toBeGreaterThan(0.85);
+  });
+
+  it("makes rings bigger as beadGap grows", () => {
+    const { compiled, beads } = build("02-rivoli-bezel-cup");
+    const near = layoutPattern(compiled, beads, { beadGap: 0 });
+    const far = layoutPattern(compiled, beads, { beadGap: 0.5 });
+    expect(far.radius.get(1)!).toBeGreaterThan(near.radius.get(1)! + 1);
+  });
+});
 
 describe("layout keeps the peyote offset", () => {
   it("puts each bead of an even round midway between its up beads", () => {
@@ -68,23 +133,53 @@ describe("layout keeps the peyote offset", () => {
 });
 
 describe("svg", () => {
-  it("numbers each bead of the round and marks the step-up", () => {
+  it("numbers each bead of the step and marks the step-up", () => {
     const input = build("03-flat-triangle");
-    const svg = renderRoundSvg(input, 4);
+    const svg = renderStepSvg(input, 3);
     expect(svg).toContain("Round 4 of 10: 12 beads (+3 on round 3)");
     for (let n = 1; n <= 12; n++) expect(svg).toMatch(new RegExp(`>${n}</text>`));
     expect(svg).not.toMatch(/>13<\/text>/);
-    expect(svg.match(/<circle /g)).toHaveLength(1);
+    expect(svg.match(/<circle [^>]*stroke="#d62728"/g)).toHaveLength(1);
+  });
+
+  it("draws the thread path only when asked", () => {
+    const input = build("03-flat-triangle");
+    const svg = renderDiagramSvg(input, 3, { thread: true });
+    expect(svg).toContain('class="thread"');
+    // A start dot, then only two arrowheads: into the first bead, and the thread going out.
+    expect(svg.match(/class="thread-(start|in|out)"/g)).toEqual([
+      'class="thread-start"',
+      'class="thread-in"',
+      'class="thread-out"',
+    ]);
+    expect(svg.match(/<g class="thread-(in|out)"><path /g)).toHaveLength(2);
+    expect(renderDiagramSvg(input, 3, { thread: false })).not.toContain('class="thread"');
+  });
+
+  it("draws a tube start as one step with both rounds numbered 1-32", () => {
+    const input = build("02-rivoli-bezel-cup");
+    const svg = renderStepSvg(input, 0);
+    expect(svg).toContain("Rounds 1–2 of 7: 32 beads");
+    expect(svg).toMatch(/>32<\/text>/);
+    expect(renderStepSvg(input, 1)).toContain("Round 3 of 7: 16 beads (+0 on round 2)");
   });
 
   it("shows tension, edge and notes", () => {
-    const svg = renderRoundSvg(build("02-rivoli-bezel-cup"), 5);
-    expect(svg).toContain("Tight tension · Note: insert the rivoli after this round");
-    expect(renderRoundSvg(build("02-rivoli-bezel-cup"), 6)).toContain("Worked from the back edge");
+    const input = build("02-rivoli-bezel-cup");
+    expect(renderStepSvg(input, 3)).toContain("Tight tension · Note: insert the rivoli after this round");
+    expect(renderStepSvg(input, 4)).toContain("Worked from the back edge");
   });
 
-  it("draws every round on the sheet", () => {
+  it("draws upcoming rounds only when asked", () => {
+    const input = build("03-flat-triangle");
+    const beadsDrawn = (svg: string) => svg.match(/data-bead=/g)!.length;
+    expect(beadsDrawn(renderDiagramSvg(input, 0, { upcoming: true }))).toBe(input.compiled.beads.length);
+    expect(beadsDrawn(renderDiagramSvg(input, 0, { upcoming: false }))).toBe(3);
+  });
+
+  it("draws every step on the sheet", () => {
     const svg = renderSheetSvg(build("03-flat-triangle"));
     for (let r = 1; r <= 10; r++) expect(svg).toContain(`Round ${r}: ${3 * r} beads`);
+    expect(renderSheetSvg(build("02-rivoli-bezel-cup"))).toContain("Rounds 1–2: 32 beads");
   });
 });

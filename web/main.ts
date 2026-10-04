@@ -1,11 +1,12 @@
 // Step-by-step pattern viewer: instruction rows on the left, the diagram of
-// the selected round on the right with the other rounds faded.
+// the selected step on the right with the other rounds faded. A step is
+// usually one round; a tube start strings rounds 1 and 2 in one step.
 
 import { catalogFromFiles, type ResolvedBead, resolveBeads } from "../src/catalog/catalog.js";
-import { layoutPattern } from "../src/diagram/layout.js";
-import { type DiagramInput, renderDiagramSvg } from "../src/diagram/svg.js";
-import { type CompiledPattern, type CompiledRound, compilePattern } from "../src/pattern/compile.js";
-import { describeRound, summarizeStitches } from "../src/pattern/describe.js";
+import { DEFAULT_SPACING, layoutPattern, type LayoutOptions } from "../src/diagram/layout.js";
+import { type DiagramInput, previousRound, renderDiagramSvg } from "../src/diagram/svg.js";
+import { type CompiledPattern, type CompiledStep, compilePattern } from "../src/pattern/compile.js";
+import { describeStep, stepLabel, stepNumber, summarizeStitches } from "../src/pattern/describe.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
 
 // Bundled patterns and catalog, read as text at build time.
@@ -47,6 +48,11 @@ const els = {
   title: $("stage-title"),
   subtitle: $("stage-subtitle"),
   upcoming: $<HTMLInputElement>("upcoming-toggle"),
+  thread: $<HTMLInputElement>("thread-toggle"),
+  roundGap: $<HTMLInputElement>("round-gap"),
+  beadGap: $<HTMLInputElement>("bead-gap"),
+  roundGapValue: $("round-gap-value"),
+  beadGapValue: $("bead-gap-value"),
   diagram: $("diagram"),
   tooltip: $("tooltip"),
   prev: $<HTMLButtonElement>("prev"),
@@ -59,6 +65,7 @@ const els = {
 const state: {
   source?: PatternSource;
   input?: DiagramInput;
+  /** Index into compiled.steps. */
   index: number;
 } = { index: 0 };
 
@@ -71,13 +78,12 @@ function loadSource(source: PatternSource, roundNumber?: number): void {
     const pattern = parsePattern(source.text);
     const compiled = compilePattern(pattern);
     const beads = resolveBeads(pattern.beads, catalog);
-    state.input = { compiled, beads, layout: layoutPattern(compiled, beads) };
-    const index = compiled.rounds.findIndex((r) => r.round === roundNumber);
-    state.index = index >= 0 ? index : 0;
+    state.input = { compiled, beads, layout: layoutPattern(compiled, beads, spacing()) };
+    state.index = Math.max(stepOfRound(compiled, roundNumber), 0);
     els.error.hidden = true;
     els.stage.classList.remove("has-error");
     renderPattern();
-    selectRound(state.index);
+    selectStep(state.index);
   } catch (e) {
     state.input = undefined;
     showError(source, e);
@@ -98,7 +104,7 @@ function showError(source: PatternSource, e: unknown): void {
   setControls(0, 0);
 }
 
-// ---- Left column: pattern info and one row per round ----
+// ---- Left column: pattern info and one row per step ----
 
 function renderPattern(): void {
   const { compiled, beads } = state.input!;
@@ -120,7 +126,7 @@ function renderPattern(): void {
     <p class="meta muted">${compiled.rounds.length} rounds · ${compiled.beads.length} beads${source ? ` · ${source}` : ""}</p>
     <ul class="bead-legend">${totals.join("")}</ul>`;
 
-  els.list.innerHTML = compiled.rounds.map((round, i) => roundRow(compiled, beads, round, i)).join("");
+  els.list.innerHTML = compiled.steps.map((step, i) => stepRow(compiled, beads, step, i)).join("");
 
   const warnings = [...compiled.warnings, ...[...beads.values()].flatMap((b) => b.warnings)];
   els.warnings.hidden = warnings.length === 0;
@@ -128,42 +134,42 @@ function renderPattern(): void {
     .map((w) => `<li>${esc(w)}</li>`)
     .join("")}</ul></details>`;
 
-  setControls(compiled.rounds.length, state.index);
+  setControls(compiled.steps.length, state.index);
 }
 
-function roundRow(
+function stepRow(
   compiled: CompiledPattern,
   beads: Map<string, ResolvedBead>,
-  round: CompiledRound,
+  step: CompiledStep,
   index: number,
 ): string {
-  const previous = compiled.rounds[index - 1];
-  const change = previous ? round.beads.length - previous.beads.length : 0;
-  const delta = previous && change !== 0 ? `<span class="delta">${change > 0 ? "+" : ""}${change}</span>` : "";
+  const round = step.rounds[0]!;
+  const before = previousRound(compiled, index);
+  const change = before ? step.beads.length - before.beads.length : 0;
+  const delta = before && change !== 0 ? `<span class="delta">${change > 0 ? "+" : ""}${change}</span>` : "";
   const { start } = compiled.pattern;
   const summary =
     round.stitches.length > 0
       ? summarizeStitches(round.stitches)
-      : index === 0
-        ? `Start: ${start.kind === "center" ? "ring" : "tube"} of ${start.beads.length}`
-        : "Start ring, second half";
+      : `Start: ${start.kind === "center" ? "ring" : "tube"} of ${start.beads.length}`;
   const tags = [
     round.edge === "back" ? `<span class="tag">back edge</span>` : "",
     round.tension !== "normal" ? `<span class="tag">${round.tension}</span>` : "",
     round.note ? `<span class="tag note">note</span>` : "",
   ].join("");
   const counts = [...beads.values()]
-    .map((bead) => [bead, round.beads.filter((id) => compiled.beads[id]!.key === bead.key).length] as const)
+    .map((bead) => [bead, step.beads.filter((id) => compiled.beads[id]!.key === bead.key).length] as const)
     .filter(([, n]) => n > 0)
     .map(([bead, n]) => `<span>${swatch(bead)}${n} ${esc(bead.key)}</span>`)
     .join("");
+  const number = stepNumber(step);
 
-  return `<li><button type="button" class="round-row" data-index="${index}">
-    <span class="round-num">${round.round}</span>
-    <span class="round-title">${round.beads.length} beads ${delta}<span class="tags">${tags}</span></span>
+  return `<li><button type="button" class="round-row" data-index="${index}" aria-label="${esc(stepLabel(step))}">
+    <span class="round-num${number.length > 2 ? " wide" : ""}">${esc(number)}</span>
+    <span class="round-title">${step.beads.length} beads ${delta}<span class="tags">${tags}</span></span>
     <span class="round-summary">${esc(summary)}</span>
     <span class="round-detail">
-      <p>${esc(describeRound(compiled, round))}</p>
+      <p>${esc(describeStep(compiled, step))}</p>
       ${round.note ? `<p><strong>Note:</strong> ${esc(round.note)}</p>` : ""}
       ${round.tension !== "normal" ? `<p>Keep the thread ${round.tension}.</p>` : ""}
       <span class="counts">${counts}</span>
@@ -173,20 +179,26 @@ function roundRow(
 
 // ---- Right column: the diagram ----
 
-function selectRound(index: number): void {
+function selectStep(index: number): void {
   const input = state.input;
   if (!input) return;
-  const rounds = input.compiled.rounds;
-  state.index = Math.max(0, Math.min(rounds.length - 1, index));
-  const round = rounds[state.index]!;
-  const previous = rounds[state.index - 1];
+  const { compiled } = input;
+  const steps = compiled.steps;
+  state.index = Math.max(0, Math.min(steps.length - 1, index));
+  const step = steps[state.index]!;
+  const round = step.rounds[0]!;
+  const before = previousRound(compiled, state.index);
 
-  els.diagram.innerHTML = renderDiagramSvg(input, round.round, { numbers: true, upcoming: els.upcoming.checked });
-  els.title.textContent = `Round ${round.round} of ${rounds[rounds.length - 1]!.round}`;
-  const change = previous ? round.beads.length - previous.beads.length : 0;
+  els.diagram.innerHTML = renderDiagramSvg(input, state.index, {
+    numbers: true,
+    upcoming: els.upcoming.checked,
+    thread: els.thread.checked,
+  });
+  els.title.textContent = `${stepLabel(step)} of ${compiled.rounds[compiled.rounds.length - 1]!.round}`;
+  const change = before ? step.beads.length - before.beads.length : 0;
   els.subtitle.textContent = [
-    `${round.beads.length} beads`,
-    previous ? `${change >= 0 ? "+" : ""}${change} from round ${previous.round}` : undefined,
+    `${step.beads.length} beads`,
+    before ? `${change >= 0 ? "+" : ""}${change} from round ${before.round}` : undefined,
     round.stitches.length > 0 ? `${round.gaps} gaps` : undefined,
   ]
     .filter(Boolean)
@@ -200,9 +212,14 @@ function selectRound(index: number): void {
   });
   revealRow(els.list.querySelector<HTMLElement>(`[data-index="${state.index}"]`));
 
-  setControls(rounds.length, state.index);
+  setControls(steps.length, state.index);
   els.tooltip.hidden = true;
   writeHash();
+}
+
+/** The step that makes a round, or -1. */
+function stepOfRound(compiled: CompiledPattern, round: number | undefined): number {
+  return compiled.steps.findIndex((s) => s.rounds.some((r) => r.round === round));
 }
 
 /**
@@ -249,29 +266,50 @@ els.file.addEventListener("change", async () => {
 
 els.list.addEventListener("click", (event) => {
   const row = (event.target as HTMLElement).closest<HTMLButtonElement>(".round-row");
-  if (row) selectRound(Number(row.dataset.index));
+  if (row) selectStep(Number(row.dataset.index));
 });
 
-els.prev.addEventListener("click", () => selectRound(state.index - 1));
-els.next.addEventListener("click", () => selectRound(state.index + 1));
-els.slider.addEventListener("input", () => selectRound(Number(els.slider.value)));
-els.upcoming.addEventListener("change", () => selectRound(state.index));
+els.prev.addEventListener("click", () => selectStep(state.index - 1));
+els.next.addEventListener("click", () => selectStep(state.index + 1));
+els.slider.addEventListener("input", () => selectStep(Number(els.slider.value)));
+els.upcoming.addEventListener("change", () => selectStep(state.index));
+els.thread.addEventListener("change", () => selectStep(state.index));
+
+// Spacing between rounds and between beads in a round: lay the beads out again.
+for (const slider of [els.roundGap, els.beadGap]) {
+  slider.addEventListener("input", () => {
+    showSpacing();
+    if (!state.input) return;
+    const { compiled, beads } = state.input;
+    state.input = { compiled, beads, layout: layoutPattern(compiled, beads, spacing()) };
+    selectStep(state.index);
+  });
+}
+
+function spacing(): LayoutOptions {
+  return { roundGap: Number(els.roundGap.value), beadGap: Number(els.beadGap.value) };
+}
+
+function showSpacing(): void {
+  els.roundGapValue.textContent = `${Number(els.roundGap.value).toFixed(2)} mm`;
+  els.beadGapValue.textContent = `${Number(els.beadGap.value).toFixed(2)} mm`;
+}
 
 document.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement;
   if (target.matches("input[type=range], select, input[type=file]") || event.metaKey || event.ctrlKey) return;
-  const rounds = state.input?.compiled.rounds.length ?? 0;
+  const steps = state.input?.compiled.steps.length ?? 0;
   const moves: Record<string, number> = {
     ArrowLeft: state.index - 1,
     ArrowUp: state.index - 1,
     ArrowRight: state.index + 1,
     ArrowDown: state.index + 1,
     Home: 0,
-    End: rounds - 1,
+    End: steps - 1,
   };
   if (event.key in moves) {
     event.preventDefault();
-    selectRound(moves[event.key]!);
+    selectStep(moves[event.key]!);
   }
 });
 
@@ -284,9 +322,10 @@ els.diagram.addEventListener("pointermove", (event) => {
   }
   const { compiled, beads } = state.input!;
   const info = compiled.beads[bead]!;
-  const round = compiled.rounds.find((r) => r.round === info.round)!;
+  const step = compiled.steps[info.step]!;
   const resolved = beads.get(info.key)!;
-  els.tooltip.textContent = `Round ${info.round} · bead ${info.order} of ${round.beads.length} · ${info.key}: ${resolved.label}`;
+  const where = step.rounds.length > 1 ? `${stepLabel(step)} (round ${info.round})` : `Round ${info.round}`;
+  els.tooltip.textContent = `${where} · bead ${info.order} of ${step.beads.length} · ${info.key}: ${resolved.label}`;
   const card = els.diagram.parentElement!.getBoundingClientRect();
   els.tooltip.style.left = `${event.clientX - card.left}px`;
   els.tooltip.style.top = `${event.clientY - card.top}px`;
@@ -296,8 +335,7 @@ els.diagram.addEventListener("pointerleave", () => (els.tooltip.hidden = true));
 els.diagram.addEventListener("click", (event) => {
   const bead = beadAt(event.target);
   if (bead === undefined || !state.input) return;
-  const round = state.input.compiled.beads[bead]!.round;
-  selectRound(state.input.compiled.rounds.findIndex((r) => r.round === round));
+  selectStep(state.input.compiled.beads[bead]!.step);
 });
 
 function beadAt(target: EventTarget | null): number | undefined {
@@ -309,7 +347,7 @@ function beadAt(target: EventTarget | null): number | undefined {
 
 function writeHash(): void {
   if (!state.source || state.source.id.startsWith("file:") || !state.input) return;
-  const round = state.input.compiled.rounds[state.index]!.round;
+  const round = state.input.compiled.steps[state.index]!.rounds[0]!.round;
   history.replaceState(null, "", `#pattern=${encodeURIComponent(state.source.id)}&round=${round}`);
 }
 
@@ -320,7 +358,8 @@ window.addEventListener("hashchange", () => {
   if (!source) return;
   if (source !== state.source) loadSource(source, round);
   else if (round !== undefined && state.input) {
-    selectRound(state.input.compiled.rounds.findIndex((r) => r.round === round));
+    const index = stepOfRound(state.input.compiled, round);
+    if (index >= 0) selectStep(index);
   }
 });
 
@@ -358,5 +397,8 @@ function esc(s: string): string {
 // ---- Start ----
 
 fillSelect();
+els.roundGap.value = String(DEFAULT_SPACING.roundGap);
+els.beadGap.value = String(DEFAULT_SPACING.beadGap);
+showSpacing();
 const initial = readHash();
 loadSource(sources.find((s) => s.id === initial.id) ?? sources[0]!, initial.round);

@@ -1,15 +1,18 @@
 // Places every bead of a compiled pattern on a flat, top-down diagram.
 //
-// Each round is a ring. A bead's angle comes from the two up beads it sits
-// between, so the peyote offset is kept. The hole runs along the ring, so a
-// bead takes up its `length` along the ring and its `outerDiameter` across it.
+// Each round is its own ring. A bead's angle comes from the two up beads it
+// sits between, so the peyote offset shows. The hole runs along the ring, so
+// a bead takes up its `length` along the ring and its `outerDiameter` across it.
 //
-// The ring radius is the larger of:
-//   - half a bead further out than the round before (the peyote offset), and
-//   - enough circumference to fit this round's beads plus the up beads they
-//     sit between.
-// This is a diagram, not the real shape: a cup or ruffle still comes out flat
-// here (step 4 computes the real 3D form).
+// No two beads overlap. Each ring's radius is the larger of:
+//   - far enough outside the ring within it that the beads clear it by
+//     `roundGap`, and
+//   - far enough out that neighbouring beads in the ring clear each other by
+//     `beadGap`.
+// Back-edge rounds of a tube go inside round 1, so the radii are worked out
+// from the innermost ring outward.
+// In a real piece the rounds interlock by half a bead. This is a diagram, not
+// the real shape: step 4 computes the real 3D form.
 
 import type { ResolvedBead } from "../catalog/catalog.js";
 import type { CompiledPattern } from "../pattern/compile.js";
@@ -37,7 +40,21 @@ export interface Layout {
   extent: number;
 }
 
-export function layoutPattern(compiled: CompiledPattern, beads: Map<string, ResolvedBead>): Layout {
+export interface LayoutOptions {
+  /** Space between the beads of neighbouring rounds, mm. */
+  roundGap?: number;
+  /** Space between neighbouring beads in a round, mm. */
+  beadGap?: number;
+}
+
+export const DEFAULT_SPACING: Required<LayoutOptions> = { roundGap: 0.3, beadGap: 0.15 };
+
+export function layoutPattern(
+  compiled: CompiledPattern,
+  beads: Map<string, ResolvedBead>,
+  options: LayoutOptions = {},
+): Layout {
+  const { roundGap, beadGap } = { ...DEFAULT_SPACING, ...options };
   const size = (key: string) => {
     const bead = beads.get(key);
     if (!bead) throw new Error(`bead "${key}" was not resolved`);
@@ -45,48 +62,43 @@ export function layoutPattern(compiled: CompiledPattern, beads: Map<string, Reso
   };
   const theta = new Map<number, number>();
   const radius = new Map<number, number>();
-
-  const sumLength = (ids: number[]) => ids.reduce((n, id) => n + size(compiled.beads[id]!.key).length, 0);
-  const meanDiameter = (ids: number[]) =>
-    ids.reduce((n, id) => n + size(compiled.beads[id]!.key).outerDiameter, 0) / Math.max(ids.length, 1);
+  const sizeOf = (id: number) => size(compiled.beads[id]!.key);
 
   const [first, second] = compiled.rounds;
   if (!first) return { beads: [], radius, extent: 0 };
   const isTube = compiled.pattern.start.kind === "tube";
 
+  // Angles first: they depend only on the order of the beads, not on the radii.
   // Start ring: beads evenly spaced in stringing order, starting at the top.
-  // For a tube, rounds 1 and 2 alternate around the same ring.
+  // For a tube, rounds 1 and 2 alternate around the ring, each on its own radius.
   const ring = isTube && second ? interleave(first.beads, second.beads) : first.beads;
   ring.forEach((id, i) => theta.set(id, Math.PI / 2 + (2 * Math.PI * i) / ring.length));
-  // Far enough out that neighbouring beads' inner corners don't overlap.
-  const meanLength = sumLength(ring) / ring.length;
-  const noOverlap = meanDiameter(ring) / 2 + meanLength / (2 * Math.tan(Math.PI / Math.max(ring.length, 3)));
-  radius.set(1, Math.max(sumLength(ring) / (2 * Math.PI), noOverlap));
-  if (isTube && second) {
-    radius.set(2, radius.get(1)! + (meanDiameter(first.beads) + meanDiameter(second.beads)) / 4);
-  }
-
-  // Each worked round sits outside the round it was worked from (front edge),
-  // or inside it (back edge of a tube).
-  let frontRound = isTube ? 2 : 1;
-  let backRound = 1;
+  // Each worked round is worked from the outermost round so far (front edge),
+  // or the innermost (back edge of a tube).
+  const front: number[] = [isTube ? 2 : 1];
+  const back: number[] = [];
   for (const round of compiled.rounds) {
     if (round.stitches.length === 0) continue; // start rounds are placed already
+    const angles = spaceRound(round.beads, round.upBeads);
+    round.beads.forEach((id, j) => theta.set(id, angles[j]!));
+    (round.edge === "back" ? back : front).push(round.round);
+  }
 
-    const from = round.edge === "back" ? backRound : frontRound;
-    const fromBeads = compiled.rounds.find((r) => r.round === from)!.beads;
-    const ring = spaceRound(round.beads, fromBeads);
-    round.beads.forEach((id, j) => theta.set(id, ring.angles[j]!));
-
-    const step = (meanDiameter(fromBeads) + meanDiameter(round.beads)) / 4;
-    const needed = ring.circumference / (2 * Math.PI);
-    const r =
-      round.edge === "back"
-        ? Math.max(radius.get(from)! - step, step) // keep inner rounds off the center
-        : Math.max(radius.get(from)! + step, needed);
-    radius.set(round.round, r);
-    if (round.edge === "back") backRound = round.round;
-    else frontRound = round.round;
+  // Then radii, from the inside out. Back-edge rounds sit inside round 1, so
+  // start with the innermost one; round 1 then has to fit around them.
+  let inner: number | undefined;
+  for (const round of [...back].reverse()) {
+    const r = ringRadius(beadsOf(round));
+    radius.set(round, inner === undefined ? r : Math.max(r, outsideOf(beadsOf(inner), beadsOf(round))));
+    inner = round;
+  }
+  const r1 = ringRadius(first.beads);
+  radius.set(1, inner === undefined ? r1 : Math.max(r1, outsideOf(beadsOf(inner), first.beads)));
+  // Front-edge rounds (round 2 of a tube start included) go outward.
+  for (const [i, round] of front.entries()) {
+    if (round === 1) continue;
+    const from = i === 0 ? 1 : front[i - 1]!;
+    radius.set(round, Math.max(outsideOf(beadsOf(from), beadsOf(round)), ringRadius(beadsOf(round))));
   }
 
   const placed = compiled.beads.map((bead): PlacedBead => {
@@ -105,8 +117,41 @@ export function layoutPattern(compiled: CompiledPattern, beads: Map<string, Reso
       tangential: s.length,
     };
   });
-  const extent = Math.max(...placed.map((p) => p.radius + Math.max(p.radial, p.tangential) / 2));
+  const extent = Math.max(...placed.map((p) => Math.hypot(p.radius + p.radial / 2, p.tangential / 2)));
   return { beads: placed, radius, extent };
+
+  /**
+   * The smallest radius at which a ring's beads, at their angles, don't touch.
+   * Neighbours come closest at their inner corners, so each pair needs
+   *   (r - D/2) sin(Δ/2) ≥ (L/2) cos(Δ/2) + beadGap/2
+   * where Δ is the angle between them, D the larger diameter and L the larger length.
+   */
+  function ringRadius(ids: number[]): number {
+    const sorted = [...ids].sort((a, b) => theta.get(a)! - theta.get(b)!);
+    let r = Math.max(...ids.map((id) => sizeOf(id).outerDiameter / 2));
+    sorted.forEach((id, i) => {
+      if (sorted.length < 2) return;
+      const next = sorted[(i + 1) % sorted.length]!;
+      let delta = theta.get(next)! - theta.get(id)!;
+      if (delta <= 0) delta += 2 * Math.PI;
+      if (delta >= Math.PI) return; // on opposite sides: they can't touch
+      const d = Math.max(sizeOf(id).outerDiameter, sizeOf(next).outerDiameter);
+      const l = Math.max(sizeOf(id).length, sizeOf(next).length);
+      r = Math.max(r, d / 2 + ((l / 2) * Math.cos(delta / 2) + beadGap / 2) / Math.sin(delta / 2));
+    });
+    return r;
+  }
+
+  /** Radius for a ring outside `inner`: its beads' inner faces clear the inner ring's outer corners. */
+  function outsideOf(inner: number[], outer: number[]): number {
+    const r = radius.get(compiled.beads[inner[0]!]!.round)!;
+    const reach = Math.max(...inner.map((id) => Math.hypot(r + sizeOf(id).outerDiameter / 2, sizeOf(id).length / 2)));
+    return reach + roundGap + Math.max(...outer.map((id) => sizeOf(id).outerDiameter / 2));
+  }
+
+  function beadsOf(round: number): number[] {
+    return compiled.rounds.find((r) => r.round === round)!.beads;
+  }
 
   /**
    * Spaces a round's beads evenly around its ring, in pickup order. Beads in
@@ -114,7 +159,7 @@ export function layoutPattern(compiled: CompiledPattern, beads: Map<string, Reso
    * up beads between them. The ring is then turned so each bead sits as close
    * as it can to the middle of its gap.
    */
-  function spaceRound(ids: number[], upBeads: number[]): { angles: number[]; circumference: number } {
+  function spaceRound(ids: number[], upBeads: number[]): number[] {
     const round = ids.map((id) => compiled.beads[id]!);
     const gaps = upBeads.length;
 
@@ -128,7 +173,7 @@ export function layoutPattern(compiled: CompiledPattern, beads: Map<string, Reso
       for (let k = 1; k <= crossed; k++) {
         upLength += size(compiled.beads[upBeads[(bead.gap! + k) % gaps]!]!.key).length;
       }
-      return (size(bead.key).length + size(next.key).length) / 2 + upLength;
+      return (size(bead.key).length + size(next.key).length) / 2 + upLength + beadGap * (crossed + 1);
     });
     const circumference = spacing.reduce((a, b) => a + b, 0);
 
@@ -147,7 +192,7 @@ export function layoutPattern(compiled: CompiledPattern, beads: Map<string, Reso
       cos += Math.cos(d);
     });
     const turn = Math.atan2(sin, cos);
-    return { angles: even.map((a) => a + turn), circumference };
+    return even.map((a) => a + turn);
   }
 
   /** The angle between a bead's two up beads, where it would sit if it were alone in its gap. */

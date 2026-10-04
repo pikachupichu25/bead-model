@@ -40,11 +40,21 @@ It also gives us a free consistency check: if a round lists more or fewer stitch
 
 ### Gap order
 
-- Up beads are numbered in the order they were added, starting from the first bead of the previous round (where the step-up goes).
+- Every round ends with a **step-up** through its first stitch, and the next round starts from the bead the thread comes out of.
+- Up beads are numbered in the order they were added, starting from that bead.
 - **Gap i** is the gap after up bead i, between up bead i and up bead i + 1, wrapping around at the end.
 - A round's stitches are listed in gap order, starting at gap 1.
 
-So the **step-up is implied**: every round starts by stepping up through the first bead (or first group) of the previous round. It does not need to be written.
+So the **step-up is implied** and does not need to be written. How far it goes is set once per pattern with `step_up`:
+
+| `step_up` | The step-up goes through | The next round starts from |
+|---|---|---|
+| `group` (default) | The whole first stitch: both beads of a pair, all three of a `3A` | Its last bead |
+| `first` | Only the first bead of the first stitch | That bead |
+
+With `group`, a round that starts with a pair puts the gap *inside* that pair last in the next round. With `first`, it comes first. Sources differ: Thread A Bead steps up through only the first bead of a pair, so its patterns use `step_up: first`.
+
+If the first stitches of a round are `0`, the step-up also goes through the up beads before the first new bead.
 
 ## Starting the piece
 
@@ -83,6 +93,8 @@ The `*` fill is what lets a growing shape such as the triangle be written as one
 | `tension` | `normal` (default), `tight`, `loose` | Recorded for the 3D model. Tight thread pulls the work inward |
 | `note` | free text | For people only. The program ignores it |
 
+`step_up` (above) is set once for the whole pattern, next to `start`.
+
 ## Bead types
 
 Each pattern defines a short key for each bead type:
@@ -113,9 +125,10 @@ status: unverified | verified
 beads:
   A: { size: 11/0, shape: round, color: "..." }
 start: center 3A          # or: tube (1A, 1B) x16
+step_up: group            # optional: group (default) or first
 rounds:
   2: (2A) x3
-  3-10: (2A, 1B*) x3
+  3-10: (1B, 2A, 1B*) x3
   11: { stitches: "(1A) x30", tension: tight, note: "..." }
 ```
 
@@ -157,12 +170,14 @@ start: tube (1A) x14              # 14 beads, the source's "foundation"
 rounds:
   3: (1A) x7                      # source round 1: 7 beads
   4: (2A) x7                      # source round 2: 14 beads, a pair in each gap
-  5: (0, 1A) x7                   # source round 3: 7 beads, each pair passed as one unit
+  5: (1A, 0) x7                   # source round 3: 7 beads, each pair passed as one unit
   6: (3A) x7                      # source round 4: 21 beads
-  7: (0, 0, 2A) x7                # source round 5: 14 beads. Our guess at where they go
+  7: (2A, 0, 0) x7                # source round 5: 14 beads. Our guess at where they go
 ```
 
 The reference notes flagged source round 3 (7 beads after 7 pairs) as suspicious. Under the counting rule, round 5 has 14 gaps, and 7 beads fits exactly if each pair is passed through as one unit (`0` inside the pair). So the source is probably right, and the `0` stitch is how to record it. Round 7's placement is a guess and needs the source diagram.
+
+Round 4 starts with a pair, so its step-up goes through both beads and round 5 starts *between* pairs: `1A` comes first and the `0` inside each pair second. In the same way, round 7 starts after the first triple of round 6.
 
 ### 2. Rivoli bezel cup (Around the Beading Table, 12 mm)
 
@@ -197,7 +212,7 @@ beads:
 start: center 3A
 rounds:
   2: (2A) x3                      # 3 corner pairs
-  3-10: (2A, 1B*) x3              # pair on top of each corner pair, singles along the sides
+  3-10: (1B, 2A, 1B*) x3          # each side: a single, a new pair inside the corner pair, then singles
 ```
 
 How the fill works out:
@@ -205,11 +220,15 @@ How the fill works out:
 | Round | Gaps | Per side (3 groups) | Stitches | Beads added |
 |---|---|---|---|---|
 | 2 | 3 | – | `2A` ×3 | 6 |
-| 3 | 6 | 2 | `2A, 1B` ×3 | 9 |
-| 4 | 9 | 3 | `2A, 1B, 1B` ×3 | 12 |
-| r | 3(r − 1) | r − 1 | `2A` + (r − 2) × `1B`, ×3 | 3r |
+| 3 | 6 | 2 | `1B, 2A` ×3 | 9 |
+| 4 | 9 | 3 | `1B, 2A, 1B` ×3 | 12 |
+| r | 3(r − 1) | r − 1 | `1B, 2A` + (r − 3) × `1B`, ×3 | 3r |
 
-This gives +3 beads per round, as predicted in the reference notes. Because the step-up always lands on the first bead of a corner pair, gap 1 of each round is always inside a corner, so `2A` comes first in each group. The Artisan Duck's sharper points ("1 bead at each corner" near the end) would be `(1A, 1B*) x3`.
+This gives +3 beads per round, as predicted in the reference notes.
+
+Where the corner comes in each group follows from the step-up. Round 2 starts with a pair, so the step-up goes through both beads, and round 3 starts just after a corner: a single between the pairs, then the new pair inside the next corner pair. From round 4 on, every round starts with a single, so it starts just before a corner pair: the single, then the corner, then the rest of the side. One rule, `(1B, 2A, 1B*) x3`, covers both, because the fill is empty in round 3.
+
+The Artisan Duck's sharper points ("1 bead at each corner" near the end) would be `(1B, 1A, 1B*) x3`.
 
 ## Alternatives considered
 

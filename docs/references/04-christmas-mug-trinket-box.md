@@ -35,6 +35,7 @@ source: https://www.threadabead.com  # paid pattern, Lynsey James 2025
 status: unverified
 beads:
   A: { size: unknown, shape: unknown, color: "unknown" }
+step_up: first                       # the source steps up through only the first A of a pair
 start: center 3A                     # source row 1, "make a loop"
 rounds:
   2: 2A, 1A, 1A                      # source row 2: AA x1, A x2

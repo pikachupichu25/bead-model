@@ -4,10 +4,12 @@ source: http://inspirationalbeading.blogspot.com/2016/04/peyote-stitch-master-cl
 status: unverified
 beads:
   A: { size: 11/0, shape: cylinder, color: "any" }
+# Rounds start after the bead the step-up comes out of: the last bead of the
+# round's first stitch (e.g. bead 2 of a pair).
 start: tube (1A) x14              # 14 beads, the source's "foundation"
 rounds:
   3: (1A) x7                      # source round 1: 7 beads
   4: (2A) x7                      # source round 2: 14 beads, a pair in each gap
-  5: (0, 1A) x7                   # source round 3: 7 beads, each pair passed as one unit
+  5: (1A, 0) x7                   # source round 3: 7 beads between the pairs, each pair passed as one unit
   6: (3A) x7                      # source round 4: 21 beads
-  7: (0, 0, 2A) x7                # source round 5: 14 beads. Our guess at where they go
+  7: (2A, 0, 0) x7                # source round 5: 14 beads. Our guess at where they go

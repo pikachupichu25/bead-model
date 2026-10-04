@@ -617,3 +617,61 @@ select:hover {
 .stage.has-error .toggle {
   display: none;
 }
+
+/* Badges for steps that cover two rounds, e.g. "1–2". */
+.round-num.wide {
+  font-size: 12px;
+  letter-spacing: -0.02em;
+}
+
+.toggles {
+  display: flex;
+  gap: 4px 16px;
+  flex-wrap: wrap;
+}
+
+/* A short line with an arrowhead, matching the thread in the diagram. */
+.key-thread {
+  position: relative;
+  width: 18px;
+  height: 2px;
+  background: #2a2724;
+  border-radius: 1px;
+}
+
+.key-thread::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -3px;
+  border-left: 6px solid #2a2724;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+/* Spacing sliders under the diagram. */
+.spacing {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.spacing label {
+  display: grid;
+  grid-template-columns: auto 1fr 56px;
+  gap: 10px;
+  align-items: center;
+}
+
+.spacing input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.spacing output {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
