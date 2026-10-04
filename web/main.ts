@@ -1,6 +1,7 @@
 // Step-by-step pattern viewer: instruction rows on the left, the diagram of
 // the selected step on the right with the other rounds faded. A step is
 // usually one round; a tube start strings rounds 1 and 2 in one step.
+// The 3D view shows the expected shape of the piece as built up to the step.
 
 import { catalogFromFiles, type ResolvedBead, resolveBeads } from "../src/catalog/catalog.js";
 import { DEFAULT_SPACING, layoutPattern, type LayoutOptions } from "../src/diagram/layout.js";
@@ -8,6 +9,9 @@ import { type DiagramInput, previousRound, renderDiagramSvg } from "../src/diagr
 import { type CompiledPattern, type CompiledStep, compilePattern } from "../src/pattern/compile.js";
 import { describeStep, stepLabel, stepNumber, summarizeStitches } from "../src/pattern/describe.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
+import { buildShape, type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
+import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
+import type { BeadViewer } from "./viewer3d.js";
 
 // Bundled patterns and catalog, read as text at build time.
 const patternFiles = import.meta.glob<string>("../patterns/*.peyote.yaml", {
@@ -59,6 +63,14 @@ const els = {
   next: $<HTMLButtonElement>("next"),
   slider: $<HTMLInputElement>("round-slider"),
   error: $("error"),
+  view2d: $<HTMLButtonElement>("view-2d"),
+  view3d: $<HTMLButtonElement>("view-3d"),
+  fade: $<HTMLInputElement>("fade-toggle"),
+  shapeColor: $<HTMLInputElement>("shape-color-toggle"),
+  viewer: $("viewer3d"),
+  key3d: $("key3d"),
+  chart: $("growth-chart"),
+  chartTooltip: $("chart-tooltip"),
   stage: document.querySelector<HTMLElement>(".stage")!,
 };
 
@@ -67,7 +79,16 @@ const state: {
   input?: DiagramInput;
   /** Index into compiled.steps. */
   index: number;
-} = { index: 0 };
+  view: "2d" | "3d";
+  /** The 3D model of the current pattern, made the first time the 3D view needs it. */
+  model?: ShapeModel;
+  /** Shapes already solved, by step. */
+  shapes: Map<number, Shape>;
+  /** Whether the camera has been fitted to the current pattern. */
+  framed: boolean;
+} = { index: 0, view: "2d", shapes: new Map(), framed: false };
+
+let viewer: BeadViewer | undefined;
 
 // ---- Loading ----
 
@@ -79,6 +100,9 @@ function loadSource(source: PatternSource, roundNumber?: number): void {
     const compiled = compilePattern(pattern);
     const beads = resolveBeads(pattern.beads, catalog);
     state.input = { compiled, beads, layout: layoutPattern(compiled, beads, spacing()) };
+    state.model = undefined;
+    state.shapes = new Map();
+    state.framed = false;
     state.index = Math.max(stepOfRound(compiled, roundNumber), 0);
     els.error.hidden = true;
     els.stage.classList.remove("has-error");
@@ -189,11 +213,15 @@ function selectStep(index: number): void {
   const round = step.rounds[0]!;
   const before = previousRound(compiled, state.index);
 
-  els.diagram.innerHTML = renderDiagramSvg(input, state.index, {
-    numbers: true,
-    upcoming: els.upcoming.checked,
-    thread: els.thread.checked,
-  });
+  if (state.view === "2d") {
+    els.diagram.innerHTML = renderDiagramSvg(input, state.index, {
+      numbers: true,
+      upcoming: els.upcoming.checked,
+      thread: els.thread.checked,
+    });
+  } else {
+    renderShape();
+  }
   els.title.textContent = `${stepLabel(step)} of ${compiled.rounds[compiled.rounds.length - 1]!.round}`;
   const change = before ? step.beads.length - before.beads.length : 0;
   els.subtitle.textContent = [
@@ -320,6 +348,10 @@ els.diagram.addEventListener("pointermove", (event) => {
     els.tooltip.hidden = true;
     return;
   }
+  showBeadTip(bead, event);
+});
+
+function showBeadTip(bead: number, event: PointerEvent): void {
   const { compiled, beads } = state.input!;
   const info = compiled.beads[bead]!;
   const step = compiled.steps[info.step]!;
@@ -330,7 +362,7 @@ els.diagram.addEventListener("pointermove", (event) => {
   els.tooltip.style.left = `${event.clientX - card.left}px`;
   els.tooltip.style.top = `${event.clientY - card.top}px`;
   els.tooltip.hidden = false;
-});
+}
 els.diagram.addEventListener("pointerleave", () => (els.tooltip.hidden = true));
 els.diagram.addEventListener("click", (event) => {
   const bead = beadAt(event.target);
@@ -343,19 +375,116 @@ function beadAt(target: EventTarget | null): number | undefined {
   return g ? Number(g.getAttribute("data-bead")) : undefined;
 }
 
+// ---- 3D view ----
+
+function setView(view: "2d" | "3d"): void {
+  state.view = view;
+  els.view2d.setAttribute("aria-selected", String(view === "2d"));
+  els.view3d.setAttribute("aria-selected", String(view === "3d"));
+  document.querySelectorAll<HTMLElement>("[data-view]").forEach((el) => (el.hidden = el.dataset.view !== view));
+  els.tooltip.hidden = true;
+  viewer?.setActive(view === "3d");
+  if (view === "3d" && !viewer) {
+    // three.js is only loaded the first time the 3D view is opened.
+    void import("./viewer3d.js").then(({ BeadViewer }) => {
+      viewer ??= new BeadViewer(els.viewer);
+      viewer.setActive(state.view === "3d");
+      if (state.view === "3d") selectStep(state.index);
+    });
+  }
+  selectStep(state.index);
+}
+
+/** The piece as built up to the current step, solved once per step. */
+function renderShape(): void {
+  const input = state.input;
+  if (!input || !viewer) return;
+  state.model ??= shapeModel(input.compiled, input.beads);
+  const shapeAt = (step: number) => {
+    let shape = state.shapes.get(step);
+    if (!shape) state.shapes.set(step, (shape = buildShape(state.model!, { upToStep: step })));
+    return shape;
+  };
+  const shape = shapeAt(state.index);
+  const colorBy = els.shapeColor.checked ? "shape" : "bead";
+  viewer.show(state.model, shape, { step: state.index, highlight: els.fade.checked, colorBy });
+  if (!state.framed) {
+    // Fit the camera to the finished piece, so it stays put while stepping.
+    viewer.frame(shapeAt(input.compiled.steps.length - 1));
+    state.framed = true;
+  }
+
+  const verdicts = [...new Set(shape.rounds.map((r) => r.verdict))];
+  els.key3d.innerHTML =
+    colorBy === "shape"
+      ? (Object.keys(VERDICT_COLORS) as Verdict[])
+          .filter((v) => verdicts.includes(v))
+          .map((v) => `<li><span class="key-dot" style="background:${VERDICT_COLORS[v]}"></span>${v}</li>`)
+          .join("")
+      : [...input.beads.values()]
+          .map((b) => `<li>${swatch(b)}${esc(b.key)}</li>`)
+          .join("") + (els.fade.checked ? `<li><span class="key-swatch key-done"></span>Earlier steps</li>` : "");
+
+  const current = input.compiled.steps[state.index]!.rounds.map((r) => r.round);
+  els.chart.innerHTML = renderGrowthChart(state.model.profiles, shape.rounds, current, els.chart.clientWidth || 600);
+}
+
+els.view2d.addEventListener("click", () => setView("2d"));
+els.view3d.addEventListener("click", () => setView("3d"));
+els.fade.addEventListener("change", () => selectStep(state.index));
+els.shapeColor.addEventListener("change", () => selectStep(state.index));
+
+// Hover a bead for its details; click (without dragging) to go to its step.
+let pressed: { x: number; y: number } | undefined;
+els.viewer.addEventListener("pointerdown", (e) => (pressed = { x: e.clientX, y: e.clientY }));
+els.viewer.addEventListener("pointermove", (event) => {
+  if (event.buttons !== 0) return void (els.tooltip.hidden = true);
+  const bead = viewer?.pick(event.clientX, event.clientY);
+  if (bead === undefined) els.tooltip.hidden = true;
+  else showBeadTip(bead, event);
+});
+els.viewer.addEventListener("pointerleave", () => (els.tooltip.hidden = true));
+els.viewer.addEventListener("pointerup", (event) => {
+  const moved = pressed ? Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) : Infinity;
+  pressed = undefined;
+  if (moved > 4 || !state.input) return;
+  const bead = viewer?.pick(event.clientX, event.clientY);
+  if (bead !== undefined) selectStep(state.input.compiled.beads[bead]!.step);
+});
+
+// The chart: hover a round for its numbers, click it to go to that round.
+els.chart.addEventListener("pointermove", (event) => {
+  const hit = (event.target as Element).closest?.<SVGElement>("[data-tip]");
+  if (!hit) return void (els.chartTooltip.hidden = true);
+  const card = els.chart.parentElement!.getBoundingClientRect();
+  els.chartTooltip.textContent = hit.dataset.tip!;
+  els.chartTooltip.style.left = `${Math.min(Math.max(event.clientX - card.left, 140), card.width - 140)}px`;
+  els.chartTooltip.style.top = `${event.clientY - card.top}px`;
+  els.chartTooltip.hidden = false;
+});
+els.chart.addEventListener("pointerleave", () => (els.chartTooltip.hidden = true));
+els.chart.addEventListener("click", (event) => {
+  const hit = (event.target as Element).closest?.<SVGElement>("[data-round]");
+  if (!hit || !state.input) return;
+  const index = stepOfRound(state.input.compiled, Number(hit.dataset.round));
+  if (index >= 0) selectStep(index);
+});
+
 // ---- URL: #pattern=<id>&round=<n> so a step can be linked or reloaded ----
 
 function writeHash(): void {
   if (!state.source || state.source.id.startsWith("file:") || !state.input) return;
   const round = state.input.compiled.steps[state.index]!.rounds[0]!.round;
-  history.replaceState(null, "", `#pattern=${encodeURIComponent(state.source.id)}&round=${round}`);
+  const view = state.view === "3d" ? "&view=3d" : "";
+  history.replaceState(null, "", `#pattern=${encodeURIComponent(state.source.id)}&round=${round}${view}`);
 }
 
 // Follow links and back/forward that change the hash.
 window.addEventListener("hashchange", () => {
-  const { id, round } = readHash();
+  const { id, round, view } = readHash();
   const source = sources.find((s) => s.id === id);
   if (!source) return;
+  if (view !== state.view) setView(view);
   if (source !== state.source) loadSource(source, round);
   else if (round !== undefined && state.input) {
     const index = stepOfRound(state.input.compiled, round);
@@ -363,10 +492,14 @@ window.addEventListener("hashchange", () => {
   }
 });
 
-function readHash(): { id?: string; round?: number } {
+function readHash(): { id?: string; round?: number; view: "2d" | "3d" } {
   const params = new URLSearchParams(location.hash.slice(1));
   const round = Number(params.get("round"));
-  return { id: params.get("pattern") ?? undefined, round: Number.isFinite(round) && round > 0 ? round : undefined };
+  return {
+    id: params.get("pattern") ?? undefined,
+    round: Number.isFinite(round) && round > 0 ? round : undefined,
+    view: params.get("view") === "3d" ? "3d" : "2d",
+  };
 }
 
 // ---- Helpers ----
@@ -401,4 +534,5 @@ els.roundGap.value = String(DEFAULT_SPACING.roundGap);
 els.beadGap.value = String(DEFAULT_SPACING.beadGap);
 showSpacing();
 const initial = readHash();
+if (initial.view === "3d") setView("3d");
 loadSource(sources.find((s) => s.id === initial.id) ?? sources[0]!, initial.round);

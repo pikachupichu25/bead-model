@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   root: "web",
   base: "./",
-  build: { outDir: "../dist", emptyOutDir: true },
+  // The 3D viewer chunk is mostly three.js (about 560 kB, 140 kB gzipped). It is
+  // only loaded when the 3D view is opened.
+  build: { outDir: "../dist", emptyOutDir: true, chunkSizeWarningLimit: 700 },
   server: { fs: { allow: [".."] } },
 });

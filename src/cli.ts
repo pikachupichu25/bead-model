@@ -4,7 +4,7 @@
 //
 // Writes <out>/<pattern name>/step-NN.svg (one per step; a tube start's
 // rounds 1 and 2 are one step) and sheet.svg, and prints a
-// summary with bead counts and any warnings.
+// summary with bead counts, what each round does in the 3D model, and any warnings.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -15,6 +15,7 @@ import { layoutPattern } from "./diagram/layout.js";
 import { renderSheetSvg, renderStepSvg } from "./diagram/svg.js";
 import { compilePattern } from "./pattern/compile.js";
 import { parsePattern, PatternError } from "./pattern/load.js";
+import { buildShape, shapeModel } from "./shape/shape.js";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -66,6 +67,9 @@ function renderFile(file: string): void {
     const grams = bead.beadsPerGram ? `, about ${(count / bead.beadsPerGram).toFixed(2)} g` : "";
     console.log(`  ${bead.key}: ${count} × ${bead.label}${grams}`);
   }
+  const shape = buildShape(shapeModel(compiled, beads));
+  const worked = shape.rounds.filter((r) => r.growth !== undefined);
+  console.log(`  shape: ${worked.map((r) => `${r.round} ${r.verdict} (growth ${(r.growth! + 0.0001).toFixed(2)})`).join(" · ")}`);
   const warnings = [...compiled.warnings, ...[...beads.values()].flatMap((b) => b.warnings)];
   for (const warning of warnings) console.log(`  warning: ${warning}`);
 }
