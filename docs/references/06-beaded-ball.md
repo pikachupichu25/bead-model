@@ -26,7 +26,7 @@
 | 21 | 8 | Skip, 1-1, ×4 | `(0, 1A, 1A) x4` |
 | 22–23 | 8 | One bead per gap | `(1A) x8` |
 | 24 | 4 | Skip, 1, ×4 | `(0, 1A) x4` |
-| 25 | 4 | One bead per gap, closing the top | `(1A) x4` |
+| 25 | 4 | One bead per gap, closing the top | `(1A) x4`, `close: true` |
 
 A "skip" passes through two old beads without adding one, which is our `0` stitch.
 
@@ -35,3 +35,5 @@ A "skip" passes through two old beads without adding one, which is our `0` stitc
 - The source **stacks** its increases and decreases, each on top of the last. Where its row patterns start relative to our gap 1 is our guess; the bead counts don't depend on it.
 - Row 18's text says "a total of 16 beads". That is the 16 gaps the row passes through: 12 beads are added.
 - The source finishes with an optional extra bead or an eye pin through the top opening. Not modelled.
+- **Closing (ours).** The source stops after row 25 and leaves a small opening at the top, "similar to the bottom". The bottom is a tied ring, but row 25's beads were joined only through row 24, so the model left the top looser than the bottom. `close: true` takes the thread through row 25's beads again and pulls them into a ring like row 1. With it, the two ends match in the 3D model: rows 1 and 25 are both 1.6 mm from the axis (before: 1.6 and 2.3), and rows 2 and 24 both 2.3 mm.
+- **Still not quite symmetric.** Copies of the pattern a quarter-turn apart differ by up to about 1.2 mm, and the top half is about 0.5 mm taller than the bottom half. The step-ups pull each round in a little where they are, and they move round the ball as it grows. The bottom also settles as a flat disk while it is all there is. The real ball is held round by its core bead, which the model doesn't have yet.

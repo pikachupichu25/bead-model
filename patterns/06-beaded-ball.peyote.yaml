@@ -20,4 +20,4 @@ rounds:
   21: (0, 1A, 1A) x4              # 8 beads
   22-23: (1A) x8
   24: (0, 1A) x4                  # 4 beads
-  25: (1A) x4                     # closes the opening
+  25: { stitches: "(1A) x4", close: true }   # then through these 4 beads again, pulled into a ring like row 1

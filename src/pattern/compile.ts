@@ -30,6 +30,8 @@ export interface CompiledRound {
   edge: Edge;
   tension: Tension;
   note?: string;
+  /** The round is pulled closed into a ring after it is worked (the last round only). */
+  close?: boolean;
   /** The instruction as written (shared by every round of a range). */
   text: string;
   /** One stitch per gap, after expanding groups and fills. Empty for start rounds. */
@@ -163,11 +165,16 @@ export function compilePattern(pattern: Pattern): CompiledPattern {
         warnings.push(`round ${r}: ${zeros} of ${stitches.length} stitches are 0. Check this is meant to pull in`);
       }
 
+      if (spec.close && r !== pattern.rounds.at(-1)!.to) {
+        errors.push(`round ${r}: only the last round can close`);
+        break specs;
+      }
       rounds.push({
         round: r,
         edge: spec.edge,
         tension: spec.tension,
         note: spec.note,
+        ...(spec.close && { close: true }),
         text: spec.text,
         stitches,
         gaps: upBeads.length,

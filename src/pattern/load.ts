@@ -29,6 +29,11 @@ export interface RoundSpec {
   edge: Edge;
   tension: Tension;
   note?: string;
+  /**
+   * After this round, pass through its beads again, bead to bead, and pull
+   * them into a ring: the opening closes like the start ring. Last round only.
+   */
+  close?: boolean;
 }
 
 export interface Pattern {
@@ -160,6 +165,8 @@ function parseRound(from: number, to: number, value: unknown): RoundSpec {
   if (tension !== "normal" && tension !== "tight" && tension !== "loose") {
     throw new NotationError("`tension` must be normal, tight or loose");
   }
+  const close = options.close ?? false;
+  if (typeof close !== "boolean") throw new NotationError("`close` must be true or false");
   return {
     from,
     to,
@@ -168,6 +175,7 @@ function parseRound(from: number, to: number, value: unknown): RoundSpec {
     edge,
     tension,
     note: typeof options.note === "string" ? options.note : undefined,
+    ...(close && { close }),
   };
 }
 

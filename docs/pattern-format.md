@@ -104,8 +104,21 @@ Write the list one item per line, as above. On one line it needs quotes, `6-17: 
 | `edge` | `front` (default), `back` | Which edge of a `tube` start to work from |
 | `tension` | `normal` (default), `tight`, `loose` | Recorded for the 3D model. Tight thread pulls the work inward |
 | `note` | free text | For people only. The program ignores it |
+| `close` | `true`, `false` (default) | Last round only. Close the opening: see below |
 
 `step_up` (above) is set once for the whole pattern, next to `start`. So is `thread_diameter`: the thread's diameter in mm (FireLine 6 lb is about 0.15, size D Nymo about 0.2). It is optional, and only the thread-tension 3D model uses it, for how far the thread can sit off center in a bead's hole. Without it the model uses 0.2.
+
+### Closing the last round
+
+A piece that closes up, like a beaded ball, ends with a small opening: the last round's beads sit in the gaps of the round before but aren't joined to each other. `close: true` on the last round joins them. After the step-up, the thread goes on through the round's own beads, bead to bead, back to where it started, and is pulled tight. The last round becomes a ring, just like a `center` start ring, so a closed piece starts and ends the same way.
+
+```yaml
+rounds:
+  24: (0, 1A) x4
+  25: { stitches: "(1A) x4", close: true }
+```
+
+The diagram draws the closing pass, the instruction for the round says to pull the beads into a ring, and both 3D models pull them together. The editor shows a **Close the opening** checkbox on the last round.
 
 ## Bead types
 
@@ -166,6 +179,7 @@ The program rejects a pattern, or warns, when:
 5. `edge: back` is used without a `tube` start.
 6. A round has every stitch `0` (nothing is added). This is an error.
 7. Warning: more than half of a round's stitches are `0`, or the bead count grows by much more than about 3 per round. Either may mean a cup or ruffle that wasn't intended.
+8. `close: true` on any round but the last.
 
 ## The three reference patterns in this format
 

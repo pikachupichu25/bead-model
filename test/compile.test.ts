@@ -133,6 +133,15 @@ describe("validation", () => {
     expect(issues(() => compile(yaml))).toEqual(["round 2: edge: back needs a tube start"]);
   });
 
+  it("lets only the last round close, and only with true or false", () => {
+    const close = (rounds: string) => `beads: { A: {} }\nstart: center 3A\nrounds:\n${rounds}`;
+    expect(compile(close("  2: { stitches: (1A) x3, close: true }")).rounds.at(-1)!.close).toBe(true);
+    expect(issues(() => compile(close("  2: { stitches: (1A) x3, close: true }\n  3: (1A) x3")))).toEqual([
+      "round 2: only the last round can close",
+    ]);
+    expect(issues(() => compile(close("  2: { stitches: (1A) x3, close: yes }")))[0]).toMatch(/`close` must be true or false/);
+  });
+
   it("rejects a round that adds nothing", () => {
     expect(issues(() => compile("beads: { A: {} }\nstart: center 3A\nrounds:\n  2: (0) x3"))).toEqual([
       "round 2: every stitch is 0, so nothing is added",

@@ -45,6 +45,7 @@ export function renderStepSvg(input: DiagramInput, stepIndex: number): string {
   const options = [
     round.edge === "back" ? "Worked from the back edge" : undefined,
     round.tension !== "normal" ? `${capitalize(round.tension)} tension` : undefined,
+    round.close ? "Then pull its beads into a ring to close" : undefined,
     round.note ? `Note: ${round.note}` : undefined,
   ].filter(Boolean);
 

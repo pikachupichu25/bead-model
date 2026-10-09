@@ -185,6 +185,17 @@ describe("thread-tension shape", () => {
   });
 });
 
+describe("closing round", () => {
+  // The ball starts from a tied 4-bead ring and ends by pulling its last 4
+  // beads into a ring too: so its two ends match.
+  it("makes both ends of the beaded ball the same size", () => {
+    const shape = buildTensionShape(fromFile("06-beaded-ball").model);
+    const radius = new Map(shape.rounds.map((r) => [r.round, r.radius]));
+    expect(Math.abs(radius.get(1)! - radius.get(25)!)).toBeLessThan(0.3);
+    expect(Math.abs(radius.get(2)! - radius.get(24)!)).toBeLessThan(0.3);
+  });
+});
+
 describe("thread diameter", () => {
   const withThread = (d: string) => `
 title: t

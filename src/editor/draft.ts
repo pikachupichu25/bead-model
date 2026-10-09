@@ -37,6 +37,8 @@ export interface DraftRound {
   edge: Edge;
   tension: Tension;
   note: string;
+  /** Pull the last round closed into a ring (see `close` in docs/pattern-format.md). */
+  close?: boolean;
 }
 
 /** The smallest start ring of each kind. A tube also needs an even count. */
@@ -109,7 +111,7 @@ export function draftToYaml(draft: Draft): string {
   draft.rounds.forEach((round, i) => {
     const { from, to } = ranges[i]!;
     const key = from === to ? `${from}` : `${from}-${to}`;
-    const plain = round.edge === "front" && round.tension === "normal" && !round.note;
+    const plain = round.edge === "front" && round.tension === "normal" && !round.note && !round.close;
     const value = plain
       ? scalar(round.stitches)
       : flow({
@@ -117,6 +119,7 @@ export function draftToYaml(draft: Draft): string {
           ...(round.tension !== "normal" && { tension: round.tension }),
           ...(round.edge !== "front" && { edge: round.edge }),
           ...(round.note && { note: round.note }),
+          ...(round.close && { close: true }),
         });
     lines.push(`  ${key}: ${value}`);
   });
@@ -175,6 +178,7 @@ function draftRound(from: number, count: number, value: unknown): { from: number
       edge: options.edge === "back" ? "back" : "front",
       tension: options.tension === "tight" || options.tension === "loose" ? options.tension : "normal",
       note: typeof options.note === "string" ? options.note : "",
+      ...(options.close === true && { close: true }),
     },
   };
 }
@@ -232,8 +236,15 @@ function rewriteRound(
   const { from, to } = ranges[index]!;
   const old = draft.rounds[index]!;
   const pieces: DraftRound[] = [];
-  if (round > from) pieces.push({ ...old, count: round - from });
-  pieces.push({ ...old, count: 1, stitches: writeStitches(change(compiledRound.stitches)), note: round === from ? old.note : "" });
+  // Only the last piece can still close: it is the one that ends the range.
+  if (round > from) pieces.push({ ...old, count: round - from, close: false });
+  pieces.push({
+    ...old,
+    count: 1,
+    stitches: writeStitches(change(compiledRound.stitches)),
+    note: round === from ? old.note : "",
+    close: round === to && old.close,
+  });
   if (round < to) pieces.push({ ...old, count: to - round, note: "" });
   const rounds = [...draft.rounds];
   rounds.splice(index, 1, ...pieces);

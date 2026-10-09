@@ -386,6 +386,14 @@ function renderRoundList(): void {
               : ""
           }
           <input type="text" data-field="note" value="${esc(round.note)}" placeholder="note for the beader" aria-label="Note" />
+          ${
+            i === draft.rounds.length - 1 || round.close
+              ? `<label class="toggle" title="After this round, go through its beads again and pull them into a ring, like the start ring">
+                  <input type="checkbox" data-field="close" ${round.close ? "checked" : ""} />
+                  <span>Close the opening</span>
+                </label>`
+              : ""
+          }
         </div>
         <p class="ed-status" data-status></p>
       </li>`;
@@ -695,6 +703,7 @@ els.roundList.addEventListener("input", (event) => {
     round.count = Math.min(count, 200);
   } else if (field === "tension") round.tension = el.value as typeof round.tension;
   else if (field === "edge") round.edge = el.value as typeof round.edge;
+  else if (field === "close") round.close = (el as HTMLInputElement).checked;
   else if (field === "stitches" || field === "note") round[field] = el.value;
   refresh();
 });

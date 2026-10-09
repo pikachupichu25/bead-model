@@ -22,15 +22,15 @@ const read = (name: string) => readFileSync(`patterns/${name}.peyote.yaml`, "utf
 const keysOf = (yaml: string) => compile(yaml).beads.map((b) => b.key);
 
 describe("draft YAML round trip", () => {
-  for (const name of ["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-christmas-mug-trinket-box", "05-moo-deng"]) {
+  for (const name of ["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-christmas-mug-trinket-box", "05-moo-deng", "06-beaded-ball"]) {
     it(`keeps every bead of ${name}`, () => {
       const original = compile(read(name));
       const again = compile(draftToYaml(draftFromYaml(read(name))));
       expect(again.beads).toEqual(original.beads);
       expect(again.pattern.beads).toEqual(original.pattern.beads);
       expect(again.pattern.stepUp).toBe(original.pattern.stepUp);
-      expect(again.rounds.map((r) => [r.tension, r.edge, r.note])).toEqual(
-        original.rounds.map((r) => [r.tension, r.edge, r.note]),
+      expect(again.rounds.map((r) => [r.tension, r.edge, r.note, r.close])).toEqual(
+        original.rounds.map((r) => [r.tension, r.edge, r.note, r.close]),
       );
     });
   }
@@ -93,6 +93,19 @@ describe("painting", () => {
     expect(after.length).toBe(before.length);
     expect(after.filter((k, i) => k !== before[i])).toHaveLength(before[target.id] === "A" ? 0 : 1);
     expect(after[target.id]).toBe("A");
+  });
+
+  it("keeps the closing on the last round when painting splits a range before it", () => {
+    const yaml = "beads: { A: {}, B: {} }\nstart: center 3A\nrounds:\n  2-3: (1A) x3\n  4: { stitches: (1A) x3, close: true }";
+    const compiled = compile(yaml);
+    const target = compiled.beads.find((b) => b.round === 3 && b.order === 2)!;
+    const painted = paintBead(draftFromYaml(yaml), compiled, target.id, "B");
+    expect(compile(draftToYaml(painted)).rounds.map((r) => [r.round, r.close ?? false])).toEqual([
+      [1, false],
+      [2, false],
+      [3, false],
+      [4, true],
+    ]);
   });
 
   it("changes a start bead", () => {

@@ -62,6 +62,12 @@ describe("threadPasses", () => {
     ]);
   });
 
+  it("closes the last round by going on through its own beads, back to the first", () => {
+    const yaml = "beads: { A: {} }\nstart: center 3A\nrounds:\n  2: { stitches: (1A) x3, close: true }";
+    // The round, the step-up through bead 1, then beads 2, 3 and 1 again.
+    expect(labels(yaml, 1)).toEqual(["1.1", "2.1", "1.2", "2.2", "1.3", "2.3", "1.1", "2.1", "2.2", "2.3", "2.1"]);
+  });
+
   it("works a back-edge round from round 1", () => {
     const passes = labels(reference("02-rivoli-bezel-cup"), 4);
     expect(passes.slice(0, 3)).toEqual(["1.1", "6.1", "1.3"]);

@@ -1226,6 +1226,12 @@ select:hover {
   padding: 4px 8px !important;
 }
 
+.round-options .toggle input {
+  flex: none;
+  min-width: 0;
+  padding: 0 !important;
+}
+
 .round-empty {
   font-size: 13px;
   padding: 10px;
