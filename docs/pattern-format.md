@@ -105,7 +105,7 @@ Write the list one item per line, as above. On one line it needs quotes, `6-17: 
 | `tension` | `normal` (default), `tight`, `loose` | Recorded for the 3D model. Tight thread pulls the work inward |
 | `note` | free text | For people only. The program ignores it |
 
-`step_up` (above) is set once for the whole pattern, next to `start`.
+`step_up` (above) is set once for the whole pattern, next to `start`. So is `thread_diameter`: the thread's diameter in mm (FireLine 6 lb is about 0.15, size D Nymo about 0.2). It is optional, and only the thread-tension 3D model uses it, for how far the thread can sit off center in a bead's hole. Without it the model uses 0.2.
 
 ## Bead types
 
@@ -138,6 +138,7 @@ beads:
   A: { size: 11/0, shape: round, color: "..." }
 start: center 3A          # or: tube (1A, 1B) x16
 step_up: group            # optional: group (default) or first
+thread_diameter: 0.15     # optional, mm: for the thread-tension 3D model
 rounds:
   2: (2A) x3
   3-10: (1B, 2A, 1B*) x3

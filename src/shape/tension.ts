@@ -13,7 +13,8 @@
 //   from the hole face it leaves to the hole face it enters (free thread k, of
 //   length ℓ_k). It only pulls, and only once it is longer than its slack δ.
 // - The hole is wider than the thread, so the thread can leave a hole off its
-//   center, up to the clearance. Less clearance with every extra pass.
+//   center, up to the clearance. Inside the hole it runs straight from where
+//   it enters to where it leaves, and that counts as thread too.
 // - Where the thread bends at a hole face it resists a little (κ, the bending
 //   length of the thread): this gives the fabric its bending stiffness.
 //
@@ -42,7 +43,7 @@ export const THREAD_TENSION: Record<Tension, { slack: number; bendLength: number
   tight: { slack: 0, bendLength: 0.05 },
 };
 
-/** Thread diameter, mm (size D Nymo, or 6 lb FireLine, is about 0.2). */
+/** Thread diameter (mm) when the pattern doesn't give one: size D Nymo is about 0.2, 6 lb FireLine 0.15. */
 export const THREAD_DIAMETER = 0.2;
 
 /** Rounding of a cylinder bead's edges, as a fraction of its smaller size. */
@@ -125,6 +126,8 @@ interface Build {
   passes: Pass[];
   segments: Segment[];
   passCount: number[];
+  /** Thread diameter, mm. */
+  thread: number;
   random: () => number;
   /** Solved shape after each step. */
   shapes: Shape[];
@@ -161,6 +164,7 @@ function startBuild(model: ShapeModel): Build {
     passes: [],
     segments: [],
     passCount: compiled.beads.map(() => 0),
+    thread: compiled.pattern.threadDiameter ?? THREAD_DIAMETER,
     random: seeded(compiled.beads.length),
     shapes: [],
   };
@@ -292,8 +296,9 @@ function placeBead(build: Build, id: number, firstOfStep: number): void {
   };
 
   let p: Vec3;
+  let outward: Vec3;
   if (under !== undefined) {
-    const outward = outwardFrom(x[under]!, scale(add(x[u]!, x[v]!), 0.5));
+    outward = outwardFrom(x[under]!, scale(add(x[u]!, x[v]!), 0.5));
     const rest = add(x[under]!, scale(outward, (body[under]!.diameter + body[id]!.diameter) / 2));
     // Beads sharing the gap lie end to end, centered over the bead below.
     const shift = (bead.slot - (bead.slotsInGap - 1) / 2) * body[id]!.length;
@@ -302,11 +307,23 @@ function placeBead(build: Build, id: number, firstOfStep: number): void {
     const onLine = add(out, scale(sub(into, out), (bead.slot + 1) / (bead.slotsInGap + 1)));
     const round = compiled.rounds.find((r) => r.round === compiled.beads[u]!.round)!.beads;
     const middle = scale(round.reduce<Vec3>((s, w) => add(s, x[w]!), [0, 0, 0]), 1 / round.length);
-    p = add(onLine, scale(outwardFrom(middle, onLine), body[id]!.diameter / 2));
+    outward = outwardFrom(middle, onLine);
+    p = add(onLine, scale(outward, body[id]!.diameter / 2));
   }
+  // The front of the fabric here: outward × the way the thread runs. It is +z
+  // on the start ring and stays on the same side all round a round, so when
+  // a round has to leave the plane, every bead of it leans the same way: the
+  // side the beader works from. Left to the random nudge alone, beads chose
+  // up or down one by one, and a closed bottom turned into a slanted wall
+  // that later rounds followed (see docs/fix-hole-clearance.md).
+  const front = normalize(cross(outward, axis));
+  p = add(p, scale(front, FRONT_LEAN * body[id]!.diameter));
   x[id] = [p[0], p[1], p[2] + jitter(build, id)];
   a[id] = axis;
 }
+
+/** How far a new bead starts toward the front of the fabric, as a fraction of its diameter. */
+const FRONT_LEAN = 0.1;
 
 /** A small, seeded nudge, so rows with too many beads can buckle out of the plane. */
 function jitter(build: Build, id: number): number {
@@ -320,9 +337,16 @@ function face(build: Build, id: number, sign: number, end: number): Vec3 {
   return add(build.x[id]!, scale(build.a[id]!, (sign * end * build.body[id]!.length) / 2));
 }
 
-/** Room for the thread to sit off center in a hole's mouth, with this many threads through it. */
+/**
+ * Room for the thread to sit off center in a hole's mouth: how far a thread's
+ * center can be from the hole's. Threads that pass more than once pack round
+ * each other in the hole, so each can still reach close to the wall. (Lining
+ * them up along one diameter, as a first version did, left almost no room in
+ * start-ring beads and folded small starts that lie flat in real pieces; see
+ * docs/fix-hole-clearance.md.)
+ */
 function clearance(build: Build, id: number): number {
-  return Math.max(0, (build.body[id]!.hole - build.passCount[id]! * THREAD_DIAMETER) / 2);
+  return Math.max(0, (build.body[id]!.hole - build.thread) / 2);
 }
 
 /**
@@ -484,11 +508,15 @@ function energy(build: Build, pairs: [number, number][], out: Float64Array): num
     torque[k] = add(torque[k]!, cross(sub(point, x[id]!), f));
   };
   let e = 0;
+  // Where the thread enters and leaves each pass, for the thread inside the hole.
+  const ends = new Map<Pass, { into?: Vec3; out?: Vec3 }>();
 
   for (const s of build.segments) {
     const i = s.from.bead;
     const j = s.to.bead;
     const { from, to, length } = threadEnds(build, s);
+    ends.set(s.from, { ...ends.get(s.from), out: from });
+    ends.set(s.to, { ...ends.get(s.to), into: to });
     if (length < 1e-9) continue;
     const t = scale(sub(to, from), 1 / length);
     const excess = length - s.slack;
@@ -520,6 +548,24 @@ function energy(build: Build, pairs: [number, number][], out: Float64Array): num
         torque[k] = add(torque[k]!, cross(a[id]!, scale(span, (-s.bend * sign) / q)));
       }
     }
+  }
+
+  // The thread inside each hole runs straight from where it enters to where
+  // it leaves. Off center at both ends on opposite sides, it runs across the
+  // hole and is longer than the bead: so a bead turned against its thread
+  // costs thread, however much room the hole gives.
+  for (const [pass, { into, out }] of ends) {
+    const id = pass.bead;
+    const half = scale(a[id]!, (pass.sign * body[id]!.length) / 2);
+    const p = into ?? sub(x[id]!, half);
+    const q = out ?? add(x[id]!, half);
+    const span = sub(q, p);
+    const length = Math.hypot(...span);
+    if (length < 1e-9) continue;
+    e += length - body[id]!.length;
+    const t = scale(span, 1 / length);
+    at(id, q, t);
+    at(id, p, scale(t, -1));
   }
 
   e += contactEnergy(build, pairs, index, force, torque);

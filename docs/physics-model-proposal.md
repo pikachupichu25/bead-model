@@ -74,22 +74,24 @@ Between two passes the thread runs straight from where it leaves bead i to where
 **Clearance.** The hole is wider than the thread, so inside the hole the thread can lie at an angle to the bead's axis. Where it leaves the hole, the point `c` can be anywhere in the hole's mouth:
 
 ```
-c = f^± + w,      w ⊥ a_i,     |w| ≤ (hole − n·d_thread)/2
+c = f^± + w,      w ⊥ a_i,     |w| ≤ (hole − d_thread)/2
 ```
 
-Here `n` is how many times the thread passes through that bead. That gives a maximum tilt between the bead and the thread inside it:
+Threads that pass through a bead more than once pack round each other in the hole, so each one can still reach close to the wall. (A first version took `n·d_thread` off the hole for `n` passes, as if the threads lay in a line. That left start-ring beads almost no room and folded small starts that lie flat in real pieces: see [fix-hole-clearance.md](fix-hole-clearance.md).) That gives a maximum tilt between the bead and the thread inside it:
 
 ```
-tan φ_max = (hole − n·d_thread) / L
+tan φ_max = (hole − d_thread) / L
 ```
 
-| Bead | Hole | One pass (0.2 mm thread) | Two passes |
+| Bead | Hole | Thread 0.2 mm | Thread 0.15 mm |
 |---|---|---|---|
-| 11/0 Delica (L 1.30) | 0.8 | 25° | 17° |
-| 11/0 round (L 1.45) | 0.8 | 22° | 15° |
-| 15/0 round (L 1.00) | 0.7 | 27° | 17° |
+| 11/0 Delica (L 1.30) | 0.8 | 25° | 27° |
+| 11/0 round (L 1.45) | 0.8 | 22° | 24° |
+| 15/0 round (L 1.00) | 0.7 | 27° | 29° |
 
-This replaces `SHARED_GAP_STIFFNESS`. The two beads of an increase are passed once and have no bead between them yet, so they can tilt and splay by up to φ_max. Once the next round goes through them, there are two threads in each hole, the allowed tilt is smaller, and the fabric gets stiffer. Beaders know this: passing through again stiffens the work.
+The thread inside the hole runs straight from where it enters to where it leaves, and counts as thread. Off center on opposite sides at the two ends, it runs across the hole and is longer than the bead, so turning a bead against its thread costs thread.
+
+This replaces `SHARED_GAP_STIFFNESS`. The two beads of an increase are passed once and have no bead between them yet, so they can tilt and splay by up to φ_max. Once the next round goes through them, a second thread has to cross each hole too, and the fabric gets stiffer. Beaders know this: passing through again stiffens the work.
 
 Which way a pass runs (`s`) is fixed by the order of the thread path. In circular peyote, a bead's later passes run the same way as its first; flat and even-count turns can reverse it. This is worked out once, when the pattern is compiled.
 
@@ -289,6 +291,8 @@ Uniform tension says only each thread's total length matters, Σ(ℓ − δ)⁺,
 
 **The piece is turned so its front rounds rise.** Nothing in the physics says which way is up.
 
+**Room in the hole, the thread inside it, and leaning to the front.** A real Moo Deng lies flat at round 3, but the model folded it into a saddle: the thread had too little room in the holes. Fixing that made Moo Deng's wall lean, a trap the step-by-step build fell into, fixed by starting each new bead a little toward the front of the fabric. See [fix-hole-clearance.md](fix-hole-clearance.md).
+
 ### What it gives
 
 With generic bead sizes (catalog estimates) and the first-guess constants:
@@ -314,7 +318,8 @@ A whole piece takes 0.4 s (flat circle, 77 beads) to 3 s (Moo Deng, 170 beads) i
 |---|---|---|
 | Slack δ (loose / normal / tight) | 0.25 / 0.08 / 0 mm | `THREAD_TENSION` |
 | Bending length ℓ_B (loose / normal / tight) | 0.6 / 0.25 / 0.05 mm | `THREAD_TENSION` |
-| Thread diameter | 0.2 mm | `THREAD_DIAMETER` |
+| Thread diameter | 0.2 mm, or the pattern's `thread_diameter` | `THREAD_DIAMETER` |
+| Lean of a new bead to the front | 0.1 of its diameter | `FRONT_LEAN` |
 | Edge rounding of cylinder beads | 12% of the smaller size | `EDGE_ROUNDING` |
 | Contact stiffness | 400 per unit tension | `CONTACT` |
 

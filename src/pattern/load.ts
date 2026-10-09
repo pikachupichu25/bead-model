@@ -39,6 +39,8 @@ export interface Pattern {
   beads: Record<string, unknown>;
   start: Start;
   stepUp: StepUp;
+  /** Diameter of the thread, mm, if the pattern gives it. */
+  threadDiameter?: number;
   rounds: RoundSpec[];
 }
 
@@ -86,6 +88,11 @@ export function parsePattern(yamlText: string): Pattern {
   const stepUp = doc.step_up ?? "group";
   if (stepUp !== "group" && stepUp !== "first") issues.push("`step_up` must be group or first");
 
+  const threadDiameter = doc.thread_diameter;
+  if (threadDiameter !== undefined && !(typeof threadDiameter === "number" && threadDiameter > 0 && threadDiameter < 1)) {
+    issues.push("`thread_diameter` must be the thread's diameter in mm, e.g. 0.15");
+  }
+
   if (issues.length > 0) throw new PatternError(issues);
   return {
     title,
@@ -94,6 +101,7 @@ export function parsePattern(yamlText: string): Pattern {
     beads,
     start,
     stepUp: stepUp as StepUp,
+    threadDiameter: threadDiameter as number | undefined,
     rounds,
   };
 }

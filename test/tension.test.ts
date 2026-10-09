@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveBeads } from "../src/catalog/catalog.js";
+import { draftFromYaml, draftToYaml } from "../src/editor/draft.js";
 import { loadCatalog } from "../src/catalog/load-files.js";
 import { compilePattern } from "../src/pattern/compile.js";
-import { parsePattern } from "../src/pattern/load.js";
+import { parsePattern, PatternError } from "../src/pattern/load.js";
 import { solveShape } from "../src/shape/engines.js";
 import { shapeModel } from "../src/shape/shape.js";
 import { beadBody, buildTensionShape, tensionReport } from "../src/shape/tension.js";
@@ -154,5 +155,58 @@ describe("thread-tension shape", () => {
     expect(Math.max(...radii) - Math.min(...radii)).toBeLessThan(1);
     expect(wall.at(-1)!.height - wall[0]!.height).toBeGreaterThan(5);
     expect(shape.rounds.find((r) => r.round === 3)!.angle!).toBeLessThan(25);
+  });
+
+  // A real Moo Deng lies almost flat up to round 3. With too little room for
+  // the thread in the holes, the model folded the 4-bead start into a saddle.
+  it("keeps Moo Deng flat up to round 3, at that step", () => {
+    const { compiled, model } = fromFile("05-moo-deng");
+    const step = compiled.beads[compiled.rounds[2]!.beads[0]!]!.step;
+    const shape = buildTensionShape(model, { upToStep: step });
+    const heights = shape.ids.map((id) => shape.position.get(id)![2]);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(0.3);
+    for (const id of shape.ids) expect(Math.abs(shape.axis.get(id)![2])).toBeLessThan(Math.sin((10 * Math.PI) / 180));
+  });
+
+  // Every round of the cylinder square to one axis: the wall doesn't lean or bend.
+  it("stands Moo Deng's wall straight up from its bottom", () => {
+    const { compiled, model } = fromFile("05-moo-deng");
+    const shape = buildTensionShape(model);
+    for (const round of compiled.rounds) {
+      const points = round.beads.map((id) => shape.position.get(id)!);
+      let n = [0, 0, 0];
+      points.forEach((p, i) => {
+        const q = points[(i + 1) % points.length]!;
+        n = [n[0]! + (p[1] - q[1]) * (p[2] + q[2]), n[1]! + (p[2] - q[2]) * (p[0] + q[0]), n[2]! + (p[0] - q[0]) * (p[1] + q[1])];
+      });
+      const tilt = (Math.acos(Math.abs(n[2]!) / Math.hypot(...n)) * 180) / Math.PI;
+      expect(tilt, `round ${round.round}`).toBeLessThan(10);
+    }
+  });
+});
+
+describe("thread diameter", () => {
+  const withThread = (d: string) => `
+title: t
+beads: { A: { size: 11/0, shape: cylinder } }
+thread_diameter: ${d}
+start: tube (1A) x16
+rounds: { 3-4: (1A) x8 }`;
+
+  it("is read from the pattern, and kept by the editor", () => {
+    expect(parsePattern(withThread("0.15")).threadDiameter).toBe(0.15);
+    expect(parsePattern(draftToYaml(draftFromYaml(withThread("0.15")))).threadDiameter).toBe(0.15);
+    expect(parsePattern(TUBE).threadDiameter).toBeUndefined();
+  });
+
+  it("must be a thread's size in mm", () => {
+    expect(() => parsePattern(withThread("2"))).toThrow(PatternError);
+    expect(() => parsePattern(withThread("thick"))).toThrow(PatternError);
+  });
+
+  it("gives the thread less room in the hole when it is thicker", () => {
+    const thin = buildTensionShape(fromText(withThread("0.1")).model);
+    const thick = buildTensionShape(fromText(withThread("0.5")).model);
+    expect(thin.position).not.toEqual(thick.position);
   });
 });
