@@ -194,4 +194,10 @@ describe("round cycles", () => {
       4, 4, 8, 8, 14, ...Array(6).fill([8, 14]).flat(),
     ]);
   });
+
+  it("the beaded ball matches the source's bead count for every row", () => {
+    expect(reference("06-beaded-ball").rounds.map((r) => r.beads.length)).toEqual([
+      4, 4, 8, 8, 8, 12, 12, 12, ...Array(9).fill(16), 12, 12, 12, 8, 8, 8, 4, 4,
+    ]);
+  });
 });
