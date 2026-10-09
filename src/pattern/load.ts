@@ -75,7 +75,7 @@ export function parsePattern(yamlText: string): Pattern {
   } else {
     for (const [key, value] of Object.entries(doc.rounds)) {
       try {
-        rounds.push(parseRound(key, value));
+        rounds.push(...parseRounds(key, value));
       } catch (e) {
         issues.push(`round ${key}: ${message(e)}`);
       }
@@ -111,13 +111,37 @@ export function parseStart(text: string): Start {
   return { kind, beads };
 }
 
-function parseRound(key: string, value: unknown): RoundSpec {
+/**
+ * One entry under `rounds:`. A list value is a cycle: `6-17: [A, B]` makes
+ * rounds 6, 8, ... use A and rounds 7, 9, ... use B. It is expanded into one
+ * spec per round, so the compiler never sees it.
+ */
+function parseRounds(key: string, value: unknown): RoundSpec[] {
   const range = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(key);
   if (!range) throw new NotationError('the key must be a round number or a range such as "3-10"');
   const from = Number(range[1]);
   const to = range[2] === undefined ? from : Number(range[2]);
   if (to < from) throw new NotationError("the range ends before it starts");
+  if (!Array.isArray(value)) return [parseRound(from, to, value)];
 
+  if (value.length === 0) throw new NotationError("the list of rounds to repeat is empty");
+  if ((to - from + 1) % value.length !== 0) {
+    throw new NotationError(
+      `the range covers ${to - from + 1} rounds, which is not a whole number of repeats of ${value.length} rounds`,
+    );
+  }
+  const specs: RoundSpec[] = [];
+  for (let r = from; r <= to; r++) {
+    try {
+      specs.push(parseRound(r, r, value[(r - from) % value.length]));
+    } catch (e) {
+      throw new NotationError(`round ${r}: ${message(e)}`);
+    }
+  }
+  return specs;
+}
+
+function parseRound(from: number, to: number, value: unknown): RoundSpec {
   const options = typeof value === "string" ? { stitches: value } : value;
   if (!isRecord(options) || typeof options.stitches !== "string") {
     throw new NotationError("expected a stitch string, or a mapping with `stitches`");

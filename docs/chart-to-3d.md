@@ -184,7 +184,7 @@ The noise matters. A row with too many beads, laid out perfectly flat, is in **u
 
 ### Orienting and measuring
 
-After relaxing, the piece is turned so the start ring lies flat at the origin. The ring's normal comes from **Newell's method** (the normal of a closed, possibly non-planar polygon, taken in stringing order). Then, for each round:
+After relaxing, the piece is turned so its axis points up, with the start ring's center at the origin. Each round's normal comes from **Newell's method** (the normal of a closed, possibly non-planar polygon, taken in stringing order). Its length is twice the area the round encloses, so adding up every round's normal gives an axis where the big outer rounds count most. Taking the start ring alone is not enough: a small ring (4 beads, say) can sit tilted to the rest of the piece, and a straight tube measured against it looks like a leaning, wavy cone. Then, for each round:
 
 - **radius**: mean distance of its beads from the axis
 - **height**: mean height along the axis
@@ -219,7 +219,7 @@ Each bead's hole points from the bead before it on the thread to the bead after 
 | Thread tension as slack and squeeze | `contacts.ts` | Empirical constants |
 | Energy minimization by repeated projection | `shape.ts` | Position-based dynamics (Gauss–Seidel) |
 | Buckling of over-long rows | `shape.ts` | Elastic instability, symmetry breaking by noise |
-| Plane of the start ring | `shape.ts` | Newell's method |
+| Axis of the piece | `shape.ts` | Newell's method, summed over the rounds |
 
 ## 4. What the model leaves out
 

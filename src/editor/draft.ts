@@ -136,22 +136,18 @@ export function draftFromYaml(text: string): Draft {
   }
   if (!isRecord(doc)) throw new DraftError("the file must be a YAML mapping");
 
-  const rounds = Object.entries(isRecord(doc.rounds) ? doc.rounds : {}).map(([key, value]) => {
+  const rounds = Object.entries(isRecord(doc.rounds) ? doc.rounds : {}).flatMap(([key, value]) => {
     const range = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(key);
     if (!range) throw new DraftError(`round "${key}": the key must be a round number or a range such as "3-10"`);
     const from = Number(range[1]);
     const to = range[2] === undefined ? from : Number(range[2]);
-    const options = isRecord(value) ? value : { stitches: value };
-    return {
-      from,
-      round: {
-        count: Math.max(1, to - from + 1),
-        stitches: options.stitches === undefined ? "" : String(options.stitches),
-        edge: options.edge === "back" ? "back" : "front",
-        tension: options.tension === "tight" || options.tension === "loose" ? options.tension : "normal",
-        note: typeof options.note === "string" ? options.note : "",
-      } satisfies DraftRound,
-    };
+    // A repeating cycle (`6-17: [A, B]`) is written out one round at a time.
+    if (Array.isArray(value) && value.length > 0) {
+      return Array.from({ length: Math.max(1, to - from + 1) }, (_, i) =>
+        draftRound(from + i, 1, value[i % value.length]),
+      );
+    }
+    return [draftRound(from, Math.max(1, to - from + 1), value)];
   });
 
   return {
@@ -162,6 +158,20 @@ export function draftFromYaml(text: string): Draft {
     beads: Object.entries(isRecord(doc.beads) ? doc.beads : {}).map(([key, spec]) => ({ key, spec })),
     start: typeof doc.start === "string" ? doc.start : "",
     rounds: rounds.sort((a, b) => a.from - b.from).map((r) => r.round),
+  };
+}
+
+function draftRound(from: number, count: number, value: unknown): { from: number; round: DraftRound } {
+  const options = isRecord(value) ? value : { stitches: value };
+  return {
+    from,
+    round: {
+      count,
+      stitches: options.stitches === undefined ? "" : String(options.stitches),
+      edge: options.edge === "back" ? "back" : "front",
+      tension: options.tension === "tight" || options.tension === "loose" ? options.tension : "normal",
+      note: typeof options.note === "string" ? options.note : "",
+    },
   };
 }
 

@@ -80,10 +80,22 @@ Each round is a list of stitches, separated by commas. To keep it short:
 | `(2A, 1B) x3` | Repeat the group 3 times |
 | `1B*` | **Fill:** repeat this stitch as many times as needed to fill the remaining gaps in its group |
 | `rounds 3-10:` | Use the same instruction for a range of rounds (needs `*` when the gap count changes) |
+| `6-17: [A, B]` | **Cycle:** repeat a list of rounds in order over the range (here A, B, A, B, …). The range must hold a whole number of repeats |
 
 At most one `*` stitch is allowed per group, and the fill count must come out to a whole, non-negative number in every round of the range.
 
 The `*` fill is what lets a growing shape such as the triangle be written as one rule instead of one line per round.
+
+A cycle is for shapes that alternate between rounds, such as a wall that adds pairs in one round and passes over them in the next. Each list item is a round written as usual, either a stitch string or a mapping with options:
+
+```yaml
+rounds:
+  6-17:                               # 6 repeats of 2 rounds
+    - (1A, 0, 1A, 1A, 0, 1A, 0) x2
+    - { stitches: "(2A, 2A, 1A, 2A) x2", tension: tight }
+```
+
+Write the list one item per line, as above. On one line it needs quotes, `6-17: ["(1A, 0) x8", "(2A) x8"]`, because YAML would otherwise split the list at the commas inside the stitches.
 
 ## Per-round options
 

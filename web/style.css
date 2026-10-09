@@ -630,6 +630,11 @@ select:hover {
   flex-wrap: wrap;
 }
 
+.toggle select {
+  padding: 3px 8px;
+  font-size: 13.5px;
+}
+
 /* A short line with an arrowhead, matching the thread in the diagram. */
 .key-thread {
   position: relative;
@@ -1479,4 +1484,36 @@ select:hover {
 .example-pick select {
   font-size: 13px;
   max-width: 170px;
+}
+
+/* Editor: 3D view */
+
+.paint-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.editor-page .viewer3d {
+  position: relative;
+  aspect-ratio: 1;
+  max-height: max(320px, min(calc(100vh - 300px), 820px));
+  margin: 0 auto;
+}
+
+.viewer-status {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.85);
+  color: #1f1d1a;
+  font-size: 13px;
+  pointer-events: none;
 }

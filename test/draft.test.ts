@@ -22,7 +22,7 @@ const read = (name: string) => readFileSync(`patterns/${name}.peyote.yaml`, "utf
 const keysOf = (yaml: string) => compile(yaml).beads.map((b) => b.key);
 
 describe("draft YAML round trip", () => {
-  for (const name of ["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-christmas-mug-trinket-box"]) {
+  for (const name of ["01-flat-circle", "02-rivoli-bezel-cup", "03-flat-triangle", "04-christmas-mug-trinket-box", "05-moo-deng"]) {
     it(`keeps every bead of ${name}`, () => {
       const original = compile(read(name));
       const again = compile(draftToYaml(draftFromYaml(read(name))));

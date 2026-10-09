@@ -130,4 +130,29 @@ describe("3D shape", () => {
     const width = 2 * Math.max(...shape.ids.map(radius));
     expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(width / 2.5);
   });
+
+  // A small start ring sits tilted to the rest of the piece. The axis comes
+  // from every round, so the tube above it still stands straight.
+  it("stands a tube on a 4-bead center start up straight", () => {
+    const shape = buildShape(
+      fromText(`
+beads: { A: { size: 11/0, shape: cylinder } }
+start: center (1A) x4
+rounds:
+  2: (1A) x4
+  3: (2A) x4
+  4: (1A) x8
+  5: (2A, 2A, 1A, 2A) x2
+  6-17:
+    - (1A, 0, 1A, 1A, 0, 1A, 0) x2
+    - (2A, 2A, 1A, 2A) x2`).model,
+    );
+    const wall = shape.rounds.filter((r) => r.round >= 7);
+    for (const r of wall) {
+      expect(r.verdict).toBe("wall");
+      expect(r.radius).toBeGreaterThan(3.5);
+      expect(r.radius).toBeLessThan(5.5);
+    }
+    expect(wall.at(-1)!.height - wall[0]!.height).toBeGreaterThan(6);
+  });
 });

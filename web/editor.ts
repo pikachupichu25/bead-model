@@ -4,7 +4,7 @@
 // step viewer, so whatever the editor accepts, the viewer shows.
 
 import { type Catalog, catalogFromFiles, type ResolvedBead, resolveBeads } from "../src/catalog/catalog.js";
-import { layoutPattern } from "../src/diagram/layout.js";
+import { DEFAULT_SPACING, layoutPattern, type LayoutOptions } from "../src/diagram/layout.js";
 import { type DiagramInput, renderChartSheetSvg, renderChartSvg, renderSheetSvg } from "../src/diagram/svg.js";
 import {
   type Draft,
@@ -27,6 +27,10 @@ import {
 } from "../src/editor/draft.js";
 import { type CompiledPattern, compilePattern } from "../src/pattern/compile.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
+import { isShapeEngine, SHAPE_ENGINES, type ShapeEngine, solveShape } from "../src/shape/engines.js";
+import { type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
+import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
+import type { BeadViewer } from "./viewer3d.js";
 
 const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
   query: "?raw",
@@ -52,6 +56,7 @@ const STORAGE = {
   draft: "bead-model:editor-draft",
   toViewer: "bead-model:viewer-draft",
   fromViewer: "bead-model:open-in-editor",
+  spacing: "bead-model:editor-spacing",
 };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -95,6 +100,20 @@ const els = {
   chartFocus: $<HTMLStyleElement>("chart-focus"),
   tooltip: $("tooltip"),
   stepUpToggle: $<HTMLInputElement>("stepup-toggle"),
+  roundGap: $<HTMLInputElement>("round-gap"),
+  beadGap: $<HTMLInputElement>("bead-gap"),
+  roundGapValue: $("round-gap-value"),
+  beadGapValue: $("bead-gap-value"),
+  view2d: $<HTMLButtonElement>("view-2d"),
+  view3d: $<HTMLButtonElement>("view-3d"),
+  viewer: $("viewer3d"),
+  viewerStatus: $("viewer-status"),
+  key3d: $("key3d"),
+  shapeColor: $<HTMLInputElement>("shape-color-toggle"),
+  engine: $<HTMLSelectElement>("engine-select"),
+  resetView: $<HTMLButtonElement>("reset-view"),
+  growthChart: $("growth-chart"),
+  chartTooltip: $("chart-tooltip"),
   downloadChart: $<HTMLButtonElement>("download-chart"),
   downloadSteps: $<HTMLButtonElement>("download-steps"),
   problems: $("problems"),
@@ -118,6 +137,7 @@ const state: {
   paint: string;
   tool: "bead" | "round";
   tab: "form" | "yaml";
+  view: "2d" | "3d";
   /** Snapshots for undo and redo, as JSON. */
   past: string[];
   future: string[];
@@ -130,6 +150,7 @@ const state: {
   paint: "A",
   tool: "bead",
   tab: "form",
+  view: "2d",
   past: [],
   future: [],
   saved: "",
@@ -187,7 +208,7 @@ function build(draft: Draft): Built {
 
   if (compiled) {
     const beads = resolveBeads(compiled.pattern.beads, catalog);
-    built.input = { compiled, beads, layout: layoutPattern(compiled, beads) };
+    built.input = { compiled, beads, layout: layoutPattern(compiled, beads, spacing()) };
     file(compiled.warnings, built.warnings);
     built.warnings.general.push(...[...beads.values()].flatMap((b) => b.warnings));
   }
@@ -203,6 +224,7 @@ function refresh(): void {
   renderPalette();
   renderStatuses();
   renderProblems();
+  schedule3d();
   save();
 }
 
@@ -695,14 +717,169 @@ function focusRounds(range: { from: number; to: number } | undefined): void {
   els.chartFocus.textContent = `.chart [data-round]:not(${rounds.map((r) => `[data-round="${r}"]`).join(",")}) { opacity: 0.25; }`;
 }
 
+// ---- 3D view ----
+
+let viewer: BeadViewer | undefined;
+/** The last solved shape, and what it was solved from, so edits that don't change the beads skip the solver. */
+let solved: { key: string; model: ShapeModel; shape: Shape } | undefined;
+/**
+ * Fit the camera on the next draw: after opening a pattern, and when the bead
+ * count changes so the whole piece stays in view. Repainting keeps the camera
+ * where the designer turned it.
+ */
+let reframe = true;
+let framedBeads = 0;
+let solveTimer: number | undefined;
+
+function setView(view: "2d" | "3d"): void {
+  state.view = view;
+  els.view2d.setAttribute("aria-selected", String(view === "2d"));
+  els.view3d.setAttribute("aria-selected", String(view === "3d"));
+  document.querySelectorAll<HTMLElement>("[data-view]").forEach((el) => (el.hidden = el.dataset.view !== view));
+  els.tooltip.hidden = true;
+  viewer?.setActive(view === "3d");
+  if (view === "3d" && !viewer) {
+    // three.js is only loaded the first time the 3D view is opened.
+    showViewerStatus("Loading the 3D view…");
+    void import("./viewer3d.js").then(({ BeadViewer }) => {
+      viewer ??= new BeadViewer(els.viewer);
+      viewer.setActive(state.view === "3d");
+      render3d();
+    });
+  } else if (view === "3d") {
+    render3d();
+  }
+}
+
+/**
+ * Solves and draws the shape soon. The solver takes about 1 ms per bead, so
+ * while typing it waits for a pause, and it only runs while the 3D view is open.
+ */
+function schedule3d(delay = 300): void {
+  clearTimeout(solveTimer);
+  if (state.view !== "3d" || !viewer) return;
+  solveTimer = window.setTimeout(render3d, delay);
+}
+
+function render3d(): void {
+  clearTimeout(solveTimer);
+  const input = state.built.input;
+  if (state.view !== "3d" || !viewer) return;
+  if (!input) {
+    showViewerStatus("Fix the start ring to see the 3D shape.");
+    els.growthChart.innerHTML = "";
+    return;
+  }
+  // The shape depends on the beads and rounds, not on the title or notes.
+  const engine: ShapeEngine = isShapeEngine(els.engine.value) ? els.engine.value : "tension";
+  const key = JSON.stringify([engine, input.compiled.beads, [...input.beads.values()]]);
+  if (solved?.key !== key) {
+    try {
+      const model = shapeModel(input.compiled, input.beads);
+      solved = { key, model, shape: solveShape(model, engine) };
+    } catch (e) {
+      showViewerStatus(`The 3D shape couldn't be worked out: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+  }
+  const { model, shape } = solved;
+  showViewerStatus(state.built.complete ? undefined : "Showing the rounds before the first mistake.");
+  const colorBy = els.shapeColor.checked ? "shape" : "bead";
+  viewer.show(model, shape, { step: input.compiled.steps.length - 1, highlight: false, colorBy });
+  if (reframe || shape.ids.length !== framedBeads) {
+    viewer.frame(shape);
+    reframe = false;
+    framedBeads = shape.ids.length;
+  }
+
+  const verdicts = new Set(shape.rounds.map((r) => r.verdict));
+  els.key3d.innerHTML =
+    colorBy === "shape"
+      ? (Object.keys(VERDICT_COLORS) as Verdict[])
+          .filter((v) => verdicts.has(v))
+          .map((v) => `<li><span class="key-dot" style="background:${VERDICT_COLORS[v]}"></span>${v}</li>`)
+          .join("")
+      : [...input.beads.values()]
+          .map((b) => `<li><span class="swatch" style="background:${esc(b.display.rgb)}"></span>${esc(b.key)}</li>`)
+          .join("");
+  els.growthChart.innerHTML = renderGrowthChart(model.profiles, shape.rounds, [], els.growthChart.clientWidth || 600);
+}
+
+function showViewerStatus(message: string | undefined): void {
+  els.viewerStatus.hidden = !message;
+  els.viewerStatus.textContent = message ?? "";
+}
+
+els.view2d.addEventListener("click", () => setView("2d"));
+els.view3d.addEventListener("click", () => setView("3d"));
+els.shapeColor.addEventListener("change", render3d);
+els.engine.innerHTML = Object.entries(SHAPE_ENGINES)
+  .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
+  .join("");
+els.engine.addEventListener("change", render3d);
+els.resetView.addEventListener("click", () => {
+  if (viewer && solved) viewer.frame(solved.shape);
+});
+
+// Hover a bead for its details. A click without dragging paints it; dragging turns the piece.
+let pressed: { x: number; y: number } | undefined;
+els.viewer.addEventListener("pointerdown", (e) => (pressed = e.button === 0 ? { x: e.clientX, y: e.clientY } : undefined));
+els.viewer.addEventListener("pointermove", (event) => {
+  if (event.buttons !== 0) return void (els.tooltip.hidden = true);
+  const id = viewer?.pick(event.clientX, event.clientY);
+  if (id === undefined || !solved) {
+    els.tooltip.hidden = true;
+    highlightRow(undefined);
+    return;
+  }
+  showBeadTip(id, event);
+});
+els.viewer.addEventListener("pointerleave", () => {
+  els.tooltip.hidden = true;
+  highlightRow(undefined);
+});
+els.viewer.addEventListener("pointerup", (event) => {
+  const moved = pressed ? Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) : Infinity;
+  pressed = undefined;
+  if (moved > 4) return;
+  const id = viewer?.pick(event.clientX, event.clientY);
+  if (id === undefined) return;
+  stroke = { painted: new Set() };
+  paintId(id, event.shiftKey || state.tool === "round");
+  endStroke();
+  // Show the new color straight away rather than after the typing pause.
+  render3d();
+});
+
+// The growth chart: hover a round for its numbers.
+els.growthChart.addEventListener("pointermove", (event) => {
+  const hit = (event.target as Element).closest?.<SVGElement>("[data-tip]");
+  if (!hit) return void (els.chartTooltip.hidden = true);
+  const card = els.growthChart.parentElement!.getBoundingClientRect();
+  els.chartTooltip.textContent = hit.dataset.tip!;
+  els.chartTooltip.style.left = `${Math.min(Math.max(event.clientX - card.left, 140), card.width - 140)}px`;
+  els.chartTooltip.style.top = `${event.clientY - card.top}px`;
+  els.chartTooltip.hidden = false;
+  const round = Number(hit.closest<SVGElement>("[data-round]")?.dataset.round);
+  highlightRow(Number.isFinite(round) ? round : undefined);
+});
+els.growthChart.addEventListener("pointerleave", () => {
+  els.chartTooltip.hidden = true;
+  highlightRow(undefined);
+});
+
 // ---- Events: painting on the chart ----
 
 let stroke: { painted: Set<number> } | undefined;
 
 function paintAt(target: EventTarget | null, wholeRound: boolean): void {
-  const input = state.built.input;
   const id = beadAt(target);
-  if (!input || id === undefined || !state.paint || !stroke || stroke.painted.has(id)) return;
+  if (id !== undefined) paintId(id, wholeRound);
+}
+
+function paintId(id: number, wholeRound: boolean): void {
+  const input = state.built.input;
+  if (!input || !state.paint || !stroke || stroke.painted.has(id)) return;
   const bead = input.compiled.beads[id]!;
   stroke.painted.add(id);
   if (wholeRound) {
@@ -731,15 +908,20 @@ els.chart.addEventListener("pointermove", (event) => {
     els.tooltip.hidden = true;
     return;
   }
-  const { compiled, beads } = state.built.input;
-  const bead = compiled.beads[id]!;
-  els.tooltip.textContent = `Round ${bead.round} · bead ${bead.order} · ${bead.key}: ${beads.get(bead.key)?.label ?? ""}`;
+  showBeadTip(id, event);
+});
+
+function showBeadTip(id: number, event: PointerEvent): void {
+  const input = state.built.input;
+  const bead = input?.compiled.beads[id];
+  if (!input || !bead) return;
+  els.tooltip.textContent = `Round ${bead.round} · bead ${bead.order} · ${bead.key}: ${input.beads.get(bead.key)?.label ?? ""}`;
   const card = els.chart.parentElement!.getBoundingClientRect();
   els.tooltip.style.left = `${event.clientX - card.left}px`;
   els.tooltip.style.top = `${event.clientY - card.top}px`;
   els.tooltip.hidden = false;
   if (!stroke) highlightRow(bead.round);
-});
+}
 
 const endStroke = () => {
   if (!stroke) return;
@@ -777,6 +959,34 @@ function setTool(tool: "bead" | "round"): void {
 els.toolBead.addEventListener("click", () => setTool("bead"));
 els.toolRound.addEventListener("click", () => setTool("round"));
 els.stepUpToggle.addEventListener("change", renderChart);
+
+// Spacing between rounds and between beads in a round. It changes the chart
+// and the downloaded sheets, not the pattern or the 3D shape, so only the
+// layout is redone.
+function spacing(): LayoutOptions {
+  return { roundGap: Number(els.roundGap.value), beadGap: Number(els.beadGap.value) };
+}
+
+function showSpacing(): void {
+  els.roundGapValue.textContent = `${Number(els.roundGap.value).toFixed(2)} mm`;
+  els.beadGapValue.textContent = `${Number(els.beadGap.value).toFixed(2)} mm`;
+}
+
+for (const slider of [els.roundGap, els.beadGap]) {
+  slider.addEventListener("input", () => {
+    showSpacing();
+    const input = state.built.input;
+    if (input) state.built.input = { ...input, layout: layoutPattern(input.compiled, input.beads, spacing()) };
+    renderChart();
+  });
+  slider.addEventListener("change", () => {
+    try {
+      localStorage.setItem(STORAGE.spacing, JSON.stringify(spacing()));
+    } catch {
+      // Not remembered without storage; the default spacing is used next time.
+    }
+  });
+}
 
 // ---- Events: YAML tab ----
 
@@ -891,6 +1101,7 @@ els.file.addEventListener("change", async () => {
 /** Replaces the draft. Undo brings the old one back. */
 function load(draft: Draft): void {
   state.paint = draft.beads[0]?.key ?? "";
+  reframe = true;
   change(draft);
   if (state.tab === "yaml") els.yaml.value = draftToYaml(state.draft);
 }
@@ -996,6 +1207,19 @@ function readStored(key: string): string | undefined {
 }
 
 // ---- Start ----
+
+{
+  let saved: LayoutOptions = {};
+  try {
+    saved = JSON.parse(readStored(STORAGE.spacing) ?? "{}") as LayoutOptions;
+  } catch {
+    saved = {};
+  }
+  const { roundGap, beadGap } = { ...DEFAULT_SPACING, ...saved };
+  els.roundGap.value = String(roundGap);
+  els.beadGap.value = String(beadGap);
+  showSpacing();
+}
 
 {
   // A pattern sent from the step viewer wins over the saved draft. The saved

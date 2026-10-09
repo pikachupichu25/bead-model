@@ -9,7 +9,8 @@ import { type DiagramInput, previousRound, renderDiagramSvg } from "../src/diagr
 import { type CompiledPattern, type CompiledStep, compilePattern } from "../src/pattern/compile.js";
 import { describeStep, stepLabel, stepNumber, summarizeStitches } from "../src/pattern/describe.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
-import { buildShape, type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
+import { isShapeEngine, SHAPE_ENGINES, type ShapeEngine, solveShape } from "../src/shape/engines.js";
+import { type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
 import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
 import type { BeadViewer } from "./viewer3d.js";
 
@@ -77,6 +78,7 @@ const els = {
   view3d: $<HTMLButtonElement>("view-3d"),
   fade: $<HTMLInputElement>("fade-toggle"),
   shapeColor: $<HTMLInputElement>("shape-color-toggle"),
+  engine: $<HTMLSelectElement>("engine-select"),
   viewer: $("viewer3d"),
   key3d: $("key3d"),
   chart: $("growth-chart"),
@@ -92,11 +94,13 @@ const state: {
   view: "2d" | "3d";
   /** The 3D model of the current pattern, made the first time the 3D view needs it. */
   model?: ShapeModel;
-  /** Shapes already solved, by step. */
-  shapes: Map<number, Shape>;
+  /** Which 3D model solves the shape. */
+  engine: ShapeEngine;
+  /** Shapes already solved, by model and step ("tension:3"). */
+  shapes: Map<string, Shape>;
   /** Whether the camera has been fitted to the current pattern. */
   framed: boolean;
-} = { index: 0, view: "2d", shapes: new Map(), framed: false };
+} = { index: 0, view: "2d", engine: savedEngine(), shapes: new Map(), framed: false };
 
 let viewer: BeadViewer | undefined;
 
@@ -422,8 +426,9 @@ function renderShape(): void {
   if (!input || !viewer) return;
   state.model ??= shapeModel(input.compiled, input.beads);
   const shapeAt = (step: number) => {
-    let shape = state.shapes.get(step);
-    if (!shape) state.shapes.set(step, (shape = buildShape(state.model!, { upToStep: step })));
+    const key = `${state.engine}:${step}`;
+    let shape = state.shapes.get(key);
+    if (!shape) state.shapes.set(key, (shape = solveShape(state.model!, state.engine, { upToStep: step })));
     return shape;
   };
   const shape = shapeAt(state.index);
@@ -454,6 +459,31 @@ els.view2d.addEventListener("click", () => setView("2d"));
 els.view3d.addEventListener("click", () => setView("3d"));
 els.fade.addEventListener("change", () => selectStep(state.index));
 els.shapeColor.addEventListener("change", () => selectStep(state.index));
+els.engine.innerHTML = Object.entries(SHAPE_ENGINES)
+  .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
+  .join("");
+els.engine.value = state.engine;
+els.engine.addEventListener("change", () => {
+  if (!isShapeEngine(els.engine.value)) return;
+  state.engine = els.engine.value;
+  try {
+    localStorage.setItem("bead-model:engine", state.engine);
+  } catch {
+    // Storage can be off: the choice just isn't remembered.
+  }
+  selectStep(state.index);
+});
+
+/** The 3D model chosen last time, or the thread-tension model. */
+function savedEngine(): ShapeEngine {
+  try {
+    const saved = localStorage.getItem("bead-model:engine");
+    if (isShapeEngine(saved)) return saved;
+  } catch {
+    // Storage can be off (private windows).
+  }
+  return "tension";
+}
 
 // Hover a bead for its details; click (without dragging) to go to its step.
 let pressed: { x: number; y: number } | undefined;

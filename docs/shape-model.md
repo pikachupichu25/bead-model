@@ -2,7 +2,9 @@
 
 Step 4 of [plan.md](plan.md). **Status: first version. Constants are first guesses until we fit them to photos of real pieces.**
 
-This explains how the program works out the 3D shape a pattern makes. It uses the compiled pattern (every bead, the gaps it sits in, the thread path) and the bead sizes from the [catalog](bead-catalog.md). Code: `src/shape/`.
+This explains the **springs model**, the first way the program works out the 3D shape a pattern makes. A second model, built on thread tension and solid beads, sits alongside it: see [physics-model-proposal.md](physics-model-proposal.md). The 3D view's **Model** menu switches between them.
+
+This explains how the springs model works out the 3D shape a pattern makes. It uses the compiled pattern (every bead, the gaps it sits in, the thread path) and the bead sizes from the [catalog](bead-catalog.md). Code: `src/shape/`.
 
 ## 1. What the counts predict: growth
 
@@ -60,7 +62,7 @@ Links to a bead that **shares its gap** (a pair or a triple) are 5× softer. Inc
 
 1. **Starting guess.** Each round is a ring at the angles of the 2D diagram. The radius and height come from walking the profile out from the start ring using each round's growth. Front rounds of a tube go up, back rounds go down. A little seeded noise in height lets rows with too many beads buckle.
 2. **Relax.** 600 passes: move each linked pair toward its distance (position-based dynamics), and every third pass push apart any beads that overlap (each bead is a sphere of its smaller dimension).
-3. **Measure.** Turn the piece so the start ring lies flat at the origin. For each round, measure its mean radius, mean height, and how much its heights spread (waviness). Then give it a verdict:
+3. **Measure.** Turn the piece so its axis points up, with the start ring's center at the origin. The axis comes from all the rounds together, weighted by the area each one encloses, because a small start ring can sit tilted to the rest of the piece. For each round, measure its mean radius, mean height, and how much its heights spread (waviness). Then give it a verdict:
    - **wavy**: heights spread by more than 0.3 bead diameters and more than a tenth of the radius (ruffles, or a saddle-like warp)
    - otherwise by the angle of the fabric from two rounds down: under 25° **flat**, under 65° **cup**, under 115° **wall**, else **curls in**
 
@@ -76,12 +78,12 @@ We don't have photos of our own pieces yet. These are the shapes the sources des
 |---|---|---|---|
 | [2. Rivoli bezel](references/02-rivoli-bezel-cup.md) | Short tube; both edges curl inward to hold the stone | Round 3 a wall; rounds 4–7 curl in, front up and back down. Band about 14 mm across, opening about 7 mm | Yes |
 | [1. Flat circle](references/01-flat-circle.md) | Flat disk | Rounds 6–7 flat, but rounds 3–5 rise into a shallow dome (about 2.5 mm on a 15 mm piece) | Partly |
-| [3. Triangle](references/03-flat-triangle.md) | Flat triangle | Three clear corners and straight sides, but warped like a saddle: two corners about 4 mm up and down, the third flat, on a 28 mm piece | Partly |
+| [3. Triangle](references/03-flat-triangle.md) | Flat triangle | Three clear corners and straight sides, with a slight warp: corners within about 1.5 mm of the middle on a 28 mm piece | Mostly |
 | [4. Trinket box top](references/04-christmas-mug-trinket-box.md) | Unknown (only 3 rounds; "the top may dome") | A shallow cup | Can't tell |
 
 **Why the flat circle domes.** Its 14-bead start is followed by a round of 7 (one per gap), which adds no row length at all, so the model stands it up as a wall. The source treats the foundation as lying flat. Real foundations are often loose, so the start ring probably stretches. A looser start ring (or tension per start) would test this.
 
-**Why the triangle warps.** With nominal 11/0 sizes (2.0 × 1.45 mm), the sides need about 10.4 mm more row per round to stay flat and get 9.2 mm. The 2-bead corners make up the difference by splaying, and the rest goes out of the plane. Geometric peyote does warp this way ("warped squares" use it on purpose), but small triangles lie flat in photos. So either real beads are relatively longer than our nominal sizes, or corners splay more than the model allows. Measuring real beads, or a photo of a 10-round triangle, will tell which.
+**Why the triangle warps a little.** Most of the saddle the model used to show (corners 4 mm up and down) came from measuring against its tilted 3-bead start ring. What's left is real: with nominal 11/0 sizes (2.0 × 1.45 mm), the sides need about 10.4 mm more row per round to stay flat and get 9.2 mm. The 2-bead corners make up the difference by splaying, and the rest goes out of the plane. Geometric peyote does warp this way ("warped squares" use it on purpose), but small triangles lie flat in photos. So either real beads are relatively longer than our nominal sizes, or corners splay more than the model allows. Measuring real beads, or a photo of a 10-round triangle, will tell which.
 
 ## 4. What to calibrate next
 

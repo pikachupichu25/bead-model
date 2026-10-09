@@ -15,7 +15,7 @@
 
 import type { ResolvedBead } from "../catalog/catalog.js";
 import { layoutPattern } from "../diagram/layout.js";
-import type { CompiledPattern } from "../pattern/compile.js";
+import type { CompiledPattern, CompiledRound } from "../pattern/compile.js";
 import { buildContacts, type Contacts, type Link } from "./contacts.js";
 import { roundProfiles, type RoundProfile } from "./profile.js";
 
@@ -130,11 +130,8 @@ export function buildShape(model: ShapeModel, options: ShapeOptions = {}): Shape
     if (i % 3 === 0) separate(pos, ids, reach);
   }
 
-  // 3. Turn the piece so the start ring lies flat, centered, with the front
-  // rounds going up; then measure.
-  const frame = startFrame(compiled, pos);
-  for (const id of ids) pos.set(id, frame(pos.get(id)!));
-
+  // 3. Turn the piece so its axis points up, then measure.
+  const measured = frameAndMeasure(model, rounds, pos);
   const axis = new Map(ids.map((id) => [id, holeAxis(compiled, pos, id)]));
   const strain = Math.max(
     0,
@@ -142,6 +139,30 @@ export function buildShape(model: ShapeModel, options: ShapeOptions = {}): Shape
       .filter((l) => l.kind === "thread")
       .map((l) => Math.abs(distance(pos.get(l.a)!, pos.get(l.b)!) - l.rest) / l.rest),
   );
+
+  return { ids, position: pos, axis, rounds: measured, strain };
+}
+
+/**
+ * Turns a solved piece (in place) so the start ring's center is at the origin
+ * and the piece's axis along z, then measures each round. Hole directions in
+ * `axes`, if given, are turned with it. Shared by both 3D models.
+ */
+export function frameAndMeasure(
+  model: ShapeModel,
+  rounds: CompiledRound[],
+  pos: Map<number, Vec3>,
+  axes?: Map<number, Vec3>,
+): RoundShape[] {
+  const { compiled, beads, profiles } = model;
+  const size = (id: number) => beads.get(compiled.beads[id]!.key)!;
+  const profileOf = new Map(profiles.map((p) => [p.round, p]));
+  const edgeSign = new Map(compiled.rounds.map((r) => [r.round, r.edge === "back" ? -1 : 1]));
+
+  const frame = startFrame(compiled, rounds, pos);
+  const origin = frame([0, 0, 0]);
+  for (const id of pos.keys()) pos.set(id, frame(pos.get(id)!));
+  if (axes) for (const id of axes.keys()) axes.set(id, sub(frame(axes.get(id)!), origin));
 
   const measured = new Map<number, RoundShape>();
   for (const round of rounds) {
@@ -176,7 +197,7 @@ export function buildShape(model: ShapeModel, options: ShapeOptions = {}): Shape
     measured.set(round.round, shape);
   }
 
-  return { ids, position: pos, axis, rounds: rounds.map((r) => measured.get(r.round)!), strain };
+  return rounds.map((r) => measured.get(r.round)!);
 }
 
 /** Moves both beads of a link along the line between them, toward its rest length. */
@@ -227,10 +248,19 @@ function separate(pos: Map<number, Vec3>, ids: number[], reach: Map<number, numb
 }
 
 /**
- * A transform that puts the start ring's center at the origin and its plane
- * flat, keeping +z on the side the front rounds were built toward.
+ * A transform that puts the start ring's center at the origin and the piece's
+ * axis along z, keeping +z on the side the front rounds were built toward.
+ *
+ * The axis is the sum of every round's normal. Each round's normal is as long
+ * as twice the area it encloses, so big rounds count for more. A small start
+ * ring can sit tilted to the rest of the piece (a 4-bead ring does), and
+ * taking the axis from it alone would tip a straight tube over.
  */
-function startFrame(compiled: CompiledPattern, pos: Map<number, Vec3>): (p: Vec3) => Vec3 {
+function startFrame(
+  compiled: CompiledPattern,
+  rounds: CompiledRound[],
+  pos: Map<number, Vec3>,
+): (p: Vec3) => Vec3 {
   const isTube = compiled.pattern.start.kind === "tube";
   const ring = isTube
     ? [...compiled.rounds[0]!.beads, ...compiled.rounds[1]!.beads].sort((a, b) => a - b)
@@ -239,17 +269,15 @@ function startFrame(compiled: CompiledPattern, pos: Map<number, Vec3>): (p: Vec3
   const center = points.reduce<Vec3>((s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]], [0, 0, 0]).map(
     (v) => v / points.length,
   ) as Vec3;
-  // Newell's method: the normal of a closed polygon, in stringing order.
-  let n: Vec3 = [0, 0, 0];
-  points.forEach((p, i) => {
-    const q = points[(i + 1) % points.length]!;
-    n = [
-      n[0] + (p[1] - q[1]) * (p[2] + q[2]),
-      n[1] + (p[2] - q[2]) * (p[0] + q[0]),
-      n[2] + (p[0] - q[0]) * (p[1] + q[1]),
-    ];
-  });
-  n = normalize(n[2] < 0 ? scale(n, -1) : n);
+  // A tube start's two rounds are one ring; the rest go round in pickup order.
+  // Rounds can be stitched either way round, so each normal is turned to +z
+  // (the way the starting guess built the piece) before adding.
+  const rings = [ring, ...rounds.filter((r) => r.stitches.length > 0).map((r) => r.beads)];
+  let n = rings.reduce<Vec3>((sum, ids) => {
+    const m = newell(ids.map((id) => pos.get(id)!));
+    return add(sum, m[2] < 0 ? scale(m, -1) : m);
+  }, [0, 0, 0]);
+  n = normalize(n);
   if (Math.hypot(...n) === 0) n = [0, 0, 1];
   // An orthonormal frame (u, v, n) with u as close to the old x axis as it can be.
   let u: Vec3 = sub([1, 0, 0], scale(n, n[0]));
@@ -300,11 +328,25 @@ function seeded(seed: number): () => number {
 }
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const scale = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+/** Newell's method: the normal of a closed polygon, as long as twice its area. */
+function newell(points: Vec3[]): Vec3 {
+  let n: Vec3 = [0, 0, 0];
+  points.forEach((p, i) => {
+    const q = points[(i + 1) % points.length]!;
+    n = [
+      n[0] + (p[1] - q[1]) * (p[2] + q[2]),
+      n[1] + (p[2] - q[2]) * (p[0] + q[0]),
+      n[2] + (p[0] - q[0]) * (p[1] + q[1]),
+    ];
+  });
+  return n;
+}
 function normalize(a: Vec3): Vec3 {
   const len = Math.hypot(...a);
   return len === 0 ? a : scale(a, 1 / len);
