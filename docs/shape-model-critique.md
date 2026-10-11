@@ -48,7 +48,8 @@ There are 4 reference pieces and no photos yet, so there is no way to pin these 
 ## 5. The profile maths makes work for itself
 
 - **Radius** is built up round by round from the slope, and the slope is clipped to [−1, 1]. When growth is above 1 the extra row length is simply lost, and that extra length is exactly what sets how big the ruffles are.
-- **Smoothing over two rounds** doesn't remove the pair-then-split rhythm. The flat circle still reads 0.00, 0.96, 0.96, 0.96, **1.92**.
+- **Corners** are a separate special case (the 1.65 / 1.27 / 1.10 limits in the docs), so the triangle's growth of 1.46 reads as "ruffles or corners" on the chart even though it is in the flat range for a triangle.
+- (Correction to an earlier draft of this review: the flat circle's growths of 0.00 and 1.92 are not noise from the pair-then-split rhythm. Its rows are 14, 14, 14, 21, 21, 28, 35 beads long, so round 3 really adds no row length, and round 7, whose placement is our guess, really doubles the increases. The two-round window is right.)
 - **Special cases:** tube starts, `parent`/`grand` lookups, and `step` computed differently for start rounds.
 
 ## 6. Minor issues

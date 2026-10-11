@@ -31,7 +31,10 @@ export interface RoundProfile {
   growth?: number;
 }
 
-/** Growth values that read as each shape (for the chart and the docs). */
+/**
+ * Growth values that read as each shape. The one set of cut-offs: the 3D
+ * verdicts use them too, through growth = cos(angle of the fabric).
+ */
 export const GROWTH_BANDS = [
   { max: -0.15, label: "curls in" },
   { max: 0.2, label: "wall" },

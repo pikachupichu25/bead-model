@@ -17,7 +17,7 @@ import type { ResolvedBead } from "../catalog/catalog.js";
 import { layoutPattern } from "../diagram/layout.js";
 import type { CompiledPattern } from "../pattern/compile.js";
 import { buildContacts, type Contacts, type Link } from "./contacts.js";
-import { roundProfiles, type RoundProfile } from "./profile.js";
+import { growthLabel, roundProfiles, type RoundProfile } from "./profile.js";
 
 export type Vec3 = [number, number, number];
 
@@ -162,16 +162,12 @@ export function buildShape(model: ShapeModel, options: ShapeOptions = {}): Shape
       const rise = (shape.height - from.height) * edgeSign.get(round.round)!;
       shape.angle = (Math.atan2(Math.abs(rise), shape.radius - from.radius) * 180) / Math.PI;
       const diameter = mean(round.beads.map((id) => size(id).outerDiameter));
+      // The same cut-offs as the growth chart: on a smooth piece, growth is
+      // the cosine of the fabric's angle.
       shape.verdict =
         shape.waviness > Math.max(RUFFLE * diameter, 0.1 * shape.radius)
           ? "wavy"
-          : shape.angle < 25
-            ? "flat"
-            : shape.angle < 65
-              ? "cup"
-              : shape.angle < 115
-                ? "wall"
-                : "curls in";
+          : (growthLabel(Math.cos((shape.angle * Math.PI) / 180)) as Verdict);
     }
     measured.set(round.round, shape);
   }
