@@ -92,6 +92,8 @@ It assumes the piece is symmetric and evenly tensioned: the same at every increa
 
 ## Plan
 
+All four steps are done on branch `shape-model-simplify`; see [shape-model.md](shape-model.md).
+
 1. Make the angle labels follow g = cos φ, with one set of cut-offs.
 2. Replace the profile code with r = C/P(k), Pythagoras, and the ruffle formula.
 3. Drive the 3D view from the profile, and drop the solver or keep it as an experimental option.
