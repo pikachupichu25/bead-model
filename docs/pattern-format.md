@@ -80,10 +80,22 @@ Each round is a list of stitches, separated by commas. To keep it short:
 | `(2A, 1B) x3` | Repeat the group 3 times |
 | `1B*` | **Fill:** repeat this stitch as many times as needed to fill the remaining gaps in its group |
 | `rounds 3-10:` | Use the same instruction for a range of rounds (needs `*` when the gap count changes) |
+| `6-17: [A, B]` | **Cycle:** repeat a list of rounds in order over the range (here A, B, A, B, …). The range must hold a whole number of repeats |
 
 At most one `*` stitch is allowed per group, and the fill count must come out to a whole, non-negative number in every round of the range.
 
 The `*` fill is what lets a growing shape such as the triangle be written as one rule instead of one line per round.
+
+A cycle is for shapes that alternate between rounds, such as a wall that adds pairs in one round and passes over them in the next. Each list item is a round written as usual, either a stitch string or a mapping with options:
+
+```yaml
+rounds:
+  6-17:                               # 6 repeats of 2 rounds
+    - (1A, 0, 1A, 1A, 0, 1A, 0) x2
+    - { stitches: "(2A, 2A, 1A, 2A) x2", tension: tight }
+```
+
+Write the list one item per line, as above. On one line it needs quotes, `6-17: ["(1A, 0) x8", "(2A) x8"]`, because YAML would otherwise split the list at the commas inside the stitches.
 
 ## Per-round options
 
@@ -92,8 +104,21 @@ The `*` fill is what lets a growing shape such as the triangle be written as one
 | `edge` | `front` (default), `back` | Which edge of a `tube` start to work from |
 | `tension` | `normal` (default), `tight`, `loose` | Recorded for the 3D model. Tight thread pulls the work inward |
 | `note` | free text | For people only. The program ignores it |
+| `close` | `true`, `false` (default) | Last round only. Close the opening: see below |
 
-`step_up` (above) is set once for the whole pattern, next to `start`.
+`step_up` (above) is set once for the whole pattern, next to `start`. So is `thread_diameter`: the thread's diameter in mm (FireLine 6 lb is about 0.15, size D Nymo about 0.2). It is optional, and only the thread-tension 3D model uses it, for how far the thread can sit off center in a bead's hole. Without it the model uses 0.2.
+
+### Closing the last round
+
+A piece that closes up, like a beaded ball, ends with a small opening: the last round's beads sit in the gaps of the round before but aren't joined to each other. `close: true` on the last round joins them. After the step-up, the thread goes on through the round's own beads, bead to bead, back to where it started, and is pulled tight. The last round becomes a ring, just like a `center` start ring, so a closed piece starts and ends the same way.
+
+```yaml
+rounds:
+  24: (0, 1A) x4
+  25: { stitches: "(1A) x4", close: true }
+```
+
+The diagram draws the closing pass, the instruction for the round says to pull the beads into a ring, and both 3D models pull them together. The editor shows a **Close the opening** checkbox on the last round.
 
 ## Bead types
 
@@ -126,6 +151,7 @@ beads:
   A: { size: 11/0, shape: round, color: "..." }
 start: center 3A          # or: tube (1A, 1B) x16
 step_up: group            # optional: group (default) or first
+thread_diameter: 0.15     # optional, mm: for the thread-tension 3D model
 rounds:
   2: (2A) x3
   3-10: (1B, 2A, 1B*) x3
@@ -153,6 +179,7 @@ The program rejects a pattern, or warns, when:
 5. `edge: back` is used without a `tube` start.
 6. A round has every stitch `0` (nothing is added). This is an error.
 7. Warning: more than half of a round's stitches are `0`, or the bead count grows by much more than about 3 per round. Either may mean a cup or ruffle that wasn't intended.
+8. `close: true` on any round but the last.
 
 ## The three reference patterns in this format
 

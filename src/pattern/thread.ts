@@ -14,6 +14,8 @@ import type { CompiledPattern } from "./compile.js";
  *   stepping up through the round's first stitch: all of its beads, or only
  *   the first with `step_up: first` (and any up beads before it, when the
  *   first gaps are `0`).
+ * - A closing round (`close: true`) then goes on through its own beads, bead
+ *   to bead, back to where it started, and pulls them into a ring.
  */
 export function threadPasses(compiled: CompiledPattern, stepIndex: number): number[] {
   const step = compiled.steps[stepIndex];
@@ -41,5 +43,14 @@ export function threadPasses(compiled: CompiledPattern, stepIndex: number): numb
   for (; !byGap.has(firstGap); firstGap++) passes.push(upBeads[firstGap + 1]!);
   const firstStitch = byGap.get(firstGap)!;
   passes.push(...(compiled.pattern.stepUp === "group" ? firstStitch : firstStitch.slice(0, 1)));
+
+  // Closing: on from the bead the step-up came out of, through the round's
+  // other beads in turn and back to it, so they pull into a ring like the
+  // start ring.
+  if (round.close) {
+    const beads = round.beads;
+    const at = beads.indexOf(passes.at(-1)!);
+    for (let i = 1; i <= beads.length; i++) passes.push(beads[(at + i) % beads.length]!);
+  }
   return passes;
 }

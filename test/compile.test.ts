@@ -133,6 +133,15 @@ describe("validation", () => {
     expect(issues(() => compile(yaml))).toEqual(["round 2: edge: back needs a tube start"]);
   });
 
+  it("lets only the last round close, and only with true or false", () => {
+    const close = (rounds: string) => `beads: { A: {} }\nstart: center 3A\nrounds:\n${rounds}`;
+    expect(compile(close("  2: { stitches: (1A) x3, close: true }")).rounds.at(-1)!.close).toBe(true);
+    expect(issues(() => compile(close("  2: { stitches: (1A) x3, close: true }\n  3: (1A) x3")))).toEqual([
+      "round 2: only the last round can close",
+    ]);
+    expect(issues(() => compile(close("  2: { stitches: (1A) x3, close: yes }")))[0]).toMatch(/`close` must be true or false/);
+  });
+
   it("rejects a round that adds nothing", () => {
     expect(issues(() => compile("beads: { A: {} }\nstart: center 3A\nrounds:\n  2: (0) x3"))).toEqual([
       "round 2: every stitch is 0, so nothing is added",
@@ -162,5 +171,42 @@ describe("validation", () => {
 describe("ranges", () => {
   it("applies one instruction to each round of a range", () => {
     expect(counts("beads: { A: {} }\nstart: center 3A\nrounds:\n  2-4: (1A*) x3")).toEqual([3, 3, 3, 3]);
+  });
+});
+
+describe("round cycles", () => {
+  const head = "title: t\nbeads:\n  A: { size: 11/0, shape: cylinder, color: x }\nstart: center (1A) x4\nrounds:\n";
+
+  it("repeats a list of rounds in order over the range", () => {
+    expect(counts(`${head}  2: (2A) x4\n  3-6:\n    - (1A, 0) x4\n    - (2A) x4\n`)).toEqual([4, 8, 4, 8, 4, 8]);
+  });
+
+  it("takes options on the rounds in a cycle", () => {
+    const compiled = compile(`${head}  2-3:\n    - (1A) x4\n    - { stitches: "(1A) x4", tension: tight }\n`);
+    expect(compiled.rounds.map((r) => r.tension)).toEqual(["normal", "normal", "tight"]);
+  });
+
+  it("rejects a range that isn't a whole number of repeats", () => {
+    expect(issues(() => parsePattern(`${head}  2-4: [(1A) x4, (1A) x4]\n`))).toEqual([
+      "round 2-4: the range covers 3 rounds, which is not a whole number of repeats of 2 rounds",
+    ]);
+  });
+
+  it("names the round when a cycle entry is wrong", () => {
+    expect(issues(() => parsePattern(`${head}  2-3: [(1A) x4, { tension: tight }]\n`))).toEqual([
+      "round 2-3: round 3: expected a stitch string, or a mapping with `stitches`",
+    ]);
+  });
+
+  it("Moo Deng holds a steady 8/14 wall", () => {
+    expect(reference("05-moo-deng").rounds.map((r) => r.beads.length)).toEqual([
+      4, 4, 8, 8, 14, ...Array(6).fill([8, 14]).flat(),
+    ]);
+  });
+
+  it("the beaded ball matches the source's bead count for every row", () => {
+    expect(reference("06-beaded-ball").rounds.map((r) => r.beads.length)).toEqual([
+      4, 4, 8, 8, 8, 12, 12, 12, ...Array(9).fill(16), 12, 12, 12, 8, 8, 8, 4, 4,
+    ]);
   });
 });

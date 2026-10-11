@@ -7,7 +7,7 @@
 
 import type { ResolvedBead, Shape } from "../catalog/catalog.js";
 import { type CompiledPattern, type CompiledStep, describeStitches } from "../pattern/compile.js";
-import { stepLabel } from "../pattern/describe.js";
+import { describeStep, stepLabel } from "../pattern/describe.js";
 import { threadPasses } from "../pattern/thread.js";
 import type { Layout, PlacedBead } from "./layout.js";
 
@@ -45,6 +45,7 @@ export function renderStepSvg(input: DiagramInput, stepIndex: number): string {
   const options = [
     round.edge === "back" ? "Worked from the back edge" : undefined,
     round.tension !== "normal" ? `${capitalize(round.tension)} tension` : undefined,
+    round.close ? "Then pull its beads into a ring to close" : undefined,
     round.note ? `Note: ${round.note}` : undefined,
   ].filter(Boolean);
 
@@ -116,6 +117,124 @@ export function renderSheetSvg(input: DiagramInput, columns = 4): string {
     ...panels,
   ];
   return svgDocument(width, height, body.join("\n"));
+}
+
+export interface ChartOptions {
+  /** Ring the step-up bead (first bead) of every round. */
+  stepUps?: boolean;
+}
+
+/**
+ * The design chart: the whole piece with every bead in full color, as a
+ * standalone <svg> that scales to its container. Each bead is a
+ * <g data-bead="id" data-round="n"> for interactive use.
+ */
+export function renderChartSvg(input: DiagramInput, options: ChartOptions = {}): string {
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox(input.layout)}" width="100%" height="100%" role="img" aria-label="${escapeXml(input.compiled.pattern.title)} chart">`,
+    drawChart(input, options.stepUps ?? true),
+    `</svg>`,
+  ].join("\n");
+}
+
+/**
+ * A printable chart for the whole pattern: the finished piece, the beads with
+ * how many of each to buy, and the instruction for every step.
+ */
+export function renderChartSheetSvg(input: DiagramInput): string {
+  const { compiled } = input;
+  const width = 760;
+  const margin = 32;
+  const headerHeight = 96;
+  const diagramSize = 560;
+  const total = compiled.beads.length;
+  const lastRoundNumber = lastRound(compiled);
+
+  const beadRows = [...input.beads.values()].map((bead) => {
+    const count = compiled.beads.filter((b) => b.key === bead.key).length;
+    const grams = bead.beadsPerGram ? ` · about ${(count / bead.beadsPerGram).toFixed(1)} g` : "";
+    return { bead, text: `${bead.label}, ${bead.outerDiameter} × ${bead.length} mm`, count: `${count} beads${grams}` };
+  });
+  const steps = compiled.steps.flatMap((step) => {
+    const lines = wrap(describeStep(compiled, step), 92);
+    const round = step.rounds[0]!;
+    if (round.tension !== "normal") lines.push(`Keep the thread ${round.tension}.`);
+    if (round.note) lines.push(...wrap(`Note: ${round.note}`, 92));
+    return [{ label: `${stepLabel(step)} · ${step.beads.length} beads`, lines }];
+  });
+
+  let y = headerHeight + diagramSize + 24;
+  const body: string[] = [
+    text(margin, 42, compiled.pattern.title, 24, INK, "600"),
+    text(
+      margin,
+      68,
+      [`${lastRoundNumber} rounds`, `${total} beads`, compiled.pattern.source ?? ""].filter(Boolean).join(" · "),
+      13,
+      MUTED,
+    ),
+    `<svg x="${(width - diagramSize) / 2}" y="${headerHeight}" width="${diagramSize}" height="${diagramSize}" viewBox="${viewBox(input.layout)}">`,
+    drawChart(input, true),
+    `</svg>`,
+    text(margin, y, "Beads", 16, INK, "600"),
+  ];
+  y += 14;
+  for (const row of beadRows) {
+    y += 26;
+    const { rgb, opacity = 1 } = row.bead.display;
+    body.push(
+      `<rect x="${margin}" y="${y - 13}" width="22" height="16" rx="4" fill="${rgb}" fill-opacity="${Math.max(opacity, 0.35)}" stroke="${darken(rgb)}"/>`,
+      text(margin + 32, y, row.bead.key, 14, INK, "600"),
+      text(margin + 54, y, row.text, 13, INK),
+      text(width - margin, y, row.count, 13, MUTED, "400", "end"),
+    );
+  }
+  y += 44;
+  body.push(text(margin, y, "Steps", 16, INK, "600"));
+  y += 8;
+  for (const step of steps) {
+    y += 24;
+    body.push(text(margin, y, step.label, 13, INK, "600"));
+    for (const line of step.lines) {
+      y += 18;
+      body.push(text(margin + 12, y, line, 13, INK));
+    }
+  }
+  const height = y + margin;
+  return svgDocument(width, height, [`<rect width="${width}" height="${height}" fill="#ffffff"/>`, ...body].join("\n"));
+}
+
+function drawChart(input: DiagramInput, stepUps: boolean): string {
+  const { compiled, layout } = input;
+  const out = layout.beads.map((placed) => drawBead(placed, input.beads.get(placed.key)!, 1));
+  if (stepUps) {
+    const byId = new Map(layout.beads.map((b) => [b.id, b]));
+    for (const round of compiled.rounds) {
+      if (round.stitches.length === 0) continue;
+      const first = byId.get(round.beads[0]!)!;
+      const ring = Math.max(first.radial, first.tangential) * 0.6;
+      out.push(
+        `<circle cx="${fmt(first.x)}" cy="${fmt(first.y)}" r="${fmt(ring)}" fill="none" stroke="${STEP_UP}" stroke-width="0.12" pointer-events="none"/>`,
+      );
+    }
+  }
+  return out.join("\n");
+}
+
+/** Splits text into lines of at most `width` characters, at spaces. */
+function wrap(content: string, width: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of content.split(" ")) {
+    if (line && line.length + 1 + word.length > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 function drawBeads(input: DiagramInput, stepIndex: number, options: Required<DiagramOptions>): string {
@@ -286,7 +405,7 @@ function drawBead(placed: PlacedBead, bead: ResolvedBead, opacity: number): stri
     ? ""
     : `<ellipse cx="${fmt(-w * 0.18)}" cy="${fmt(-h * 0.2)}" rx="${fmt(w * 0.14)}" ry="${fmt(h * 0.2)}" fill="#ffffff" opacity="${finish.includes("metallic") || finish.includes("silver-lined") ? 0.75 : 0.4}"/>`;
   return [
-    `<g data-bead="${placed.id}" transform="translate(${fmt(placed.x)} ${fmt(placed.y)}) rotate(${fmt(rotation)})" opacity="${opacity}">`,
+    `<g data-bead="${placed.id}" data-round="${placed.round}" transform="translate(${fmt(placed.x)} ${fmt(placed.y)}) rotate(${fmt(rotation)})" opacity="${opacity}">`,
     `<rect x="${fmt(-w / 2)}" y="${fmt(-h / 2)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(rx)}" ry="${fmt(ry)}" fill="${rgb}" fill-opacity="${Math.max(glass, 0.35)}" stroke="${darken(rgb)}" stroke-width="0.08"/>`,
     highlight,
     `</g>`,

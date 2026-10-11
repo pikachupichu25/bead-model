@@ -31,6 +31,13 @@ describe("describeStep", () => {
     );
   });
 
+  it("tells the beader to pull a closing round into a ring", () => {
+    const compiled = reference("06-beaded-ball");
+    expect(describeStep(compiled, compiled.steps.at(-1)!)).toBe(
+      "Work 4 gaps: 1A ×4. Then step up through bead 1. To close, go on through the round's 4 beads in turn, back to where you started, and pull them tight into a ring.",
+    );
+  });
+
   it("steps up through only the first bead with step_up: first", () => {
     const compiled = reference("04-christmas-mug-trinket-box");
     expect(describeStep(compiled, compiled.steps[1]!)).toBe("Work 3 gaps: 2A, 1A, 1A. Then step up through bead 1.");

@@ -1,4 +1,7 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+
+const page = (name: string) => fileURLToPath(new URL(`./web/${name}`, import.meta.url));
 
 // The app lives in web/ and reads patterns and the catalog from the project root.
 export default defineConfig({
@@ -6,6 +9,12 @@ export default defineConfig({
   base: "./",
   // The 3D viewer chunk is mostly three.js (about 560 kB, 140 kB gzipped). It is
   // only loaded when the 3D view is opened.
-  build: { outDir: "../dist", emptyOutDir: true, chunkSizeWarningLimit: 700 },
+  // Two pages: the step viewer (index.html) and the pattern editor (editor.html).
+  build: {
+    outDir: "../dist",
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 700,
+    rolldownOptions: { input: { index: page("index.html"), editor: page("editor.html") } },
+  },
   server: { fs: { allow: [".."] } },
 });

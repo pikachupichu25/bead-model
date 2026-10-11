@@ -1,0 +1,23 @@
+# Reference 6, see docs/references/06-beaded-ball.md
+title: Beaded ball (16 mm)
+source: https://asleepycreative.com/how-to-make-a-3d-beaded-ball-for-beginners/
+status: unverified
+beads:
+  A: { size: 11/0, shape: round, color: "any" }
+# Round numbers match the source's rows. The source stacks its increases and
+# decreases on top of each other; where its patterns start in the round is our guess.
+start: center (1A) x4             # row 1: 4-bead ring
+rounds:
+  2: (1A) x4                      # 4 beads
+  3: (2A) x4                      # 8 beads, a pair in each gap
+  4-5: (1A) x8                    # 8 beads, splitting the pairs
+  6: (1A, 2A) x4                  # 12 beads
+  7-8: (1A) x12
+  9: (2A, 1A, 1A) x4              # 16 beads, the widest rows
+  10-17: (1A) x16                 # the source's size adjustment: add or remove rows here
+  18: (0, 1A, 1A, 1A) x4          # 12 beads, 0 = pass through two old beads without adding one
+  19-20: (1A) x12
+  21: (0, 1A, 1A) x4              # 8 beads
+  22-23: (1A) x8
+  24: (0, 1A) x4                  # 4 beads
+  25: { stitches: "(1A) x4", close: true }   # then through these 4 beads again, pulled into a ring like row 1

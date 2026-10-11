@@ -47,7 +47,9 @@ export function describeStep(compiled: CompiledPattern, step: CompiledStep): str
     return `Pick up ${sameKey ? pickup : `${start.beads.length} beads, ${pickup},`} and tie them into a ring. The beads settle into two rounds: the 1st, 3rd, 5th… make round 1, and the 2nd, 4th, 6th… sit half a bead higher as round 2.`;
   }
   const from = round.edge === "back" ? "On the back edge, work" : "Work";
-  return `${from} ${round.gaps} gaps: ${summarizeStitches(round.stitches)}. Then step up through ${stepUpBeads(compiled, step)}.`;
+  const steppedUp = `${from} ${round.gaps} gaps: ${summarizeStitches(round.stitches)}. Then step up through ${stepUpBeads(compiled, step)}.`;
+  if (!round.close) return steppedUp;
+  return `${steppedUp} To close, go on through the round's ${round.beads.length} beads in turn, back to where you started, and pull them tight into a ring.`;
 }
 
 /** The beads the step-up goes through: "bead 1", "beads 1 and 2", "beads 1 to 3". */

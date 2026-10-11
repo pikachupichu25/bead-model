@@ -2,7 +2,9 @@
 
 Step 4 of [plan.md](plan.md). **Status: second version, simplified after [a critique of the first](shape-model-critique.md). Bead sizes and tension are first guesses until we fit them to photos of real pieces.**
 
-This explains how the program works out the 3D shape a pattern makes. It uses the compiled pattern (every bead and the gaps it sits in) and the bead sizes from the [catalog](bead-catalog.md). Code: `src/shape/profile.ts` (the maths) and `src/shape/shape.ts` (placing the beads).
+This explains the **profile model**, one of the two ways the program works out the 3D shape a pattern makes. The other, the thread-tension model, settles solid beads on a tensioned thread step by step: see [physics-model-proposal.md](physics-model-proposal.md). The 3D view's **Model** menu switches between them.
+
+The profile model works out the 3D shape a pattern makes from its counts. It uses the compiled pattern (every bead and the gaps it sits in) and the bead sizes from the [catalog](bead-catalog.md). Code: `src/shape/profile.ts` (the maths) and `src/shape/shape.ts` (placing the beads).
 
 The idea: a pattern fixes the fabric's measurements (how long each row is, and how far apart the rows are), not its shape. For a piece that is the same at every increase point, those measurements fix a profile: how far out and how far up each round sits. Everything follows from that, with no solver.
 

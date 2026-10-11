@@ -12,6 +12,10 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
         <span>Peyote Steps</span>
+        <nav class="page-nav" aria-label="Pages">
+          <a href="./index.html" aria-current="page">Steps</a>
+          <a href="./editor.html">Editor</a>
+        </nav>
       </div>
       <div class="toolbar">
         <label class="field">
@@ -20,6 +24,7 @@
         </label>
         <label class="button" for="file-input">Open pattern…</label>
         <input id="file-input" type="file" accept=".yaml,.yml" hidden />
+        <button type="button" class="button" id="edit-pattern">Edit in editor</button>
       </div>
     </header>
 
@@ -60,6 +65,10 @@
             <label class="toggle">
               <input type="checkbox" id="shape-color-toggle" />
               <span>Color by shape</span>
+            </label>
+            <label class="toggle">
+              <span>Model</span>
+              <select id="engine-select"></select>
             </label>
           </div>
         </div>

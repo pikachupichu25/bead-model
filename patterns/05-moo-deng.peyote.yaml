@@ -1,0 +1,14 @@
+title: Moo Deng
+source: original
+status: unverified
+beads:
+  A: { size: 11/0, shape: cylinder, color: main, display: { rgb: "#5e5e5e" } }
+start: center (1A) x4
+rounds:
+  2: (1A) x4
+  3: (2A) x4
+  4: (1A) x8
+  5: (2A, 2A, 1A, 2A) x2
+  6-17:                               # the cylinder: these two rounds repeated 6 times
+    - (1A, 0, 1A, 1A, 0, 1A, 0) x2    # 8 beads, one over each pair (0 = the gap inside a pair) and each single
+    - (2A, 2A, 1A, 2A) x2             # 14 beads, as in round 5

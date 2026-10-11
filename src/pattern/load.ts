@@ -29,6 +29,11 @@ export interface RoundSpec {
   edge: Edge;
   tension: Tension;
   note?: string;
+  /**
+   * After this round, pass through its beads again, bead to bead, and pull
+   * them into a ring: the opening closes like the start ring. Last round only.
+   */
+  close?: boolean;
 }
 
 export interface Pattern {
@@ -39,6 +44,8 @@ export interface Pattern {
   beads: Record<string, unknown>;
   start: Start;
   stepUp: StepUp;
+  /** Diameter of the thread, mm, if the pattern gives it. */
+  threadDiameter?: number;
   rounds: RoundSpec[];
 }
 
@@ -75,7 +82,7 @@ export function parsePattern(yamlText: string): Pattern {
   } else {
     for (const [key, value] of Object.entries(doc.rounds)) {
       try {
-        rounds.push(parseRound(key, value));
+        rounds.push(...parseRounds(key, value));
       } catch (e) {
         issues.push(`round ${key}: ${message(e)}`);
       }
@@ -86,6 +93,11 @@ export function parsePattern(yamlText: string): Pattern {
   const stepUp = doc.step_up ?? "group";
   if (stepUp !== "group" && stepUp !== "first") issues.push("`step_up` must be group or first");
 
+  const threadDiameter = doc.thread_diameter;
+  if (threadDiameter !== undefined && !(typeof threadDiameter === "number" && threadDiameter > 0 && threadDiameter < 1)) {
+    issues.push("`thread_diameter` must be the thread's diameter in mm, e.g. 0.15");
+  }
+
   if (issues.length > 0) throw new PatternError(issues);
   return {
     title,
@@ -94,6 +106,7 @@ export function parsePattern(yamlText: string): Pattern {
     beads,
     start,
     stepUp: stepUp as StepUp,
+    threadDiameter: threadDiameter as number | undefined,
     rounds,
   };
 }
@@ -111,13 +124,37 @@ export function parseStart(text: string): Start {
   return { kind, beads };
 }
 
-function parseRound(key: string, value: unknown): RoundSpec {
+/**
+ * One entry under `rounds:`. A list value is a cycle: `6-17: [A, B]` makes
+ * rounds 6, 8, ... use A and rounds 7, 9, ... use B. It is expanded into one
+ * spec per round, so the compiler never sees it.
+ */
+function parseRounds(key: string, value: unknown): RoundSpec[] {
   const range = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(key);
   if (!range) throw new NotationError('the key must be a round number or a range such as "3-10"');
   const from = Number(range[1]);
   const to = range[2] === undefined ? from : Number(range[2]);
   if (to < from) throw new NotationError("the range ends before it starts");
+  if (!Array.isArray(value)) return [parseRound(from, to, value)];
 
+  if (value.length === 0) throw new NotationError("the list of rounds to repeat is empty");
+  if ((to - from + 1) % value.length !== 0) {
+    throw new NotationError(
+      `the range covers ${to - from + 1} rounds, which is not a whole number of repeats of ${value.length} rounds`,
+    );
+  }
+  const specs: RoundSpec[] = [];
+  for (let r = from; r <= to; r++) {
+    try {
+      specs.push(parseRound(r, r, value[(r - from) % value.length]));
+    } catch (e) {
+      throw new NotationError(`round ${r}: ${message(e)}`);
+    }
+  }
+  return specs;
+}
+
+function parseRound(from: number, to: number, value: unknown): RoundSpec {
   const options = typeof value === "string" ? { stitches: value } : value;
   if (!isRecord(options) || typeof options.stitches !== "string") {
     throw new NotationError("expected a stitch string, or a mapping with `stitches`");
@@ -128,6 +165,8 @@ function parseRound(key: string, value: unknown): RoundSpec {
   if (tension !== "normal" && tension !== "tight" && tension !== "loose") {
     throw new NotationError("`tension` must be normal, tight or loose");
   }
+  const close = options.close ?? false;
+  if (typeof close !== "boolean") throw new NotationError("`close` must be true or false");
   return {
     from,
     to,
@@ -136,6 +175,7 @@ function parseRound(key: string, value: unknown): RoundSpec {
     edge,
     tension,
     note: typeof options.note === "string" ? options.note : undefined,
+    ...(close && { close }),
   };
 }
 
