@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 
-This opens the web app at http://localhost:5173. Pick a pattern (or open your own `.peyote.yaml`) and step through it. Each step is one round, except a tube start, where rounds 1 and 2 are strung together as one step. The instructions are on the left; the diagram on the right shows the current step numbered in pickup order, with the other rounds faded. Arrow keys move between steps, and clicking a bead jumps to its step. **3D shape** switches the right side to an interactive 3D model of the piece as built up to the current step: drag to turn it, scroll to zoom. Below it, a chart compares each round's growth with what a flat circle needs, and says what the round does in 3D (flat, cup, wall, curls in, or wavy). "Color by shape" paints the beads by that verdict. See [docs/shape-model.md](docs/shape-model.md) for how the shape is worked out. `npm run build` writes a static site to `dist/`.
+This opens the web app at http://localhost:5173. Pick a pattern (or open your own `.peyote.yaml`) and step through it. Each step is one round, except a tube start, where rounds 1 and 2 are strung together as one step. The instructions are on the left; the diagram on the right shows the current step numbered in pickup order, with the other rounds faded. Arrow keys move between steps, and clicking a bead jumps to its step. **3D shape** switches the right side to an interactive 3D model of the piece as built up to the current step: drag to turn it, scroll to zoom. Below it, a chart compares each round's growth with what a flat piece needs, and says what shape that makes (flat, cup, wall, curls in, or ruffles). "Color by shape" paints the beads by that verdict. See [docs/shape-model.md](docs/shape-model.md) for how the shape is worked out. `npm run build` writes a static site to `dist/`.
 
 To write SVG files instead:
 
@@ -52,6 +52,6 @@ npm test
 - `src/pattern/`: reads and checks patterns, and works out every bead
 - `src/catalog/`: loads the catalog and resolves a pattern's beads
 - `src/diagram/`: lays the beads out and draws the step-by-step SVGs
-- `src/shape/`: works out the 3D shape (growth per round, bead contacts, the solver)
+- `src/shape/`: works out the 3D shape (row length, growth and height per round, then each bead's place)
 - `web/`: the step-by-step web app (Vite)
 - `test/`: tests (Vitest)

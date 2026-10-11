@@ -427,7 +427,7 @@ function renderShape(): void {
           .join("") + (els.fade.checked ? `<li><span class="key-swatch key-done"></span>Earlier steps</li>` : "");
 
   const current = input.compiled.steps[state.index]!.rounds.map((r) => r.round);
-  els.chart.innerHTML = renderGrowthChart(state.model.profiles, shape.rounds, current, els.chart.clientWidth || 600);
+  els.chart.innerHTML = renderGrowthChart(state.model.profile.rounds, shape.rounds, current, els.chart.clientWidth || 600);
 }
 
 els.view2d.addEventListener("click", () => setView("2d"));

@@ -69,7 +69,8 @@ function renderFile(file: string): void {
   }
   const shape = buildShape(shapeModel(compiled, beads));
   const worked = shape.rounds.filter((r) => r.growth !== undefined);
-  console.log(`  shape: ${worked.map((r) => `${r.round} ${r.verdict} (growth ${(r.growth! + 0.0001).toFixed(2)})`).join(" · ")}`);
+  const ruffle = (r: (typeof worked)[number]) => (r.ruffle > 0 ? `, ${r.ruffle.toFixed(1)} mm` : "");
+  console.log(`  shape: ${worked.map((r) => `${r.round} ${r.verdict} (growth ${(r.growth! + 0.0001).toFixed(2)}${ruffle(r)})`).join(" · ")}`);
   const warnings = [...compiled.warnings, ...[...beads.values()].flatMap((b) => b.warnings)];
   for (const warning of warnings) console.log(`  warning: ${warning}`);
 }

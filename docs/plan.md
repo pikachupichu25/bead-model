@@ -38,7 +38,7 @@ The diagram has to draw each bead to scale and in its real color, so first we ne
 
 ## 4. Create the expected 3D shape from the pattern
 
-Compute and display the 3D form the pattern produces. Done as a first version, see [shape-model.md](shape-model.md). Calibrating against photos of real pieces is still to do.
+Compute and display the 3D form the pattern produces. Done as a second, simplified version, see [shape-model.md](shape-model.md) and the [critique](shape-model-critique.md) of the first. Calibrating against photos of real pieces is still to do.
 
 - Place each bead in 3D (position and orientation) from the round and increase data
 - Show how the bead count per round makes the piece flat, cupped, or ruffled
