@@ -1,9 +1,8 @@
 // The "why this shape" chart: one bar per worked round showing its growth
-// compared to a flat circle, over bands that say what that growth makes,
-// with what the round does in the 3D model written underneath.
+// compared to a flat piece, over bands that say what that growth makes,
+// with the verdict of each round built so far written underneath.
 
-import { GROWTH_BANDS, growthLabel, type RoundProfile } from "../src/shape/profile.js";
-import type { RoundShape, Verdict } from "../src/shape/shape.js";
+import { GROWTH_BANDS, type RoundProfile, type Verdict } from "../src/shape/profile.js";
 
 /** One color per verdict, in a fixed order (validated for color-blind separation). */
 export const VERDICT_COLORS: Record<Verdict, string> = {
@@ -12,18 +11,18 @@ export const VERDICT_COLORS: Record<Verdict, string> = {
   cup: "#eb6834",
   wall: "#1baf7a",
   "curls in": "#eda100",
-  wavy: "#e87ba4",
+  ruffles: "#e87ba4",
 };
 
 export function renderGrowthChart(
   profiles: RoundProfile[],
-  measured: RoundShape[],
+  built: RoundProfile[],
   current: number[],
   width: number,
 ): string {
   const rounds = profiles.filter((p) => p.growth !== undefined);
   if (rounds.length === 0) return `<p class="muted">The start ring has no growth to show yet.</p>`;
-  const verdictOf = new Map(measured.map((r) => [r.round, r]));
+  const builtRounds = new Set(built.map((r) => r.round));
 
   const gutter = 116;
   const slot = Math.max(38, Math.min(64, (width - gutter - 8) / rounds.length));
@@ -55,11 +54,14 @@ export function renderGrowthChart(
     const g = p.growth!;
     const isCurrent = current.includes(p.round);
     const [y0, y1] = [y(0), y(g)];
-    const shape = verdictOf.get(p.round);
+    const shape = builtRounds.has(p.round) ? p : undefined;
     const tip = [
-      `Round ${p.round}: growth ${(g + 0.0001).toFixed(2)} (${growthLabel(g)} from the counts)`,
-      shape ? `in 3D: ${shape.verdict}${shape.angle !== undefined ? `, ${Math.round(shape.angle)}°` : ""}` : "not built yet at this step",
-    ].join(" · ");
+      `Round ${p.round}: growth ${(g + 0.0001).toFixed(2)}, ${p.verdict}`,
+      p.ruffle > 0 ? `ruffles ${p.ruffle.toFixed(1)} mm high, ${p.waves} waves` : `fabric at ${Math.round(p.angle!)}°`,
+      shape ? "" : "not built yet at this step",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     out.push(
       `<rect class="hit" data-round="${p.round}" data-tip="${esc(tip)}" x="${x}" y="${top}" width="${slot}" height="${h - top}"/>`,
     );
@@ -77,9 +79,9 @@ export function renderGrowthChart(
     }
   });
   out.push(`<text class="band-label" x="${gutter - 8}" y="${top + plot + 15}" text-anchor="end">round</text>`);
-  out.push(`<text class="band-label" x="${gutter - 8}" y="${top + plot + 41}" text-anchor="end">in 3D</text>`);
+  out.push(`<text class="band-label" x="${gutter - 8}" y="${top + plot + 41}" text-anchor="end">shape</text>`);
 
-  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Growth per round compared to a flat circle">${out.join("")}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Growth per round compared to a flat piece">${out.join("")}</svg>`;
 }
 
 function esc(s: string): string {

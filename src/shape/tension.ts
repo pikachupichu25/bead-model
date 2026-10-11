@@ -23,13 +23,15 @@
 //
 // The piece is built step by step, as it is stitched. Each new bead goes in
 // its gap, then everything built so far settles: L-BFGS on the energy, so
-// every step lowers it. No axis, profile or symmetry is assumed. The springs
+// every step lowers it. No axis, profile or symmetry is assumed. The profile
 // model (shape.ts) stays alongside.
 
 import type { ResolvedBead } from "../catalog/catalog.js";
+import type { CompiledPattern, CompiledRound } from "../pattern/compile.js";
 import type { Tension } from "../pattern/load.js";
 import { threadPasses } from "../pattern/thread.js";
-import { frameAndMeasure, type Shape, type ShapeModel, type Vec3 } from "./shape.js";
+import type { RoundProfile } from "./profile.js";
+import type { Shape, ShapeModel, Vec3 } from "./shape.js";
 
 /**
  * Per tension level: `slack`, the thread allowed to stay loose between two
@@ -126,6 +128,8 @@ interface Build {
   passes: Pass[];
   segments: Segment[];
   passCount: number[];
+  /** Thread neighbours of each bead, over the whole pattern. */
+  neighbours: Map<number, Set<number>>;
   /** Thread diameter, mm. */
   thread: number;
   random: () => number;
@@ -164,6 +168,7 @@ function startBuild(model: ShapeModel): Build {
     passes: [],
     segments: [],
     passCount: compiled.beads.map(() => 0),
+    neighbours: threadNeighbours(compiled),
     thread: compiled.pattern.threadDiameter ?? THREAD_DIAMETER,
     random: seeded(compiled.beads.length),
     shapes: [],
@@ -173,7 +178,7 @@ function startBuild(model: ShapeModel): Build {
 // ---- Adding a step ----
 
 function addStep(build: Build, stepIndex: number): void {
-  const { model, x, a, body } = build;
+  const { model, x, a } = build;
   const { compiled } = model;
   const step = compiled.steps[stepIndex]!;
   const tensionOf = (id: number) =>
@@ -204,7 +209,7 @@ function addStep(build: Build, stepIndex: number): void {
     if (from.bead === to.bead) continue;
     // Moving to the other edge of a tube, the thread is woven through the
     // beads between: it doesn't pull straight across.
-    if (k === start && !model.contacts.neighbours.get(from.bead)?.has(to.bead)) continue;
+    if (k === start && !build.neighbours.get(from.bead)?.has(to.bead)) continue;
     // The thread between two beads takes the tension of the later one.
     const t = tensionOf(Math.max(from.bead, to.bead));
     build.segments.push({ from, to, slack: t.slack, bend: t.bendLength, step: stepIndex });
@@ -223,20 +228,14 @@ function addStep(build: Build, stepIndex: number): void {
   const rounds = compiled.rounds.filter((r) => r.beads.every((id) => included.has(id)));
   let measured = frameAndMeasure(model, rounds, position, axis);
   // Nothing in the physics says which way is up: turn the piece over so its
-  // front rounds rise from the start, as the springs model shows it.
+  // front rounds rise from the start, as the profile model shows it.
   const edgeOf = new Map(compiled.rounds.map((r) => [r.round, r.edge]));
   const lastFront = measured.filter((r) => r.parent !== undefined && edgeOf.get(r.round) !== "back").at(-1);
   if (lastFront && lastFront.height < 0) {
     for (const map of [position, axis]) for (const [id, v] of map) map.set(id, [v[0], -v[1], -v[2]]);
     measured = frameAndMeasure(model, rounds, position, axis);
   }
-  // How much thread shows beyond its slack anywhere, as a fraction of a bead length.
-  let strain = 0;
-  for (const s of build.segments) {
-    const { length } = threadEnds(build, s);
-    strain = Math.max(strain, (length - s.slack) / body[s.from.bead]!.length);
-  }
-  build.shapes.push({ ids, position, axis, rounds: measured, strain: Math.max(strain, 0) });
+  build.shapes.push({ ids, position, axis, rounds: measured });
 }
 
 /**
@@ -274,8 +273,8 @@ function placeStart(build: Build, ids: number[]): void {
  * from the middle of u's round.
  */
 function placeBead(build: Build, id: number, firstOfStep: number): void {
-  const { model, body, x, a } = build;
-  const { compiled, contacts } = model;
+  const { model, body, x, a, neighbours } = build;
+  const { compiled } = model;
   const bead = compiled.beads[id]!;
   const [u, v] = bead.between!;
   const across = sub(x[v]!, x[u]!);
@@ -285,8 +284,8 @@ function placeBead(build: Build, id: number, firstOfStep: number): void {
   let axis = normalize(sub(into, out));
   if (Math.hypot(...axis) === 0 || u === v) axis = normalize(a[u]!);
 
-  const under = [...(contacts.neighbours.get(u) ?? [])].find(
-    (w) => w < firstOfStep && w !== v && contacts.neighbours.get(v)?.has(w) && compiled.beads[w]!.round !== compiled.beads[u]!.round,
+  const under = [...(neighbours.get(u) ?? [])].find(
+    (w) => w < firstOfStep && w !== v && neighbours.get(v)?.has(w) && compiled.beads[w]!.round !== compiled.beads[u]!.round,
   );
   const outwardFrom = (from: Vec3, toward: Vec3): Vec3 => {
     let outward = sub(toward, from);
@@ -801,6 +800,143 @@ function deepestOverlap(build: Build): number {
   return deepest;
 }
 
+// ---- Measuring the solved piece ----
+
+/** Thread neighbours of each bead: the beads the thread passes straight between, in any step. */
+function threadNeighbours(compiled: CompiledPattern): Map<number, Set<number>> {
+  const neighbours = new Map<number, Set<number>>();
+  const link = (x: number, y: number) => {
+    if (!neighbours.has(x)) neighbours.set(x, new Set());
+    neighbours.get(x)!.add(y);
+  };
+  compiled.steps.forEach((_, stepIndex) => {
+    const passes = threadPasses(compiled, stepIndex);
+    for (let i = 1; i < passes.length; i++) {
+      const [p, q] = [passes[i - 1]!, passes[i]!];
+      if (p === q) continue;
+      link(p, q);
+      link(q, p);
+    }
+  });
+  return neighbours;
+}
+
+/**
+ * Heights spread by more than this many bead diameters (and a tenth of the
+ * radius) make a round read as ruffles rather than by its angle.
+ */
+const RUFFLE = 0.3;
+
+/**
+ * Turns a solved piece (in place) so the start ring's center is at the origin
+ * and the piece's axis along z, then measures each round: where it ended up,
+ * not what the counts predict. Hole directions in `axes` are turned with it.
+ */
+function frameAndMeasure(
+  model: ShapeModel,
+  rounds: CompiledRound[],
+  pos: Map<number, Vec3>,
+  axes: Map<number, Vec3>,
+): RoundProfile[] {
+  const { compiled, beads, profile } = model;
+  const size = (id: number) => beads.get(compiled.beads[id]!.key)!;
+  const profileOf = new Map(profile.rounds.map((p) => [p.round, p]));
+  const edgeSign = new Map(compiled.rounds.map((r) => [r.round, r.edge === "back" ? -1 : 1]));
+
+  const frame = startFrame(compiled, rounds, pos);
+  const origin = frame([0, 0, 0]);
+  for (const id of pos.keys()) pos.set(id, frame(pos.get(id)!));
+  for (const id of axes.keys()) axes.set(id, sub(frame(axes.get(id)!), origin));
+
+  const measured = new Map<number, RoundProfile>();
+  for (const round of rounds) {
+    const radii = round.beads.map((id) => Math.hypot(pos.get(id)![0], pos.get(id)![1]));
+    const heights = round.beads.map((id) => pos.get(id)![2]);
+    const height = mean(heights);
+    // The spread of the heights as a wave's height (a sine wave's spread is its height over √2).
+    const spread = Math.sqrt(mean(heights.map((h) => (h - height) ** 2)));
+    const shape: RoundProfile = {
+      ...profileOf.get(round.round)!,
+      radius: mean(radii),
+      height,
+      angle: undefined,
+      ruffle: Math.SQRT2 * spread,
+      verdict: "start",
+    };
+    const parent = shape.parent === undefined ? undefined : measured.get(shape.parent);
+    if (parent && round.stitches.length > 0) {
+      // Over two rounds where it can, like the growth.
+      const from = (parent.parent === undefined ? undefined : measured.get(parent.parent)) ?? parent;
+      const rise = (shape.height - from.height) * edgeSign.get(round.round)!;
+      const angle = (Math.atan2(Math.abs(rise), shape.radius - from.radius) * 180) / Math.PI;
+      const diameter = mean(round.beads.map((id) => size(id).outerDiameter));
+      shape.angle = angle;
+      shape.verdict =
+        spread > Math.max(RUFFLE * diameter, 0.1 * shape.radius)
+          ? "ruffles"
+          : angle < 25
+            ? "flat"
+            : angle < 65
+              ? "cup"
+              : angle < 115
+                ? "wall"
+                : "curls in";
+    }
+    measured.set(round.round, shape);
+  }
+  return rounds.map((r) => measured.get(r.round)!);
+}
+
+/**
+ * A transform that puts the start ring's center at the origin and the piece's
+ * axis along z, keeping +z on the side the front rounds were built toward.
+ *
+ * The axis is the sum of every round's normal. Each round's normal is as long
+ * as twice the area it encloses, so big rounds count for more. A small start
+ * ring can sit tilted to the rest of the piece (a 4-bead ring does), and
+ * taking the axis from it alone would tip a straight tube over.
+ */
+function startFrame(compiled: CompiledPattern, rounds: CompiledRound[], pos: Map<number, Vec3>): (p: Vec3) => Vec3 {
+  const isTube = compiled.pattern.start.kind === "tube";
+  const ring = isTube
+    ? [...compiled.rounds[0]!.beads, ...compiled.rounds[1]!.beads].sort((p, q) => p - q)
+    : compiled.rounds[0]!.beads;
+  const points = ring.map((id) => pos.get(id)!);
+  const center = scale(
+    points.reduce<Vec3>((t, p) => add(t, p), [0, 0, 0]),
+    1 / points.length,
+  );
+  // A tube start's two rounds are one ring; the rest go round in pickup order.
+  // Rounds can be stitched either way round, so each normal is turned to +z
+  // (the way the start was laid out) before adding.
+  const rings = [ring, ...rounds.filter((r) => r.stitches.length > 0).map((r) => r.beads)];
+  let n = rings.reduce<Vec3>((t, ids) => {
+    const m = newell(ids.map((id) => pos.get(id)!));
+    return add(t, m[2] < 0 ? scale(m, -1) : m);
+  }, [0, 0, 0]);
+  n = normalize(n);
+  if (Math.hypot(...n) === 0) n = [0, 0, 1];
+  // An orthonormal frame (u, v, n) with u as close to the old x axis as it can be.
+  let u: Vec3 = sub([1, 0, 0], scale(n, n[0]));
+  if (Math.hypot(...u) < 1e-6) u = sub([0, 1, 0], scale(n, n[1]));
+  u = normalize(u);
+  const v = cross(n, u);
+  return (p) => {
+    const d = sub(p, center);
+    return [dot(d, u), dot(d, v), dot(d, n)];
+  };
+}
+
+/** Newell's method: the normal of a closed polygon, as long as twice its area. */
+function newell(points: Vec3[]): Vec3 {
+  let n: Vec3 = [0, 0, 0];
+  points.forEach((p, i) => {
+    const q = points[(i + 1) % points.length]!;
+    n = add(n, [(p[1] - q[1]) * (p[2] + q[2]), (p[2] - q[2]) * (p[0] + q[0]), (p[0] - q[0]) * (p[1] + q[1])]);
+  });
+  return n;
+}
+
 // ---- Small helpers ----
 
 function seeded(seed: number): () => number {
@@ -813,6 +949,7 @@ function seeded(seed: number): () => number {
   };
 }
 
+const mean = (xs: number[]) => xs.reduce((t, v) => t + v, 0) / xs.length;
 const add = (p: Vec3, q: Vec3): Vec3 => [p[0] + q[0], p[1] + q[1], p[2] + q[2]];
 const sub = (p: Vec3, q: Vec3): Vec3 => [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
 const scale = (p: Vec3, k: number): Vec3 => [p[0] * k, p[1] * k, p[2] * k];

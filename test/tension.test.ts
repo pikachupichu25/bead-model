@@ -82,10 +82,10 @@ describe("thread-tension shape", () => {
     expect(buildTensionShape(model).ids).toHaveLength(compiled.beads.length);
   });
 
-  it("is what solveShape gives for the tension engine, and the springs engine is the old model", () => {
+  it("is what solveShape gives for the tension engine, and the profile engine is the other model", () => {
     const { model } = fromText(TUBE);
     expect(solveShape(model, "tension")).toBe(buildTensionShape(model));
-    expect(solveShape(model, "springs").position).not.toEqual(solveShape(model, "tension").position);
+    expect(solveShape(model, "profile").position).not.toEqual(solveShape(model, "tension").position);
   });
 
   it("stands a tube up as a straight wall, half a bead higher each round", () => {
@@ -93,7 +93,7 @@ describe("thread-tension shape", () => {
     const wall = shape.rounds.filter((r) => r.round >= 3 && r.round <= 8);
     for (const r of wall) {
       expect(r.verdict).toBe("wall");
-      expect(r.waviness).toBeLessThan(0.2);
+      expect(r.ruffle).toBeLessThan(0.28);
     }
     // Two rounds make one bead diameter (1.6 mm) of height.
     const rise = (wall.at(-1)!.height - wall[0]!.height) / (wall.length - 1);
@@ -101,7 +101,7 @@ describe("thread-tension shape", () => {
     expect(rise).toBeLessThan(0.95);
   });
 
-  // The case the springs model's symmetric starting guess can't describe:
+  // The case one ring per round (the profile model) can't describe:
   // the side with the increases flares out, the other side stays a wall.
   it("flares a tube out on the one side its increases are on", () => {
     const { compiled, model } = fromText(HORN);
@@ -149,7 +149,7 @@ describe("thread-tension shape", () => {
     const wall = shape.rounds.filter((r) => r.round >= 9);
     for (const r of wall) {
       expect(r.verdict).toBe("wall");
-      expect(r.waviness).toBeLessThan(0.4);
+      expect(r.ruffle).toBeLessThan(0.56);
     }
     const radii = wall.map((r) => r.radius);
     expect(Math.max(...radii) - Math.min(...radii)).toBeLessThan(1);
@@ -182,6 +182,31 @@ describe("thread-tension shape", () => {
       const tilt = (Math.acos(Math.abs(n[2]!) / Math.hypot(...n)) * 180) / Math.PI;
       expect(tilt, `round ${round.round}`).toBeLessThan(10);
     }
+  });
+
+  // A small start ring sits tilted to the rest of the piece. The axis comes
+  // from every round, so the tube above it still stands straight.
+  it("stands a tube on a 4-bead center start up straight", () => {
+    const shape = buildTensionShape(
+      fromText(`
+beads: { A: { size: 11/0, shape: cylinder } }
+start: center (1A) x4
+rounds:
+  2: (1A) x4
+  3: (2A) x4
+  4: (1A) x8
+  5: (2A, 2A, 1A, 2A) x2
+  6-17:
+    - (1A, 0, 1A, 1A, 0, 1A, 0) x2
+    - (2A, 2A, 1A, 2A) x2`).model,
+    );
+    const wall = shape.rounds.filter((r) => r.round >= 7);
+    for (const r of wall) {
+      expect(r.verdict).toBe("wall");
+      expect(r.radius).toBeGreaterThan(4.5);
+      expect(r.radius).toBeLessThan(6);
+    }
+    expect(wall.at(-1)!.height - wall[0]!.height).toBeGreaterThan(6);
   });
 });
 

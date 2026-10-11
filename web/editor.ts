@@ -811,7 +811,7 @@ function render3d(): void {
       : [...input.beads.values()]
           .map((b) => `<li><span class="swatch" style="background:${esc(b.display.rgb)}"></span>${esc(b.key)}</li>`)
           .join("");
-  els.growthChart.innerHTML = renderGrowthChart(model.profiles, shape.rounds, [], els.growthChart.clientWidth || 600);
+  els.growthChart.innerHTML = renderGrowthChart(model.profile.rounds, shape.rounds, [], els.growthChart.clientWidth || 600);
 }
 
 function showViewerStatus(message: string | undefined): void {

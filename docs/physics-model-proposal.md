@@ -1,6 +1,6 @@
 # Proposal: A Thread-Tension Model for the 3D Shape
 
-**Status: first version built** in `src/shape/tension.ts`, alongside the springs model (`src/shape/shape.ts`), which stays. The 3D view's **Model** menu switches between them. Building it changed a few parts of this proposal: see [section 8](#8-what-was-built-and-what-changed). Not built yet: the curvature maps (section 4), friction (2.4) and the "either way" check (3.3).
+**Status: first version built** in `src/shape/tension.ts`, alongside the profile model (`src/shape/shape.ts`, [shape-model.md](shape-model.md)). The 3D view's **Model** menu switches between them. The springs model it was first compared with (section 8) has since been replaced by the profile model. Building it changed a few parts of this proposal: see [section 8](#8-what-was-built-and-what-changed). Not built yet: the curvature maps (section 4), friction (2.4) and the "either way" check (3.3).
 
 ## Why change the model
 
@@ -297,7 +297,7 @@ Uniform tension says only each thread's total length matters, Σ(ℓ − δ)⁺,
 
 With generic bead sizes (catalog estimates) and the first-guess constants:
 
-| Pattern | Springs model | Thread-tension model |
+| Pattern | Springs model (since replaced) | Thread-tension model |
 |---|---|---|
 | Plain tube, 16 Delicas round | Wall | Wall, rising 0.8 mm (D/2) per round, waviness under 0.1 mm |
 | [1. Flat circle](references/01-flat-circle.md) | Center rises into a dome (rounds 3–5 "cup") | A shallow bowl, about 2 mm deep over 15 mm: rounds 3–4 at about 30°, the outer rounds within 26° |
@@ -306,7 +306,7 @@ With generic bead sizes (catalog estimates) and the first-guess constants:
 | Tube, one increase every other round in the same gap | Can't show it: the starting guess is symmetric, so it stays round | Flares out on the increase side: 7.5 mm from the axis there, 5.3 mm on the opposite side |
 | `05-moo-deng` | Wall | Closed bottom (rounds 1–6 within 25° of flat), turning up over rounds 7–8 into a cylinder: rounds 9–17 are walls, radius 5.5–6.1 mm, waviness under 0.4 mm. The bottom is a little lumpy, which the counts predict: rounds 2–4 have growth 1.10 and round 5 (8 → 14 beads) 1.37, more than a flat disk holds |
 
-One prediction to check against photos: **rigid flat-ended beads in a ring sit further out than ΣL/2π.** Their inner corners touch first and leave wedge gaps outside. A 16-Delica tube comes out at R ≈ 4.0 mm, not 3.3, and a 32-bead bezel band at about 7.3 mm, not 6.6. The springs model uses ΣL/2π.
+One prediction to check against photos: **rigid flat-ended beads in a ring sit further out than ΣL/2π.** Their inner corners touch first and leave wedge gaps outside. A 16-Delica tube comes out at R ≈ 4.0 mm, not 3.3, and a 32-bead bezel band at about 7.3 mm, not 6.6. The profile model uses ΣL/2π, as the springs model did.
 
 ### Costs
 
