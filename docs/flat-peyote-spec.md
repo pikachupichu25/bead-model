@@ -270,7 +270,9 @@ Each bead key with its swatch, name and product code, the count, and grams to bu
 
 ### 9.2 Printable chart (R35)
 
-`chart.ts` writes an SVG: the title, the beads drawn to scale (respecting the turned view), column numbers along the top, stitched row numbers down the side, and the bead list. It reuses the bead shapes from `src/diagram/svg.ts`. A large design is split onto A4 pages with a small overlap and page numbers.
+`chart.ts` writes an SVG in mm: the title, the beads drawn to scale (5 mm tall, respecting the turned view), every 5th column number along the top, every 5th stitched row number down the side, empty spots dashed in red, the bead list with amounts, and the word chart (or why there is none yet). It reuses the bead corner shapes and outline colors from `src/diagram/svg.ts`.
+
+Not done yet: splitting a large design onto A4 pages with a small overlap and page numbers. For now it is one sheet at least 180 mm wide, as wide as the piece needs, and printing a large piece scales it down.
 
 ### 9.3 Word chart (R36, R37)
 
@@ -280,7 +282,9 @@ Only on a trimmed canvas with no empty cells. With the rows numbered from the to
 - **Each later row** goes back the other way, and lists its beads (every other column) in pickup order.
 - Runs of the same bead are joined: `Row 5 (←): 3A, 1B, 4A`.
 
-**Even or odd count** (R37) is the number of columns. It is shown in the status bar once trimmed. For odd count, the word chart adds a note that one edge needs the odd-count turn, and which rows it falls on.
+**Even or odd count** (R37) is the number of columns. It is shown in the status bar once trimmed. In odd count both edge columns have the same offset, so every other row has a bead in both edge columns. Each of those rows (from row 3) starts in the edge column the thread comes out of, which is where the odd-count turn is needed. The word chart marks them and adds a note, such as *rows 3, 5, 7, … start at the right edge*.
+
+The word chart shows in the side panel under **Row by row**, and downloads as a `.txt` with a header naming the piece and its beads.
 
 ### 9.4 PNG (R38)
 

@@ -27,6 +27,7 @@
         <button type="button" class="button icon" id="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button>
         <button type="button" class="button icon" id="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
         <button type="button" class="button" id="download-yaml">Download .yaml</button>
+        <button type="button" class="button" id="download-chart">Download chart (SVG)</button>
       </div>
     </header>
 
@@ -131,6 +132,15 @@
               <button type="button" class="button small" id="add-own">+ Own color</button>
             </span>
           </div>
+        </section>
+
+        <section class="ed-section">
+          <div class="ed-head">
+            <h2>Row by row</h2>
+            <button type="button" class="button small" id="download-words" disabled>Download .txt</button>
+          </div>
+          <p class="muted ed-help" id="word-note"></p>
+          <pre class="word-chart mono" id="word-chart" hidden></pre>
         </section>
       </aside>
 

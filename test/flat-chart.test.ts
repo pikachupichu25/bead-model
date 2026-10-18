@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadCatalog } from "../src/catalog/load-files.js";
 import { resolveFlatBeads } from "../src/flat/beads.js";
-import { beadList, gramsToBuy } from "../src/flat/chart.js";
-import { emptyDesign, type FlatDesign, paintCells } from "../src/flat/grid.js";
+import { beadList, formatRow, gramsToBuy, oddTurnNote, pieceCount, renderFlatChartSvg, wordChart, wordChartText } from "../src/flat/chart.js";
+import { designFromYaml } from "../src/flat/format.js";
+import { emptyDesign, type FlatDesign, paintCells, trim } from "../src/flat/grid.js";
 
 const catalog = loadCatalog("catalog/beads");
 
@@ -54,5 +56,88 @@ describe("bead list", () => {
     const { rows, total } = beadList(design, resolveFlatBeads(design, catalog).beads);
     expect(rows[0]!.grams).toBeUndefined();
     expect(total).toEqual({ count: 5, grams: undefined });
+  });
+});
+
+describe("word chart", () => {
+  const load = (rows: string, canvas = "trimmed") =>
+    designFromYaml(`kind: flat-peyote\ntitle: T\nbead: miyuki delica DB\nbeads:\n  A: miyuki DB-0010\n  B: miyuki DB-0201\ncanvas: ${canvas}\nfirst_column: high\nrows: |\n${rows}`);
+
+  it("strings rows 1 and 2 together, then goes back and forth", () => {
+    const chart = wordChart(load("  AB\n  BA\n"));
+    if ("problem" in chart) throw new Error(chart.problem);
+    expect(chart).toMatchObject({ columns: 2, rows: 4, count: "even" });
+    expect(chart.lines.map(formatRow)).toEqual(["Rows 1–2 (→, string these first): 1A, 1B", "Row 3 (←): 1B", "Row 4 (→): 1A"]);
+    expect(oddTurnNote(chart)).toBeUndefined();
+  });
+
+  it("joins runs and lists beads in pickup order", () => {
+    const chart = wordChart(load("  AABBAA\n  ABBBBA\n"));
+    if ("problem" in chart) throw new Error(chart.problem);
+    // Row 3 (←) is columns 5, 3, 1 (counting from 1) of the second drawn row, right to left: B, B, A.
+    expect(chart.lines.map(formatRow)).toEqual([
+      "Rows 1–2 (→, string these first): 2A, 2B, 2A",
+      "Row 3 (←): 2B, 1A",
+      "Row 4 (→): 2B, 1A",
+    ]);
+  });
+
+  it("marks the rows that need the odd-count turn", () => {
+    const chart = wordChart(load("  ABA\n  BAB\n"));
+    if ("problem" in chart) throw new Error(chart.problem);
+    expect(chart.count).toBe("odd");
+    expect(chart.lines.map(formatRow)).toEqual(["Rows 1–2 (→, string these first): 1A, 1B, 1A", "Row 3 (←): 2B", "Row 4 (→): 1A"]);
+    expect(chart.lines.map((l) => l.oddTurn)).toEqual([undefined, "right", undefined]);
+    expect(oddTurnNote(chart)).toBe(
+      "Odd count: rows 3 start at the right edge in the column the thread comes out of, so they need the odd-count turn there.",
+    );
+  });
+
+  it("says why there is no word chart yet", () => {
+    expect(wordChart(load("  AB\n  BA\n", "unlimited"))).toEqual({ problem: expect.stringMatching(/^Trim the canvas first/) });
+    expect(wordChart(load("  A.\n  BA\n"))).toEqual({ problem: expect.stringMatching(/^Fill the 1 empty spot first/) });
+  });
+
+  it("gives even or odd count from the columns", () => {
+    expect(pieceCount(8)).toBe("even");
+    expect(pieceCount(9)).toBe("odd");
+  });
+
+  it("writes the example file out as text", () => {
+    const design = designFromYaml(readFileSync("patterns/flat/heart-band.flat-peyote.yaml", "utf8"));
+    const chart = wordChart(design);
+    if ("problem" in chart) throw new Error(chart.problem);
+    const { size, beads } = resolveFlatBeads(design, catalog);
+    const text = wordChartText(design, chart, beads, size.label);
+    expect(text).toContain("Heart band\nMiyuki Delica 11/0 · 8 columns (even count) · 14 rows");
+    expect(text).toContain("A: Miyuki Delica DB-0010 (black)");
+    expect(text).toContain("Rows 1–2 (→, string these first): 8B");
+    expect(text.trim().split("\n").at(-1)).toBe("Row 14 (→): 4A");
+    // Every bead is in exactly one row.
+    const total = chart.lines.flatMap((l) => l.runs).reduce((sum, r) => sum + r.count, 0);
+    expect(total).toBe(design.cells.size);
+  });
+});
+
+describe("printable chart", () => {
+  const design = designFromYaml(readFileSync("patterns/flat/heart-band.flat-peyote.yaml", "utf8"));
+  const { size, beads } = resolveFlatBeads(design, catalog);
+  const svg = renderFlatChartSvg({ design, beads, box: size.box, shape: size.shape, sizeLabel: size.label });
+
+  it("draws every bead, the bead list and the word chart", () => {
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" width="180mm"')).toBe(true);
+    expect(svg).toContain(">Heart band</text>");
+    expect(svg).toContain("Miyuki Delica 11/0 · 8 × 14 beads · even count");
+    // One rect per bead, one per bead-list swatch, and the background.
+    expect(svg.match(/<rect /g)).toHaveLength(design.cells.size + 3 + 1);
+    expect(svg).toContain("Row 3 (←)");
+    expect(svg).toContain("Total 56");
+  });
+
+  it("marks empty spots and explains the missing word chart", () => {
+    const holed = trim(paintCells(emptyDesign(), [{ c: 0, h: 0 }, { c: 2, h: 2 }], "A"));
+    const out = renderFlatChartSvg({ design: holed, beads: resolveFlatBeads(holed, catalog).beads, box: size.box, shape: size.shape, sizeLabel: size.label });
+    expect(out).toContain('stroke-dasharray="0.8 0.6"');
+    expect(out).toContain("Fill the 3 empty spots first");
   });
 });

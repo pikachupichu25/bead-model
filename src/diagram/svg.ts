@@ -398,7 +398,7 @@ function drawBead(placed: PlacedBead, bead: ResolvedBead, opacity: number): stri
   // Local frame: x points out from the center (across the hole), y along the ring (along the hole).
   const w = placed.radial * 0.94;
   const h = placed.tangential * 0.94;
-  const [rx, ry] = corner(bead.shape, w, h);
+  const [rx, ry] = beadCorner(bead.shape, w, h);
   const rotation = (-placed.theta * 180) / Math.PI;
   const { rgb, opacity: glass = 1, finish = [] } = bead.display;
   const highlight = finish.includes("matte")
@@ -413,7 +413,7 @@ function drawBead(placed: PlacedBead, bead: ResolvedBead, opacity: number): stri
 }
 
 /** Corner rounding of the bead outline seen from above, by shape. */
-function corner(shape: Shape, w: number, h: number): [number, number] {
+export function beadCorner(shape: Shape, w: number, h: number): [number, number] {
   switch (shape) {
     case "round":
     case "demi":
@@ -525,11 +525,11 @@ function text(
   return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" ${FONT} fill="${color}" text-anchor="${anchor}">${escapeXml(content)}</text>`;
 }
 
-function escapeXml(s: string): string {
+export function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function fmt(n: number): string {
+export function fmt(n: number): string {
   return Number(n.toFixed(3)).toString();
 }
 
@@ -540,7 +540,8 @@ function rgbParts(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function darken(hex: string): string {
+/** A darker shade of a color, for bead outlines. */
+export function darken(hex: string): string {
   const [r, g, b] = rgbParts(hex).map((c) => Math.round(c * 0.55));
   return `rgb(${r},${g},${b})`;
 }

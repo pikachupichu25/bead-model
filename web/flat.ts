@@ -3,7 +3,7 @@
 
 import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
-import { beadList } from "../src/flat/chart.js";
+import { beadList, formatRow, oddTurnNote, pieceCount, renderFlatChartSvg, wordChart, wordChartText } from "../src/flat/chart.js";
 import { designFromYaml, designToYaml, nextFlatKey, isFlatKey } from "../src/flat/format.js";
 import {
   boundsSize,
@@ -67,6 +67,10 @@ const els = {
   canvas: $<HTMLCanvasElement>("canvas"),
   status: $("status"),
   trim: $<HTMLButtonElement>("trim"),
+  downloadChart: $<HTMLButtonElement>("download-chart"),
+  downloadWords: $<HTMLButtonElement>("download-words"),
+  wordNote: $("word-note"),
+  wordChart: $("word-chart"),
   importFile: $<HTMLInputElement>("import-file"),
   placeBar: $("place-bar"),
   placeText: $("place-text"),
@@ -177,6 +181,7 @@ function setDesign(next: FlatDesign): void {
   renderPanel();
   renderStatus();
   renderCanvasTools();
+  renderWordChart();
   updateUndo();
   scheduleSave();
   draw();
@@ -249,6 +254,21 @@ function amount(count: number, grams: number | undefined): string {
   return count && grams !== undefined ? `${count.toLocaleString()} · ${grams.toLocaleString()} g` : count.toLocaleString();
 }
 
+/** The "Row by row" panel. Only a trimmed canvas with no empty spots has a word chart. */
+function renderWordChart(): void {
+  const chart = wordChart(state.design);
+  const ok = !("problem" in chart);
+  els.downloadWords.disabled = !ok;
+  els.wordChart.hidden = !ok;
+  if (!ok) {
+    els.wordNote.textContent = chart.problem;
+    return;
+  }
+  const note = oddTurnNote(chart);
+  els.wordNote.textContent = `${chart.columns} columns, ${chart.count} count, ${chart.rows} rows.${note ? ` ${note}` : ""}`;
+  els.wordChart.textContent = chart.lines.map(formatRow).join("\n");
+}
+
 /** The trim button and the empty-spots banner. */
 function renderCanvasTools(): void {
   const { design } = state;
@@ -297,7 +317,7 @@ function selectBead(key: string): void {
 
 function renderStatus(): void {
   const { design } = state;
-  const parts: string[] = [design.bounds ? "Trimmed canvas" : "Unlimited canvas"];
+  const parts: string[] = [design.bounds ? `Trimmed canvas, ${pieceCount(boundsSize(design.bounds).columns)} count` : "Unlimited canvas"];
   const area = design.bounds ?? paintedBounds(design);
   if (area) {
     const { columns, rows } = boundsSize(area);
@@ -687,16 +707,34 @@ els.file.addEventListener("change", async () => {
   }
 });
 
-els.downloadYaml.addEventListener("click", () => {
-  const name =
+function fileName(): string {
+  return (
     state.design.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "design";
-  const url = URL.createObjectURL(new Blob([designToYaml(state.design)], { type: "text/yaml" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: `${name}.flat-peyote.yaml` });
+      .replace(/^-|-$/g, "") || "design"
+  );
+}
+
+function download(name: string, text: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
   a.click();
   URL.revokeObjectURL(url);
+}
+
+els.downloadYaml.addEventListener("click", () => download(`${fileName()}.flat-peyote.yaml`, designToYaml(state.design), "text/yaml"));
+
+els.downloadChart.addEventListener("click", () => {
+  const { size, beads } = state.resolved;
+  const svg = renderFlatChartSvg({ design: state.design, beads, box: size.box, shape: size.shape, sizeLabel: size.label });
+  download(`${fileName()}-chart.svg`, svg, "image/svg+xml");
+});
+
+els.downloadWords.addEventListener("click", () => {
+  const chart = wordChart(state.design);
+  if ("problem" in chart) return;
+  download(`${fileName()}-rows.txt`, wordChartText(state.design, chart, state.resolved.beads, state.resolved.size.label), "text/plain");
 });
 
 document.addEventListener("keydown", (event) => {
