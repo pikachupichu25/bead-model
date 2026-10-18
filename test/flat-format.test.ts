@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { loadCatalog } from "../src/catalog/load-files.js";
-import { FlatBeadError, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
-import { designFromYaml, designToYaml, FlatFormatError } from "../src/flat/format.js";
+import { allBeadSizes, catalogColors, FlatBeadError, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
+import { designFromYaml, designToYaml, FlatFormatError, nextFlatKey } from "../src/flat/format.js";
 import { type Cell, cellKey, emptyCells, emptyDesign, type FlatDesign, paintCells, parseCellKey, trim } from "../src/flat/grid.js";
 
 const catalog = loadCatalog("catalog/beads");
@@ -124,6 +124,14 @@ describe("round trip", () => {
   });
 });
 
+it("gives the first free bead key, up to 62", () => {
+  expect(nextFlatKey(["A", "B", "D"])).toBe("C");
+  const all: string[] = [];
+  for (let i = 0; i < 62; i++) all.push(nextFlatKey(all)!);
+  expect(all.at(-1)).toBe("9");
+  expect(nextFlatKey(all)).toBeUndefined();
+});
+
 describe("mistakes", () => {
   const bad = (text: string, message: RegExp) => expect(() => designFromYaml(text)).toThrow(message);
 
@@ -149,6 +157,21 @@ describe("bead size", () => {
     expect(size.shape).toBe("cylinder");
     expect(size.box).toEqual({ w: 1.3, d: 1.6 });
     expect(resolveBeadSize(catalog, "generic round 11/0").label).toBe("Round seed bead 11/0");
+  });
+
+  it("lists the catalog colors that fit it, as entries that resolve back to it", () => {
+    const size = resolveBeadSize(catalog, "miyuki delica DB");
+    const colors = catalogColors(size);
+    expect(colors.map((c) => c.entry)).toContain("miyuki DB-0010");
+    const design: FlatDesign = { ...emptyDesign(), beads: new Map(colors.map((c, i) => [String.fromCharCode(65 + i), c.entry])) };
+    expect(resolveFlatBeads(design, catalog).problems).toEqual([]);
+    expect(catalogColors(resolveBeadSize(catalog, "generic cylinder 11/0"))).toEqual([]);
+  });
+
+  it("lists every size in the catalog, and each one resolves", () => {
+    const sizes = allBeadSizes(catalog);
+    expect(sizes).toContainEqual({ text: "miyuki delica DB", label: "Miyuki Delica 11/0 (DB)" });
+    for (const { text } of sizes) expect(() => resolveBeadSize(catalog, text)).not.toThrow();
   });
 
   it("explains a bad bead size", () => {

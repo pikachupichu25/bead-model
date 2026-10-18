@@ -128,6 +128,10 @@ The circular editor draws SVG elements. That is too slow for 100 000 beads, so t
 
 **Fit to beads** sets the view to the painted area (or the bounds) with a margin. On an empty unlimited canvas, the view starts centered on cell (0, 0) at a zoom where a bead is about 20 px tall.
 
+**Wheel.** A mouse wheel (whole steps of 50 px or more, or line steps) zooms around the pointer. A trackpad scroll (small steps) pans, and a trackpad pinch (which the browser sends as ctrl + wheel) zooms. Ctrl or ⌘ + wheel always zooms. Beads stay between 2 and 120 px tall.
+
+The pan, zoom and screen math is in `src/flat/view.ts` (tested); the drawing is in `web/flat-canvas.ts`. Measured in Chrome: a 300 × 300 piece (45 000 beads) draws in about 14 ms zoomed all the way out and about 5 ms at normal zoom.
+
 Hit testing turns a pointer position into a cell: `c = round(x / w)`, then `h` is the nearest value with the right parity to `2y / d`.
 
 ## 5. Tools (R11–R16)
@@ -226,8 +230,8 @@ The pipeline runs in a Web Worker so the dialog stays responsive. Changing a set
 ## 7. Saving and undo (R16, R33)
 
 - **Undo**: a stack of up to 200 designs. A design is small (a map of painted cells), and unchanged parts are shared between versions, so this is cheap. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, plus buttons.
-- **Browser copy**: the design is saved to `localStorage` as its YAML (§8) under `bead-model:flat-draft`, half a second after each change. If it doesn't fit (very large designs), it goes to IndexedDB instead.
-- The view (pan, zoom, turn) is saved separately as a per-browser setting, not in the file.
+- **Browser copy**: the design is saved to `localStorage` as its YAML (§8) under `bead-model:flat-draft`, half a second after each change. If it doesn't fit, a notice says to download the design instead. (Falling back to IndexedDB is still to do.)
+- The view (pan, zoom, turn) is saved separately as a per-browser setting, not in the file. The pan is kept relative to the top-left of the piece, because reopening a file places the piece at new coordinates.
 
 ## 8. File format (R34)
 

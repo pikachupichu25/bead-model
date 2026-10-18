@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flat Peyote Designer</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='5' width='7' height='10' rx='2.5' fill='%234e79a7'/%3E%3Crect x='12.5' y='10' width='7' height='10' rx='2.5' fill='%23e15759'/%3E%3Crect x='21' y='5' width='7' height='10' rx='2.5' fill='%234e79a7'/%3E%3Crect x='4' y='16' width='7' height='10' rx='2.5' fill='%23e15759'/%3E%3Crect x='21' y='16' width='7' height='10' rx='2.5' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="flat-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+        <nav class="page-nav" aria-label="Pages">
+          <a href="./index.html">Steps</a>
+          <a href="./editor.html">Editor</a>
+          <a href="./flat.html" aria-current="page">Flat</a>
+        </nav>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="button" id="new-design">New</button>
+        <label class="button" for="file-input">Open file…</label>
+        <input id="file-input" type="file" accept=".yaml,.yml" hidden />
+        <button type="button" class="button icon" id="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button>
+        <button type="button" class="button icon" id="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
+        <button type="button" class="button" id="download-yaml">Download .yaml</button>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <dialog class="new-dialog" id="new-dialog" aria-labelledby="new-title">
+      <form method="dialog" id="new-form">
+        <h2 id="new-title">New flat design</h2>
+        <label class="ed-field">
+          <span>Title</span>
+          <input type="text" id="new-name" value="Untitled design" />
+        </label>
+        <label class="ed-field">
+          <span>Bead (one size for the whole piece)</span>
+          <select id="new-bead"></select>
+        </label>
+        <p class="muted ed-help">The canvas starts with no edges. Paint anywhere, and trim it to the beads later.</p>
+        <div class="dialog-actions">
+          <span class="spacer"></span>
+          <button type="button" class="button" id="new-cancel">Cancel</button>
+          <button type="submit" class="button primary">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <main class="app">
+      <aside class="steps flat-panel" aria-label="Design">
+        <section class="ed-section">
+          <h2>Design</h2>
+          <label class="ed-field">
+            <span>Title</span>
+            <input type="text" id="f-title" />
+          </label>
+          <p class="muted" id="bead-size"></p>
+        </section>
+
+        <section class="ed-section">
+          <div class="ed-head">
+            <h2>Beads</h2>
+          </div>
+          <p class="muted ed-help">Pick a bead to paint with. B paints, E erases, I picks a bead from the canvas, H pans.</p>
+          <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
+          <div class="add-color">
+            <select id="add-catalog" aria-label="Add a catalog color"></select>
+            <span class="add-own">
+              <input type="color" id="add-own-color" value="#c8102e" aria-label="Own color" />
+              <button type="button" class="button small" id="add-own">+ Own color</button>
+            </span>
+          </div>
+        </section>
+      </aside>
+
+      <section class="flat-stage" aria-label="Canvas">
+        <div class="flat-tools">
+          <div class="view-switch" role="radiogroup" aria-label="Tool">
+            <button type="button" role="radio" data-tool="paint" aria-checked="true" title="Paint (B)">Paint</button>
+            <button type="button" role="radio" data-tool="erase" aria-checked="false" title="Erase (E, or right-click)">Erase</button>
+            <button type="button" role="radio" data-tool="pick" aria-checked="false" title="Pick a bead (I, or alt-click)">Pick</button>
+            <button type="button" role="radio" data-tool="hand" aria-checked="false" title="Pan (H, or hold space)">Hand</button>
+          </div>
+          <span class="spacer"></span>
+          <div class="zoom-buttons">
+            <button type="button" class="button icon" id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button>
+            <button type="button" class="button icon" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
+            <button type="button" class="button small" id="zoom-fit" title="Fit to beads (0)">Fit to beads</button>
+          </div>
+        </div>
+        <div class="flat-canvas-wrap" id="canvas-wrap">
+          <canvas id="canvas" aria-label="Bead canvas. Click or drag to paint."></canvas>
+        </div>
+        <div class="flat-status muted" id="status" role="status"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./flat.ts"></script>
+  </body>
+</html>

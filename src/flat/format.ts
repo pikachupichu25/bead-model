@@ -15,6 +15,14 @@ export function isFlatKey(key: string): boolean {
   return /^[A-Za-z0-9]$/.test(key);
 }
 
+const KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/** The first free bead key, or undefined when all 62 are taken. */
+export function nextFlatKey(used: Iterable<string>): string | undefined {
+  const taken = new Set(used);
+  return [...KEYS].find((k) => !taken.has(k));
+}
+
 export const EMPTY = ".";
 export const OUTSIDE = "-";
 

@@ -50,6 +50,29 @@ export function resolveBeadSize(catalog: Catalog, text: string): FlatBeadSize {
   };
 }
 
+/** The catalog colors sold in this bead size, as `beads:` entries ("miyuki DB-0010") with their name and display color. */
+export function catalogColors(size: FlatBeadSize): { entry: string; name: string; rgb: string }[] {
+  return [...size.line.colors.values()]
+    .filter((color) => !color.sizes || color.sizes.includes(size.size.code))
+    .map((color) => ({
+      entry: `${size.brand.id} ${size.line.code.replaceAll("{size}", size.size.code).replaceAll("{color}", color.code)}`,
+      name: color.name ?? color.code,
+      rgb: color.display.rgb,
+    }));
+}
+
+/** Every bead size in the catalog, as "<brand> <line> <size>" with a label. */
+export function allBeadSizes(catalog: Catalog): { text: string; label: string }[] {
+  return [...catalog.values()].flatMap((brand) =>
+    [...brand.lines.values()].flatMap((line) =>
+      [...line.sizes.values()].map((size) => ({
+        text: `${brand.id} ${line.id} ${size.code}`,
+        label: `${brand.id === "generic" ? "Generic" : brand.name} ${line.name} ${size.label}${size.code !== size.label ? ` (${size.code})` : ""}`,
+      })),
+    ),
+  );
+}
+
 /**
  * Resolves the bead size and every bead entry. Entries that don't fit the
  * piece's size are listed in `problems` (one per key) and still resolved, so

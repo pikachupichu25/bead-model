@@ -9,12 +9,13 @@ export default defineConfig({
   base: "./",
   // The 3D viewer chunk is mostly three.js (about 560 kB, 140 kB gzipped). It is
   // only loaded when the 3D view is opened.
-  // Two pages: the step viewer (index.html) and the pattern editor (editor.html).
+  // Three pages: the step viewer (index.html), the pattern editor (editor.html)
+  // and the flat peyote designer (flat.html).
   build: {
     outDir: "../dist",
     emptyOutDir: true,
     chunkSizeWarningLimit: 700,
-    rolldownOptions: { input: { index: page("index.html"), editor: page("editor.html") } },
+    rolldownOptions: { input: { index: page("index.html"), editor: page("editor.html"), flat: page("flat.html") } },
   },
   server: { fs: { allow: [".."] } },
 });
