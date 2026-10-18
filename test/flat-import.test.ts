@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hexToLab, hexToRgb } from "../src/flat/color.js";
 import { isCell } from "../src/flat/grid.js";
-import { importCells, importRows, matchColors, type Pixels, sampleCells } from "../src/flat/import.js";
+import { adjustPixels, importCells, importRows, matchColors, NO_ADJUSTMENTS, type Pixels, sampleCells } from "../src/flat/import.js";
 
 const delica = { w: 1.3, d: 1.6 };
 
@@ -119,5 +119,63 @@ describe("matching", () => {
     const s = sampleCells(picture(10, 10, () => null), 4, 4, delica);
     expect(matchColors(s, bw.map(hexToLab), 4).used).toEqual([]);
     expect(matchColors(s, [], 4).used).toEqual([]);
+  });
+});
+
+describe("merging rare colors", () => {
+  it("merges colors used by fewer beads than the threshold into their neighbors", () => {
+    const blues = ["#2040c0", "#2848c8"];
+    const pic = picture(60, 60, (x, y) => (x < 4 && y < 4 ? "#d02020" : blues[x < 30 ? 0 : 1]!));
+    const palette = [...blues, "#d02020"];
+    const s = sampleCells(pic, 30, importRows(60, 60, 30, delica), delica);
+    const plain = matchColors(s, palette.map(hexToLab), 10);
+    const red = plain.used.find((u) => palette[u.index] === "#d02020")!;
+    expect(red.count).toBeLessThan(10);
+    const merged = matchColors(s, palette.map(hexToLab), 10, { minBeads: 10 });
+    expect(usedHexes(palette, merged.used)).toEqual(["#2040c0", "#2848c8"]);
+    expect(merged.used.reduce((sum, u) => sum + u.count, 0)).toBe(s.cells.filter((_, i) => !Number.isNaN(s.labs[i * 3]!)).length);
+  });
+});
+
+describe("dithering", () => {
+  it("mixes two colors to suggest the one in between", () => {
+    const s = sampleCells(picture(40, 40, () => "#808080"), 20, 20, delica);
+    const palette = ["#000000", "#ffffff"];
+    const plain = matchColors(s, palette.map(hexToLab), 2);
+    expect(plain.used).toHaveLength(1);
+    const dithered = matchColors(s, palette.map(hexToLab), 2, { dither: true });
+    expect(dithered.used).toHaveLength(2);
+    const white = dithered.used.find((u) => palette[u.index] === "#ffffff")!.count / s.cells.length;
+    expect(white).toBeGreaterThan(0.25);
+    expect(white).toBeLessThan(0.75);
+  });
+
+  it("leaves a picture that matches exactly as it is", () => {
+    const s = sampleCells(picture(40, 40, (x) => (x < 20 ? "#000000" : "#ffffff")), 20, 20, delica);
+    const palette = ["#000000", "#ffffff"];
+    const plain = matchColors(s, palette.map(hexToLab), 2);
+    const dithered = matchColors(s, palette.map(hexToLab), 2, { dither: true });
+    const differ = [...plain.assign].filter((p, i) => p !== dithered.assign[i]).length;
+    expect(differ / s.cells.length).toBeLessThan(0.1);
+  });
+});
+
+describe("adjustments", () => {
+  const grey = picture(2, 1, (x) => (x === 0 ? "#808080" : "#c04040"));
+
+  it("change nothing at zero, and keep alpha", () => {
+    const out = adjustPixels(grey, NO_ADJUSTMENTS);
+    expect([...out.data]).toEqual([...grey.data]);
+    expect(out.data).not.toBe(grey.data);
+  });
+
+  it("brighten, add contrast and remove color", () => {
+    expect(adjustPixels(grey, { brightness: 50, contrast: 0, saturation: 0 }).data[0]).toBe(192);
+    const contrast = adjustPixels(grey, { brightness: 0, contrast: 50, saturation: 0 }).data;
+    expect(contrast[4]!).toBeGreaterThan(0xc0);
+    const grayed = adjustPixels(grey, { brightness: 0, contrast: 0, saturation: -100 }).data;
+    expect(grayed[4]).toBe(grayed[5]);
+    expect(grayed[5]).toBe(grayed[6]);
+    expect(grayed[7]).toBe(255);
   });
 });

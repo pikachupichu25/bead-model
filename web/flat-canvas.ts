@@ -28,6 +28,10 @@ export interface CanvasScene {
   floating?: { cells: readonly { c: number; h: number; rgb: string }[]; dc: number; dh: number; bounds: Bounds };
   /** Just the beads: no rulers, guides or empty cells (for previews). */
   plain?: boolean;
+  /** The selection rectangle. */
+  selection?: Bounds;
+  /** Show handles on the edges of a trimmed canvas, for resizing. */
+  handles?: boolean;
 }
 
 const BG = "#fdfcf9";
@@ -52,6 +56,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
   ctx.save();
   ctx.translate(view.panX, view.panY);
   ctx.scale(view.zoom, view.zoom);
+  if (view.turned) ctx.rotate(Math.PI / 2);
   const px = 1 / view.zoom;
 
   if (bounds) {
@@ -145,6 +150,31 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
     ctx.setLineDash([]);
   }
 
+  if (scene.selection) {
+    const r = boundsRect(scene.selection, box);
+    ctx.fillStyle = "rgb(60 90 153 / 0.08)";
+    ctx.fillRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 1.5 * px;
+    ctx.setLineDash([4 * px, 3 * px]);
+    ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+    ctx.setLineDash([]);
+  }
+
+  if (bounds && scene.handles) {
+    const r = boundsRect(bounds, box);
+    const size = 9 * px;
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 1.5 * px;
+    const mx = (r.x0 + r.x1) / 2;
+    const my = (r.y0 + r.y1) / 2;
+    for (const [x, y] of [[r.x0, my], [r.x1, my], [mx, r.y0], [mx, r.y1]] as const) {
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      ctx.strokeRect(x - size / 2, y - size / 2, size, size);
+    }
+  }
+
   if (scene.highlight?.length) {
     const marks = new Path2D();
     for (const { c, h } of scene.highlight) marks.roundRect(c * box.w - bw / 2, (h * box.d) / 2 - bd / 2, bw, bd, radius);
@@ -230,24 +260,27 @@ function drawRulers(ctx: CanvasRenderingContext2D, scene: CanvasScene, range: Bo
   ctx.fillStyle = "#6b665e";
   ctx.textBaseline = "middle";
 
-  const colStep = rulerStep(view.zoom * box.w);
-  ctx.textAlign = "center";
+  // Columns along the top and rows down the left, swapped when the view is turned.
+  const label = (n: number, at: { x: number; y: number }, onTop: boolean) => {
+    if (onTop) {
+      if (at.x < RULER_LEFT + 8 || at.x > width) return;
+      ctx.textAlign = "center";
+      ctx.fillText(String(n), at.x, RULER_TOP / 2);
+    } else {
+      if (at.y < RULER_TOP + 6 || at.y > height) return;
+      ctx.textAlign = "right";
+      ctx.fillText(String(n), RULER_LEFT - 5, at.y);
+    }
+  };
+  const colStep = rulerStep(view.zoom * box.w, view.turned ? 16 : 28);
   for (let c = range.c0; c <= range.c1; c++) {
     const n = c - origin.c + 1;
-    if (mod(n, colStep) !== 0) continue;
-    const x = toScreen(view, c * box.w, 0).x;
-    if (x < RULER_LEFT + 8) continue;
-    ctx.fillText(String(n), x, RULER_TOP / 2);
+    if (mod(n, colStep) === 0) label(n, toScreen(view, c * box.w, 0), !view.turned);
   }
-
-  const rowStep = rulerStep((view.zoom * box.d) / 2, 16);
-  ctx.textAlign = "right";
+  const rowStep = rulerStep((view.zoom * box.d) / 2, view.turned ? 28 : 16);
   for (let h = range.h0; h <= range.h1; h++) {
     const n = h - origin.h + 1;
-    if (mod(n, rowStep) !== 0) continue;
-    const y = toScreen(view, 0, (h * box.d) / 2).y;
-    if (y < RULER_TOP + 6) continue;
-    ctx.fillText(String(n), RULER_LEFT - 5, y);
+    if (mod(n, rowStep) === 0) label(n, toScreen(view, 0, (h * box.d) / 2), !!view.turned);
   }
 }
 

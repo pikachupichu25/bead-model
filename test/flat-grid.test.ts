@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  boundsBetween,
   boundsCells,
   boundsSize,
   canPaint,
   cellAt,
   cellCenter,
   cellKey,
+  cellsIn,
   cellsOutside,
   countBeads,
   emptyCells,
@@ -16,7 +18,9 @@ import {
   floodFill,
   isCell,
   isValidMove,
+  liftBlock,
   makeUnlimited,
+  mirrorCells,
   moveCell,
   neighbors,
   paintCells,
@@ -201,5 +205,52 @@ describe("moving blocks", () => {
       const move = snapMove(dc, dh);
       expect(isValidMove(move.dc, move.dh)).toBe(true);
     }
+  });
+});
+
+describe("selections", () => {
+  const design = paintCells(emptyDesign(), cells([0, 0], [1, 1], [2, 0], [3, 3], [5, 5]), "A");
+
+  it("finds the painted cells between two corners, in either order", () => {
+    const b = boundsBetween({ c: 3, h: 3 }, { c: 0, h: 0 });
+    expect(b).toEqual({ c0: 0, c1: 3, h0: 0, h1: 3 });
+    expect(cellsIn(design, b).map(({ c, h }) => `${c},${h}`).sort()).toEqual(["0,0", "1,1", "2,0", "3,3"]);
+  });
+
+  it("lifts a block to near (0, 0) with a move that keeps the offset", () => {
+    const b = { c0: 1, c1: 3, h0: 1, h1: 3 };
+    const { cells: block, dc, dh } = liftBlock(design, b);
+    expect(isValidMove(dc, dh)).toBe(true);
+    for (const cell of block) expect(isCell(cell.c, cell.h)).toBe(true);
+    expect(block.map((x) => moveCell(x, dc, dh)).map(({ c, h }) => `${c},${h}`).sort()).toEqual(["1,1", "3,3"]);
+  });
+
+  it("mirrors left to right, moving half a bead when the line falls between offsets", () => {
+    // Columns 0..2: the mirror line is column 1, so cells stay on their rows.
+    const even = mirrorCells(paintCells(emptyDesign(), cells([0, 0], [1, 1]), "A"), { c0: 0, c1: 2, h0: 0, h1: 1 }, "columns");
+    expect(painted(even)).toEqual(["1,1", "2,0"]);
+    // Columns 0..1: the line falls between columns, so cells also move half a bead.
+    const odd = mirrorCells(paintCells(emptyDesign(), cells([0, 0]), "A"), { c0: 0, c1: 1, h0: 0, h1: 1 }, "columns");
+    expect(painted(odd)).toEqual(["1,1"]);
+  });
+
+  it("mirrors top to bottom", () => {
+    const flipped = mirrorCells(paintCells(paintCells(emptyDesign(), cells([0, 0]), "A"), cells([0, 4]), "B"), { c0: 0, c1: 0, h0: 0, h1: 4 }, "rows");
+    expect(flipped.cells.get("0,0")).toBe("B");
+    expect(flipped.cells.get("0,4")).toBe("A");
+    const odd = mirrorCells(paintCells(emptyDesign(), cells([0, 0]), "A"), { c0: 0, c1: 0, h0: 0, h1: 3 }, "rows");
+    expect(painted(odd)).toEqual(["0,4"]);
+  });
+
+  it("mirroring twice gives the cells back when the line is on a column", () => {
+    const b = { c0: 0, c1: 4, h0: 0, h1: 6 };
+    const twice = mirrorCells(mirrorCells(design, b, "columns"), b, "columns");
+    expect(painted(twice)).toEqual(painted(design));
+  });
+
+  it("leaves cells outside the bounds alone", () => {
+    const out = mirrorCells(design, { c0: 0, c1: 2, h0: 0, h1: 1 }, "columns");
+    expect(out.cells.get("5,5")).toBe("A");
+    expect(out.cells.get("3,3")).toBe("A");
   });
 });

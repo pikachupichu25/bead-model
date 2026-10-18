@@ -4,11 +4,11 @@
 
 import type { Lab } from "./color.js";
 import type { BeadBox } from "./grid.js";
-import { matchColors, type Pixels, type Sampled, sampleCells } from "./import.js";
+import { type Adjustments, adjustPixels, matchColors, type Pixels, type Sampled, sampleCells } from "./import.js";
 
 export interface ImportRequest {
   id: number;
-  /** Changes whenever the picture, size or transparency threshold change. */
+  /** Changes whenever the picture, crop, adjustments, size or transparency threshold change. */
   sampleKey: string;
   /** Sent only when `sampleKey` is new to the worker. */
   pixels?: Pixels;
@@ -16,8 +16,11 @@ export interface ImportRequest {
   rows: number;
   box: BeadBox;
   alphaThreshold: number;
+  adjust: Adjustments;
   palette: Lab[];
   maxColors: number;
+  minBeads: number;
+  dither: boolean;
 }
 
 export interface ImportResponse {
@@ -40,12 +43,13 @@ scope.addEventListener("message", (event) => {
   const req = (event as MessageEvent<ImportRequest>).data;
   const start = performance.now();
   if (req.pixels) {
-    last = { key: req.sampleKey, sampled: sampleCells(req.pixels, req.columns, req.rows, req.box, req.alphaThreshold) };
+    const pixels = adjustPixels(req.pixels, req.adjust);
+    last = { key: req.sampleKey, sampled: sampleCells(pixels, req.columns, req.rows, req.box, req.alphaThreshold) };
   } else if (last?.key !== req.sampleKey) {
     scope.postMessage({ id: req.id, needPixels: true, columns: req.columns, rows: req.rows } satisfies ImportResponse);
     return;
   }
-  const match = matchColors(last!.sampled, req.palette, req.maxColors);
+  const match = matchColors(last!.sampled, req.palette, req.maxColors, { minBeads: req.minBeads, dither: req.dither });
   const response: ImportResponse = {
     id: req.id,
     columns: req.columns,

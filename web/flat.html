@@ -58,8 +58,13 @@
         <h2 id="import-title">Import image</h2>
         <div class="import-previews">
           <figure>
-            <div class="import-frame"><img id="import-source" alt="The picture" /></div>
-            <figcaption class="muted" id="import-source-caption">Picture</figcaption>
+            <div class="import-frame">
+              <div class="crop-area" id="crop-area" title="Drag to crop">
+                <img id="import-source" alt="The picture" draggable="false" />
+                <div class="crop-box" id="crop-box" hidden></div>
+              </div>
+            </div>
+            <figcaption class="muted"><span id="import-source-caption">Picture</span> · drag on it to crop <button type="button" class="link-button" id="crop-reset" hidden>Reset crop</button></figcaption>
           </figure>
           <figure>
             <div class="import-frame"><canvas id="import-preview" aria-label="The bead pattern"></canvas></div>
@@ -96,6 +101,34 @@
             <span class="input-unit"><input type="number" id="import-alpha" min="1" max="100" step="1" value="50" inputmode="numeric" /> % opacity</span>
           </label>
         </div>
+        <div class="import-settings">
+          <label class="ed-field">
+            <span>Merge colors used by fewer than</span>
+            <span class="input-unit"><input type="number" id="import-merge" min="0" max="10000" step="1" value="0" inputmode="numeric" /> beads</span>
+          </label>
+          <label class="toggle import-link">
+            <input type="checkbox" id="import-dither" />
+            <span>Dithering (mix colors for shades in between)</span>
+          </label>
+        </div>
+        <details class="import-adjust">
+          <summary>Adjust the picture</summary>
+          <div class="import-settings">
+            <label class="ed-field slider">
+              <span>Brightness <output id="adjust-brightness-value">0</output></span>
+              <input type="range" id="adjust-brightness" min="-100" max="100" step="5" value="0" />
+            </label>
+            <label class="ed-field slider">
+              <span>Contrast <output id="adjust-contrast-value">0</output></span>
+              <input type="range" id="adjust-contrast" min="-100" max="100" step="5" value="0" />
+            </label>
+            <label class="ed-field slider">
+              <span>Saturation <output id="adjust-saturation-value">0</output></span>
+              <input type="range" id="adjust-saturation" min="-100" max="100" step="5" value="0" />
+            </label>
+            <button type="button" class="button small" id="adjust-reset">Reset</button>
+          </div>
+        </details>
         <p class="ed-status" id="import-summary" role="status"></p>
         <ul class="import-colors" id="import-colors"></ul>
         <div class="dialog-actions">
@@ -116,6 +149,21 @@
             <input type="text" id="f-title" />
           </label>
           <p class="muted" id="bead-size"></p>
+          <div class="canvas-size" id="canvas-size">
+            <p class="muted ed-help" id="canvas-unlimited">Unlimited canvas. <b>Trim canvas</b> gives it edges at the beads.</p>
+            <div class="ed-row" id="canvas-trimmed" hidden>
+              <label class="ed-field">
+                <span>Columns</span>
+                <input type="number" id="canvas-columns" min="1" max="2000" step="1" inputmode="numeric" />
+              </label>
+              <label class="ed-field">
+                <span>Rows</span>
+                <input type="number" id="canvas-rows" min="1" max="4000" step="1" inputmode="numeric" />
+              </label>
+              <button type="button" class="button small" id="canvas-apply">Resize</button>
+              <button type="button" class="button small" id="make-unlimited" title="Remove the edges. All beads stay.">Make unlimited</button>
+            </div>
+          </div>
         </section>
 
         <section class="ed-section">
@@ -149,7 +197,9 @@
           <div class="view-switch" role="radiogroup" aria-label="Tool">
             <button type="button" role="radio" data-tool="paint" aria-checked="true" title="Paint (B)">Paint</button>
             <button type="button" role="radio" data-tool="erase" aria-checked="false" title="Erase (E, or right-click)">Erase</button>
+            <button type="button" role="radio" data-tool="fill" aria-checked="false" title="Fill an area of one color (G)">Fill</button>
             <button type="button" role="radio" data-tool="pick" aria-checked="false" title="Pick a bead (I, or alt-click)">Pick</button>
+            <button type="button" role="radio" data-tool="select" aria-checked="false" title="Select a rectangle to move, copy or mirror (M)">Select</button>
             <button type="button" role="radio" data-tool="hand" aria-checked="false" title="Pan (H, or hold space)">Hand</button>
           </div>
           <button type="button" class="button small" id="trim" title="Cut the canvas down to the painted beads">Trim canvas</button>
@@ -158,13 +208,8 @@
             <button type="button" class="button icon" id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button>
             <button type="button" class="button icon" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
             <button type="button" class="button small" id="zoom-fit" title="Fit to beads (0)">Fit to beads</button>
+            <button type="button" class="button small" id="turn-view" title="Turn the view a quarter turn (R). The design doesn't change." aria-pressed="false">Turn ⟳</button>
           </div>
-        </div>
-        <div class="flat-banner place-bar" id="place-bar" hidden>
-          <span id="place-text">Drag the picture into place, or move it with the arrow keys.</span>
-          <span class="spacer"></span>
-          <button type="button" class="button small" id="place-cancel">Cancel (Esc)</button>
-          <button type="button" class="button small primary" id="place-drop">Drop (Enter)</button>
         </div>
         <div class="flat-banner" id="empty-banner" role="alert" hidden>
           <span id="empty-text"></span>
@@ -179,6 +224,22 @@
           </span>
         </div>
         <div class="flat-canvas-wrap" id="canvas-wrap">
+          <div class="flat-banner canvas-overlay place-bar" id="place-bar" hidden>
+            <span id="place-text">Drag the picture into place, or move it with the arrow keys.</span>
+            <span class="spacer"></span>
+            <button type="button" class="button small" id="place-cancel">Cancel (Esc)</button>
+            <button type="button" class="button small primary" id="place-drop">Drop (Enter)</button>
+          </div>
+          <div class="flat-banner canvas-overlay select-bar" id="select-bar" hidden>
+            <span id="select-text"></span>
+            <span class="spacer"></span>
+            <button type="button" class="button small" data-action="copy" title="Copy (⌘C)">Copy</button>
+            <button type="button" class="button small" data-action="cut" title="Cut (⌘X)">Cut</button>
+            <button type="button" class="button small" data-action="delete" title="Delete (⌫)">Delete</button>
+            <button type="button" class="button small" data-action="mirror-columns" title="Mirror left to right">Mirror ↔</button>
+            <button type="button" class="button small" data-action="mirror-rows" title="Mirror top to bottom">Mirror ↕</button>
+            <button type="button" class="button small" data-action="deselect" title="Deselect (Esc)">Done</button>
+          </div>
           <canvas id="canvas" aria-label="Bead canvas. Click or drag to paint."></canvas>
         </div>
         <div class="flat-status muted" id="status" role="status"></div>

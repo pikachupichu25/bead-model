@@ -6,23 +6,34 @@ import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolv
 import { beadList, formatRow, oddTurnNote, pieceCount, renderFlatChartSvg, wordChart, wordChartText } from "../src/flat/chart.js";
 import { designFromYaml, designToYaml, nextFlatKey, isFlatKey } from "../src/flat/format.js";
 import {
+  type Bounds,
+  boundsBetween,
   boundsSize,
   type Cell,
   canPaint,
   cellAt,
   cellCenter,
   cellKey,
+  cellsIn,
+  cellsOutside,
   emptyCells,
+  eraseCells,
+  inBounds,
+  liftBlock,
+  makeUnlimited,
+  mirrorCells,
   emptyDesign,
   fillEmptyCells,
+  floodFill,
   type FlatDesign,
   paintedBounds,
+  resize,
   snapMove,
   trim,
 } from "../src/flat/grid.js";
-import { boundsRect, cellsAlong, defaultView, fitView, toMm, type View, zoomAt } from "../src/flat/view.js";
+import { boundsRect, cellsAlong, defaultView, fitView, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
-import { type ImportBlock, setupImport } from "./flat-import.js";
+import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -82,10 +93,27 @@ const els = {
   emptyShow: $<HTMLInputElement>("empty-show"),
   emptyBead: $<HTMLSelectElement>("empty-bead"),
   emptyFill: $<HTMLButtonElement>("empty-fill"),
+  turnView: $<HTMLButtonElement>("turn-view"),
+  selectBar: $("select-bar"),
+  selectText: $("select-text"),
+  canvasUnlimited: $("canvas-unlimited"),
+  canvasTrimmed: $("canvas-trimmed"),
+  canvasColumns: $<HTMLInputElement>("canvas-columns"),
+  canvasRows: $<HTMLInputElement>("canvas-rows"),
+  canvasApply: $<HTMLButtonElement>("canvas-apply"),
+  makeUnlimited: $<HTMLButtonElement>("make-unlimited"),
 };
 const ctx = els.canvas.getContext("2d")!;
 
-type Tool = "paint" | "erase" | "pick" | "hand";
+type Tool = "paint" | "erase" | "fill" | "pick" | "select" | "hand";
+
+type Edge = "c0" | "c1" | "h0" | "h1";
+
+/** Copied beads, with their `beads:` entries so they paste into any design. */
+interface Clipboard {
+  cells: { c: number; h: number; key: string }[];
+  colors: Map<string, ImportColor>;
+}
 
 interface Resolved {
   design: Pick<FlatDesign, "bead" | "beads">;
@@ -130,7 +158,15 @@ const state: {
     dc: number;
     dh: number;
     drag?: { x: number; y: number; dc: number; dh: number };
+    /** For a moved selection: the design before the cells were lifted, and where they came from. */
+    lifted?: { design: FlatDesign; selection: Bounds; dc: number; dh: number };
+    what: string;
   };
+  selection?: Bounds;
+  selecting?: Cell;
+  clipboard?: Clipboard;
+  /** An edge of a trimmed canvas being dragged, and the bounds it would give. */
+  resizing?: { edge: Edge; bounds: Bounds };
 } = {
   design: emptyDesign(),
   resolved: undefined as unknown as Resolved,
@@ -181,6 +217,8 @@ function setDesign(next: FlatDesign): void {
   renderPanel();
   renderStatus();
   renderCanvasTools();
+  renderCanvasSize();
+  renderSelectBar();
   renderWordChart();
   updateUndo();
   scheduleSave();
@@ -188,6 +226,10 @@ function setDesign(next: FlatDesign): void {
 }
 
 function undo(): void {
+  if (state.floating) {
+    cancelFloating();
+    return;
+  }
   const previous = state.past.pop();
   if (!previous) return;
   state.future.push(state.design);
@@ -195,6 +237,7 @@ function undo(): void {
 }
 
 function redo(): void {
+  if (state.floating) return;
   const next = state.future.pop();
   if (!next) return;
   state.past.push(state.design);
@@ -278,7 +321,8 @@ function renderCanvasTools(): void {
   els.trim.disabled = !painted || !!tight;
   els.trim.title = !painted ? "Paint some beads first" : tight ? "The canvas already ends at the beads" : "Cut the canvas down to the painted beads";
 
-  const n = state.empty.length;
+  // Hidden while lifted beads are being placed: the spots they left are about to be filled or put back.
+  const n = state.floating?.lifted ? 0 : state.empty.length;
   els.emptyBanner.hidden = n === 0;
   if (n === 0) return;
   els.emptyText.textContent = `${n.toLocaleString()} empty spot${n === 1 ? "" : "s"}: a flat piece needs a bead in each.`;
@@ -362,7 +406,9 @@ function draw(): void {
         shape: resolved.size.shape,
         cells: state.stroke?.cells ?? design.cells,
         colors,
-        bounds: design.bounds,
+        bounds: state.resizing?.bounds ?? design.bounds,
+        selection: state.floating ? undefined : state.selection,
+        handles: !state.floating && state.tool !== "hand",
         painted: design.bounds ? undefined : paintedBounds(design),
         origin: origin(),
         hover: state.tool === "hand" || state.pan ? undefined : state.hover,
@@ -371,7 +417,7 @@ function draw(): void {
           cells: state.floating.drawn,
           dc: state.floating.dc,
           dh: state.floating.dh,
-          bounds: { c0: 0, c1: state.floating.block.columns - 1, h0: 0, h1: state.floating.block.rows - 1 },
+          bounds: blockBounds(state.floating.block),
         },
       },
       devicePixelRatio,
@@ -381,6 +427,7 @@ function draw(): void {
 
 function setView(view: View): void {
   state.view = view;
+  els.turnView.setAttribute("aria-pressed", String(!!view.turned));
   scheduleSaveView();
   draw();
 }
@@ -388,7 +435,8 @@ function setView(view: View): void {
 function fit(): void {
   const area = state.design.bounds ?? paintedBounds(state.design);
   const { width, height } = state.size;
-  setView(area ? fitView(boundsRect(area, box()), width, height, box()) : defaultView(width, height, box()));
+  const turned = !!state.view.turned;
+  setView(area ? fitView(boundsRect(area, box()), width, height, box(), 40, turned) : defaultView(width, height, box(), turned));
 }
 
 function zoomBy(factor: number, sx = state.size.width / 2, sy = state.size.height / 2): void {
@@ -428,14 +476,79 @@ function setTool(tool: Tool): void {
   draw();
 }
 
-function updateCursor(): void {
-  els.wrap.dataset.cursor = state.floating && !state.pan && !state.spaceDown && state.tool !== "hand" ? "move" : state.pan ? "grabbing" : state.tool === "hand" || state.spaceDown ? "grab" : state.tool === "pick" ? "pick" : "";
+function updateCursor(edge?: Edge): void {
+  const panning = state.tool === "hand" || state.spaceDown;
+  let cursor = "";
+  if (state.pan) cursor = "grabbing";
+  else if (panning) cursor = "grab";
+  else if (state.floating) cursor = "move";
+  else if (edge ?? state.resizing?.edge) {
+    const across = (edge ?? state.resizing!.edge).startsWith("c");
+    cursor = across !== !!state.view.turned ? "ew-resize" : "ns-resize";
+  } else if (state.tool === "pick") cursor = "pick";
+  els.wrap.dataset.cursor = cursor;
+}
+
+/** The resize handle of a trimmed canvas under a screen point, if any. */
+function handleAt(p: { x: number; y: number }): Edge | undefined {
+  const b = state.design.bounds;
+  if (!b || state.floating || state.tool === "hand") return undefined;
+  const r = boundsRect(b, box());
+  const mx = (r.x0 + r.x1) / 2;
+  const my = (r.y0 + r.y1) / 2;
+  const handles: [Edge, number, number][] = [
+    ["c0", r.x0, my],
+    ["c1", r.x1, my],
+    ["h0", mx, r.y0],
+    ["h1", mx, r.y1],
+  ];
+  for (const [edge, x, y] of handles) {
+    const s = toScreen(state.view, x, y);
+    if (Math.abs(s.x - p.x) <= 9 && Math.abs(s.y - p.y) <= 9) return edge;
+  }
+  return undefined;
+}
+
+/** The bounds a trimmed canvas gets with one edge moved to the cell under a point. */
+function resizedBounds(b: Bounds, edge: Edge, at: { x: number; y: number }): Bounds {
+  const { w, d } = box();
+  const c = Math.round(at.x / w);
+  const h = Math.round((2 * at.y) / d);
+  if (edge === "c0") return { ...b, c0: Math.min(c, b.c1) };
+  if (edge === "c1") return { ...b, c1: Math.max(c, b.c0) };
+  if (edge === "h0") return { ...b, h0: Math.min(h, b.h1) };
+  return { ...b, h1: Math.max(h, b.h0) };
+}
+
+/** Resizes the canvas, asking first if beads would be deleted. */
+function resizeTo(bounds: Bounds): void {
+  const lost = cellsOutside(state.design, bounds).length;
+  if (lost && !confirm(`Resizing deletes ${lost.toLocaleString()} bead${lost === 1 ? "" : "s"} outside the new edges. Resize anyway?`)) {
+    draw();
+    return;
+  }
+  commit(resize(state.design, bounds));
 }
 
 function pick(at: { x: number; y: number }): void {
   const cell = cellAt(at.x, at.y, box());
   const key = state.design.cells.get(cellKey(cell.c, cell.h));
   if (key) selectBead(key);
+}
+
+/** Fills the area of one color under a point (§5). On an unlimited canvas it stays inside the painted area. */
+function fillAt(at: { x: number; y: number }): void {
+  if (!state.design.beads.has(state.paint)) {
+    showNotice("Add a bead color first.");
+    return;
+  }
+  const cell = cellAt(at.x, at.y, box());
+  const area = state.design.bounds ?? paintedBounds(state.design);
+  if (!area || !inBounds(area, cell)) {
+    showNotice("Fill works inside the painted area. Outside it the canvas has no edges to stop at.");
+    return;
+  }
+  commit(floodFill(state.design, cell, state.paint));
 }
 
 function startStroke(mode: Stroke["mode"], at: { x: number; y: number }): void {
@@ -496,8 +609,27 @@ els.canvas.addEventListener("pointerdown", (event) => {
     if (event.button === 0) state.floating.drag = { ...at, dc: state.floating.dc, dh: state.floating.dh };
     return;
   }
+  const edge = event.button === 0 ? handleAt(p) : undefined;
+  if (edge && state.design.bounds) {
+    state.resizing = { edge, bounds: state.design.bounds };
+    return;
+  }
+  if (event.button === 0 && state.tool === "select" && !event.altKey) {
+    const cell = cellAt(at.x, at.y, box());
+    if (state.selection && inBounds(state.selection, cell) && cellsIn(state.design, state.selection).length) {
+      liftSelection();
+      state.floating!.drag = { ...at, dc: state.floating!.dc, dh: state.floating!.dh };
+    } else {
+      state.selecting = cell;
+      state.selection = boundsBetween(cell, cell);
+      renderSelectBar();
+      draw();
+    }
+    return;
+  }
   if (event.button === 2) startStroke("erase", at);
   else if (event.button === 0 && (event.altKey || state.tool === "pick")) pick(at);
+  else if (event.button === 0 && state.tool === "fill") fillAt(at);
   else if (event.button === 0) startStroke(state.tool === "erase" ? "erase" : "paint", at);
 });
 
@@ -517,6 +649,12 @@ els.canvas.addEventListener("pointermove", (event) => {
     return;
   }
   const at = mmAt(event);
+  if (state.resizing && state.design.bounds) {
+    state.resizing.bounds = resizedBounds(state.design.bounds, state.resizing.edge, at);
+    renderStatus();
+    draw();
+    return;
+  }
   const drag = state.floating?.drag;
   if (drag) {
     const { w, d } = box();
@@ -525,6 +663,12 @@ els.canvas.addEventListener("pointermove", (event) => {
     return;
   }
   const cell = cellAt(at.x, at.y, box());
+  if (state.selecting) {
+    state.selection = boundsBetween(state.selecting, cell);
+    renderSelectBar();
+  } else if (!state.stroke && event.buttons === 0) {
+    updateCursor(handleAt(p));
+  }
   if (!state.hover || state.hover.c !== cell.c || state.hover.h !== cell.h) {
     state.hover = cell;
     renderStatus();
@@ -542,6 +686,21 @@ function endPointer(event: PointerEvent): void {
   if (state.pan) {
     state.pan = undefined;
     updateCursor();
+    return;
+  }
+  if (state.resizing) {
+    const { bounds } = state.resizing;
+    state.resizing = undefined;
+    updateCursor();
+    const b = state.design.bounds!;
+    if (bounds.c0 !== b.c0 || bounds.c1 !== b.c1 || bounds.h0 !== b.h0 || bounds.h1 !== b.h1) resizeTo(bounds);
+    else draw();
+    return;
+  }
+  if (state.selecting) {
+    state.selecting = undefined;
+    renderSelectBar();
+    draw();
     return;
   }
   if (state.floating) state.floating.drag = undefined;
@@ -588,7 +747,8 @@ function scheduleSave(): void {
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE.draft, designToYaml(state.design));
+      // While lifted beads are being placed, keep the design from before the lift, so a reload loses nothing.
+      localStorage.setItem(STORAGE.draft, designToYaml(state.floating?.lifted?.design ?? state.design));
     } catch {
       // Storage can be off (private windows) or full. The designer still works, it just won't remember.
       if (!saveWarned) showNotice("This design can't be kept in the browser. Download it to keep it.");
@@ -602,10 +762,10 @@ function scheduleSaveView(): void {
   clearTimeout(viewTimer);
   viewTimer = window.setTimeout(() => {
     try {
-      // Kept relative to the top-left of the piece: reopening the file places it at new coordinates.
+      // Kept as where the top-left of the piece shows: reopening the file places it at new coordinates.
       const o = originMm();
-      const { zoom, panX, panY } = state.view;
-      localStorage.setItem(STORAGE.view, JSON.stringify({ zoom, panX: panX + o.x * zoom, panY: panY + o.y * zoom }));
+      const at = toScreen(state.view, o.x, o.y);
+      localStorage.setItem(STORAGE.view, JSON.stringify({ zoom: state.view.zoom, turned: !!state.view.turned, x: at.x, y: at.y }));
     } catch {
       // Not worth a message.
     }
@@ -614,10 +774,12 @@ function scheduleSaveView(): void {
 
 function readView(): View | undefined {
   try {
-    const view = JSON.parse(readStored(STORAGE.view) ?? "null") as View | null;
-    if (!view || ![view.panX, view.panY, view.zoom].every(Number.isFinite) || view.zoom <= 0) return undefined;
+    const saved = JSON.parse(readStored(STORAGE.view) ?? "null") as { zoom: number; turned: boolean; x: number; y: number } | null;
+    if (!saved || ![saved.x, saved.y, saved.zoom].every(Number.isFinite) || saved.zoom <= 0) return undefined;
+    const view: View = { zoom: saved.zoom, panX: 0, panY: 0, ...(saved.turned && { turned: true }) };
     const o = originMm();
-    return { zoom: view.zoom, panX: view.panX - o.x * view.zoom, panY: view.panY - o.y * view.zoom };
+    const at = toScreen(view, o.x, o.y);
+    return { ...view, panX: saved.x - at.x, panY: saved.y - at.y };
   } catch {
     return undefined;
   }
@@ -727,7 +889,7 @@ els.downloadYaml.addEventListener("click", () => download(`${fileName()}.flat-pe
 
 els.downloadChart.addEventListener("click", () => {
   const { size, beads } = state.resolved;
-  const svg = renderFlatChartSvg({ design: state.design, beads, box: size.box, shape: size.shape, sizeLabel: size.label });
+  const svg = renderFlatChartSvg({ design: state.design, beads, box: size.box, shape: size.shape, sizeLabel: size.label, turned: !!state.view.turned });
   download(`${fileName()}-chart.svg`, svg, "image/svg+xml");
 });
 
@@ -738,7 +900,7 @@ els.downloadWords.addEventListener("click", () => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if ((event.target as HTMLElement).closest("input, select, textarea, dialog")) return;
+  if (event.target instanceof Element && event.target.closest("input, select, textarea, dialog")) return;
   const key = event.key.toLowerCase();
   if ((event.metaKey || event.ctrlKey) && key === "z") {
     event.preventDefault();
@@ -746,10 +908,19 @@ document.addEventListener("keydown", (event) => {
     else undo();
     return;
   }
+  if ((event.metaKey || event.ctrlKey) && (key === "c" || key === "x") && state.selection && !state.floating) {
+    event.preventDefault();
+    if (key === "c") copySelection();
+    else cutSelection();
+    return;
+  }
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (state.floating) {
     const f = state.floating;
-    const arrows: Record<string, [number, number]> = { arrowleft: [-1, 1], arrowright: [1, 1], arrowup: [0, -2], arrowdown: [0, 2] };
+    // Arrows move the block on screen, so they swap meaning when the view is turned.
+    const arrows: Record<string, [number, number]> = state.view.turned
+      ? { arrowleft: [0, 2], arrowright: [0, -2], arrowup: [-1, 1], arrowdown: [1, 1] }
+      : { arrowleft: [-1, 1], arrowright: [1, 1], arrowup: [0, -2], arrowdown: [0, 2] };
     if (key in arrows) {
       event.preventDefault();
       const [dc, dh] = arrows[key]!;
@@ -767,6 +938,15 @@ document.addEventListener("keydown", (event) => {
       return;
     }
   }
+  if (state.selection && (key === "delete" || key === "backspace")) {
+    event.preventDefault();
+    deleteSelection();
+    return;
+  }
+  if (state.selection && key === "escape") {
+    deselect();
+    return;
+  }
   if (key === " ") {
     event.preventDefault();
     if (!state.spaceDown) {
@@ -777,6 +957,9 @@ document.addEventListener("keydown", (event) => {
   else if (key === "e") setTool("erase");
   else if (key === "i") setTool("pick");
   else if (key === "h") setTool("hand");
+  else if (key === "m") setTool("select");
+  else if (key === "g") setTool("fill");
+  else if (key === "r") turn();
   else if (key === "+" || key === "=") zoomBy(1.25);
   else if (key === "-") zoomBy(0.8);
   else if (key === "0") fit();
@@ -810,16 +993,33 @@ async function importFile(file: File | Blob, name = "picture"): Promise<void> {
   }
 }
 
-/** Puts the block in the middle of the view, to be dragged into place. */
-function startPlacing(block: ImportBlock): void {
-  const center = toMm(state.view, state.size.width / 2, state.size.height / 2);
-  const at = cellAt(center.x, center.y, box());
-  const move = snapMove(at.c - (block.columns - 1) / 2, at.h - (block.rows - 1) / 2);
+/** The rectangle a block's cells cover, for its outline. */
+function blockBounds(block: ImportBlock): Bounds {
+  const cs = block.cells.map((x) => x.c);
+  const hs = block.cells.map((x) => x.h);
+  return cs.length
+    ? { c0: Math.min(...cs), c1: Math.max(...cs), h0: Math.min(...hs), h1: Math.max(...hs) }
+    : { c0: 0, c1: block.columns - 1, h0: 0, h1: block.rows - 1 };
+}
+
+/**
+ * Starts placing a block, to be dragged into place. It starts in the middle
+ * of the view, or at `at` (a valid move) when given.
+ */
+function startPlacing(block: ImportBlock, what = `${block.columns} × ${block.rows} picture`, at?: { dc: number; dh: number }, lifted?: NonNullable<typeof state.floating>["lifted"]): void {
+  let move = at;
+  if (!move) {
+    const center = toMm(state.view, state.size.width / 2, state.size.height / 2);
+    const cell = cellAt(center.x, center.y, box());
+    const b = blockBounds(block);
+    move = snapMove(cell.c - (b.c0 + b.c1) / 2, cell.h - (b.h0 + b.h1) / 2);
+  }
   const drawn = block.cells.map((cell) => ({ c: cell.c, h: cell.h, rgb: cell.color.rgb }));
-  state.floating = { block, drawn, dc: move.dc, dh: move.dh };
+  state.floating = { block, drawn, dc: move.dc, dh: move.dh, what, lifted };
   state.stroke = undefined;
   els.placeBar.hidden = false;
-  els.placeText.textContent = `Drag the ${block.columns} × ${block.rows} picture into place, or move it with the arrow keys. Moving one column also moves it half a bead.`;
+  els.placeText.textContent = `Drag the ${what} into place, or move it with the arrow keys. Moving one column also moves it half a bead.`;
+  renderSelectBar();
   updateCursor();
   draw();
 }
@@ -832,8 +1032,11 @@ function moveFloating(dc: number, dh: number): void {
 }
 
 function cancelFloating(): void {
+  const lifted = state.floating?.lifted;
   state.floating = undefined;
   els.placeBar.hidden = true;
+  if (lifted) setDesign(lifted.design);
+  renderSelectBar();
   updateCursor();
   draw();
 }
@@ -850,7 +1053,7 @@ function dropFloating(): void {
   const keyFor = new Map<string, string>();
   for (const { color } of f.block.cells) {
     if (keyFor.has(color.id)) continue;
-    let key = color.key && beads.has(color.key) ? color.key : undefined;
+    let key = color.key && sameEntry(beads.get(color.key), color.entry) ? color.key : undefined;
     key ??= [...beads].find(([, entry]) => typeof entry === "string" && entry === color.entry)?.[0];
     if (!key) {
       key = nextFlatKey(beads.keys());
@@ -872,8 +1075,22 @@ function dropFloating(): void {
     }
     cells.set(cellKey(at.c, at.h), keyFor.get(cell.color.id)!);
   }
-  cancelFloating();
-  commit({ ...design, beads, cells });
+  const lifted = f.lifted;
+  state.floating = undefined;
+  els.placeBar.hidden = true;
+  updateCursor();
+  if (lifted) {
+    // A moved selection: one undo step from before the cells were lifted, and the selection moves with them.
+    state.past.push(lifted.design);
+    state.future = [];
+    const dc = f.dc - lifted.dc;
+    const dh = f.dh - lifted.dh;
+    const s0 = lifted.selection;
+    state.selection = { c0: s0.c0 + dc, c1: s0.c1 + dc, h0: s0.h0 + dh, h1: s0.h1 + dh };
+    setDesign({ ...design, beads, cells });
+  } else {
+    commit({ ...design, beads, cells });
+  }
   if (outside) showNotice(`${outside.toLocaleString()} bead${outside === 1 ? "" : "s"} fell outside the canvas and weren't placed.`);
 }
 
@@ -900,12 +1117,131 @@ els.wrap.addEventListener("drop", (event) => {
 });
 
 document.addEventListener("paste", (event) => {
-  if ((event.target as HTMLElement).closest("input, textarea")) return;
+  if (event.target instanceof Element && event.target.closest("input, textarea")) return;
   const file = [...(event.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
-  if (!file) return;
-  event.preventDefault();
-  void importFile(file, "pasted picture");
+  if (file) {
+    event.preventDefault();
+    void importFile(file, "pasted picture");
+    return;
+  }
+  if (state.clipboard && !state.floating) {
+    event.preventDefault();
+    pasteClipboard();
+  }
 });
+
+// ---- Selections ----
+
+function renderSelectBar(): void {
+  const sel = state.selection;
+  els.selectBar.hidden = !sel || !!state.floating || !!state.selecting;
+  if (!sel || state.floating || state.selecting) return;
+  const n = cellsIn(state.design, sel).length;
+  const { columns, rows } = boundsSize(sel);
+  els.selectText.textContent = `${columns} × ${rows} selected, ${n.toLocaleString()} bead${n === 1 ? "" : "s"}. Drag inside it to move it.`;
+}
+
+function deselect(): void {
+  state.selection = undefined;
+  renderSelectBar();
+  draw();
+}
+
+/** The selected cells with their colors, ready to paste anywhere. */
+function clipboardOf(sel: Bounds): Clipboard {
+  const { cells } = liftBlock(state.design, sel);
+  const colors = new Map<string, ImportColor>();
+  for (const { key } of cells) {
+    if (colors.has(key)) continue;
+    const bead = state.resolved.beads.get(key);
+    colors.set(key, { id: `copy:${key}:${JSON.stringify(state.design.beads.get(key))}`, key, entry: state.design.beads.get(key), name: beadName(bead), rgb: bead?.display.rgb ?? "#999999" });
+  }
+  return { cells, colors };
+}
+
+function blockOf(clip: Clipboard): ImportBlock {
+  const cells = clip.cells.map(({ c, h, key }) => ({ c, h, color: clip.colors.get(key)! }));
+  const b = cells.length ? { columns: Math.max(...cells.map((x) => x.c)) + 1, rows: Math.max(...cells.map((x) => x.h)) + 1 } : { columns: 1, rows: 1 };
+  return { ...b, cells };
+}
+
+function copySelection(): void {
+  if (!state.selection) return;
+  state.clipboard = clipboardOf(state.selection);
+  const n = state.clipboard.cells.length;
+  showNotice(`Copied ${n.toLocaleString()} bead${n === 1 ? "" : "s"}. Paste with ⌘V.`);
+}
+
+function cutSelection(): void {
+  if (!state.selection) return;
+  state.clipboard = clipboardOf(state.selection);
+  commit(eraseCells(state.design, cellsIn(state.design, state.selection)));
+}
+
+function deleteSelection(): void {
+  if (!state.selection) return;
+  commit(eraseCells(state.design, cellsIn(state.design, state.selection)));
+}
+
+function pasteClipboard(): void {
+  const clip = state.clipboard;
+  if (!clip?.cells.length) return;
+  state.selection = undefined;
+  startPlacing(blockOf(clip), "pasted beads");
+}
+
+/** Lifts the selected beads off the canvas to be dragged somewhere else. Cancel puts them back. */
+function liftSelection(): void {
+  const sel = state.selection!;
+  const before = state.design;
+  const clip = clipboardOf(sel);
+  const { dc, dh } = liftBlock(before, sel);
+  startPlacing(blockOf(clip), "selection", { dc, dh }, { design: before, selection: sel, dc, dh });
+  setDesign(eraseCells(before, cellsIn(before, sel)));
+}
+
+els.selectBar.addEventListener("click", (event) => {
+  const action = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-action]")?.dataset.action;
+  const sel = state.selection;
+  if (!action || !sel) return;
+  if (action === "copy") copySelection();
+  else if (action === "cut") cutSelection();
+  else if (action === "delete") deleteSelection();
+  else if (action === "mirror-columns") commit(mirrorCells(state.design, sel, "columns"));
+  else if (action === "mirror-rows") commit(mirrorCells(state.design, sel, "rows"));
+  else if (action === "deselect") deselect();
+});
+
+// ---- Canvas size and turning ----
+
+function renderCanvasSize(): void {
+  const b = state.design.bounds;
+  els.canvasUnlimited.hidden = !!b;
+  els.canvasTrimmed.hidden = !b;
+  if (!b) return;
+  const { columns, rows } = boundsSize(b);
+  if (document.activeElement !== els.canvasColumns) els.canvasColumns.value = String(columns);
+  if (document.activeElement !== els.canvasRows) els.canvasRows.value = String(rows);
+}
+
+els.canvasApply.addEventListener("click", () => {
+  const b = state.design.bounds;
+  if (!b) return;
+  const columns = Math.max(1, Math.round(Number(els.canvasColumns.value)) || 1);
+  const rows = Math.max(1, Math.round(Number(els.canvasRows.value)) || 1);
+  // Grows and shrinks from the bottom right, so the top-left stays put.
+  resizeTo({ ...b, c1: b.c0 + columns - 1, h1: b.h0 + rows - 1 });
+});
+
+els.makeUnlimited.addEventListener("click", () => {
+  if (state.design.bounds) commit(makeUnlimited(state.design));
+});
+
+function turn(): void {
+  setView(turnView(state.view, state.size.width, state.size.height));
+}
+
+els.turnView.addEventListener("click", turn);
 
 // ---- Helpers ----
 
@@ -915,6 +1251,10 @@ function showNotice(html: string, keep = false): void {
   els.notice.hidden = false;
   clearTimeout(noticeTimer);
   if (!keep) noticeTimer = window.setTimeout(() => (els.notice.hidden = true), 6000);
+}
+
+function sameEntry(a: unknown, b: unknown): boolean {
+  return a !== undefined && JSON.stringify(a) === JSON.stringify(b);
 }
 
 function esc(s: string): string {

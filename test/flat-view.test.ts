@@ -10,6 +10,7 @@ import {
   rulerStep,
   toMm,
   toScreen,
+  turnView,
   visibleRange,
   zoomAt,
 } from "../src/flat/view.js";
@@ -93,4 +94,61 @@ it("picks a ruler step that keeps labels apart", () => {
   expect(rulerStep(30)).toBe(1);
   expect(rulerStep(10)).toBe(5);
   expect(rulerStep(2)).toBe(20);
+});
+
+describe("turned view", () => {
+  const turned = { panX: 400, panY: 300, zoom: 10, turned: true };
+
+  it("turns the design a quarter turn clockwise", () => {
+    // A point to the right of the origin in the design shows below it; a point below shows to the left.
+    expect(toScreen(turned, 1, 0)).toEqual({ x: 400, y: 310 });
+    expect(toScreen(turned, 0, 1)).toEqual({ x: 390, y: 300 });
+    const s = toScreen(turned, 3, -2);
+    const back = toMm(turned, s.x, s.y);
+    expect(back.x).toBeCloseTo(3);
+    expect(back.y).toBeCloseTo(-2);
+  });
+
+  it("zooms around the pointer and lists the cells on screen", () => {
+    const before = toMm(turned, 123, 45);
+    const after = toMm(zoomAt(turned, 2, 123, 45, delica), 123, 45);
+    expect(after.x).toBeCloseTo(before.x);
+    expect(after.y).toBeCloseTo(before.y);
+    const range = visibleRange(turned, 800, 600, delica);
+    for (const [sx, sy] of [[0, 0], [799, 599], [799, 0], [0, 599]] as const) {
+      const at = toMm(turned, sx, sy);
+      expect(at.x / delica.w).toBeGreaterThanOrEqual(range.c0);
+      expect(at.x / delica.w).toBeLessThanOrEqual(range.c1);
+      expect((2 * at.y) / delica.d).toBeGreaterThanOrEqual(range.h0);
+      expect((2 * at.y) / delica.d).toBeLessThanOrEqual(range.h1);
+    }
+  });
+
+  it("turns and back around the middle of the screen", () => {
+    const view = defaultView(800, 600, delica);
+    const mid = toMm(view, 400, 300);
+    const once = turnView(view, 800, 600);
+    expect(once.turned).toBe(true);
+    const at = toMm(once, 400, 300);
+    expect(at.x).toBeCloseTo(mid.x);
+    expect(at.y).toBeCloseTo(mid.y);
+    const twice = turnView(once, 800, 600);
+    expect(twice.turned).toBe(false);
+    expect(twice.panX).toBeCloseTo(view.panX);
+    expect(twice.panY).toBeCloseTo(view.panY);
+  });
+
+  it("fits a tall piece across the screen", () => {
+    const rect = boundsRect({ c0: 0, c1: 9, h0: 0, h1: 199 }, delica);
+    const view = fitView(rect, 1000, 400, delica, 20, true);
+    const corners = [toScreen(view, rect.x0, rect.y0), toScreen(view, rect.x1, rect.y1)];
+    for (const p of corners) {
+      expect(p.x).toBeGreaterThanOrEqual(19.9);
+      expect(p.x).toBeLessThanOrEqual(980.1);
+      expect(p.y).toBeGreaterThanOrEqual(19.9);
+      expect(p.y).toBeLessThanOrEqual(380.1);
+    }
+    // Turned, the piece fills the width rather than the height.
+    expect(Math.abs(corners[0]!.x - corners[1]!.x)).toBeGreaterThan(900);
+  });
 });

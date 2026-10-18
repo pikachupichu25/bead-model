@@ -141,3 +141,13 @@ describe("printable chart", () => {
     expect(out).toContain("Fill the 3 empty spots first");
   });
 });
+
+describe("turned printable chart", () => {
+  it("turns the grid a quarter turn and swaps the numbers", () => {
+    const design = designFromYaml(readFileSync("patterns/flat/heart-band.flat-peyote.yaml", "utf8"));
+    const { size, beads } = resolveFlatBeads(design, catalog);
+    const svg = renderFlatChartSvg({ design, beads, box: size.box, shape: size.shape, sizeLabel: size.label, turned: true });
+    expect(svg).toMatch(/<g transform="translate\([\d.]+ 36\) rotate\(90\)">/);
+    expect(svg.match(/<rect /g)).toHaveLength(design.cells.size + 3 + 1);
+  });
+});

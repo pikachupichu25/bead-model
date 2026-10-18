@@ -58,7 +58,7 @@ Used by fill (R14), cleanup and dithering.
 
 ### Turned view (R10)
 
-Turning the view swaps x and y when drawing and in the downloads. The design and the file don't change.
+**Turn** (R) turns the view a quarter turn clockwise: display (X, Y) = (−y, x), so a picture still reads the right way round (a plain swap of x and y would mirror it). Pan, zoom, hit testing and the visible range all go through this in `src/flat/view.ts`, the canvas just rotates its drawing, and the rulers swap sides (columns down the left, rows along the top). Arrow keys move a block on screen, so they swap meaning too. The printable chart follows the turned view. The design, the file and the word chart don't change. Whether the view is turned is kept with the view in the browser.
 
 ## 2. The design model
 
@@ -109,11 +109,11 @@ Empty cells inside the bounds are then counted. If there are any, a banner says 
 
 ### Resize (R7)
 
-On a trimmed canvas each edge has a handle. Dragging moves that edge in whole columns (left, right) or whole stitched rows (top, bottom). Width and height can also be typed, growing or shrinking from the bottom-right. If the new bounds would drop painted cells, the tool asks first and says how many beads go. Cells outside the bounds are deleted from `cells` when the resize is confirmed, so the file never keeps hidden beads.
+On a trimmed canvas each edge has a handle in its middle. Dragging moves that edge to the column or stitched row under the pointer. Columns and rows can also be typed in the Design panel, growing or shrinking from the bottom-right. If the new bounds would drop painted cells, the tool asks first and says how many beads go. Cells outside the bounds are deleted from `cells` when the resize is confirmed, so the file never keeps hidden beads.
 
 ### Back to unlimited (R8)
 
-**Make unlimited** clears `bounds`. All beads stay.
+**Make unlimited** (in the Design panel) clears `bounds`. All beads stay.
 
 ## 4. Drawing the canvas (R3)
 
@@ -149,6 +149,12 @@ Hit testing turns a pointer position into a cell: `c = round(x / w)`, then `h` i
 
 **Moving a block keeps the offset.** A block (selection or import, §6.7) can only move by (dc, dh) with dc + dh even. Dragging snaps to the nearest such step, so moving one column sideways also moves the block half a bead up or down. The status bar says so while dragging.
 
+**Select** (R15). Dragging on empty space draws a selection rectangle; a bar over the top of the canvas then offers Copy, Cut, Delete, Mirror ↔, Mirror ↕ and Done (⌘C, ⌘X, ⌫ and Esc work too). Dragging inside the selection lifts its beads off and moves them as a block (§6.7); Esc puts them back, and dropping is one undo step from before the lift. While lifted beads are being placed, the browser copy keeps the design from before the lift, so a reload loses nothing. ⌘V pastes copied beads as a block in the middle of the view, with their `beads:` entries, so they paste into another design too.
+
+**Mirroring** maps column c to c0 + c1 − c (or row h to h0 + h1 − h). When that sum is odd the mirror line falls between offsets, so the mirrored cells also move half a bead to stay real cells.
+
+The selection, placing and empty-spot bars never move the canvas while a drag is going on: the selection and placing bars sit over the top of the canvas, and the empty-spot banner is hidden while lifted beads are being placed.
+
 Each stroke, fill, paste or block drop is one undo step (R16).
 
 ## 6. Import from an image (R21–R32)
@@ -159,7 +165,7 @@ Each stroke, fill, paste or block drop is one undo step (R16).
 
 ### 6.2 The dialog
 
-Left: the picture, with a crop box (R30). Right: the bead result, drawn like the canvas. Under them:
+Left: the picture. Dragging on it draws a crop box (R30), and **Reset crop** clears it; with "keep the picture's shape" on, the height follows the cropped part. Right: the bead result, drawn like the canvas. Under them:
 
 | Setting | Default |
 |---|---|
@@ -188,7 +194,7 @@ For a square picture 60 beads wide in Delicas, that is `2 · 60 · 1.30 / 1.60 �
 
 Each cell covers a `w × d` rectangle of the picture (in picture pixels, after crop and scaling), centered at its §1 position. The **average** color of that rectangle is used, not the pixel at its center, so thin lines and fine texture average out instead of flickering.
 
-1. Draw the cropped picture to an offscreen canvas at `S` pixels per bead (S = 8, or less if that would exceed 4096 px), with brightness, contrast and saturation applied.
+1. Draw the cropped picture to an offscreen canvas at `S` pixels per bead (S = 8, or less if that would exceed 4096 px). The worker then applies brightness, contrast and saturation to the pixels (`adjustPixels`: contrast and brightness around mid-grey, then saturation toward each pixel's grey), so it doesn't depend on canvas filter support.
 2. For each cell, average its rectangle's pixels in **linear light** (undo the sRGB curve first), weighting by alpha. Averaging raw sRGB values makes mixes too dark.
 3. Mean alpha below the threshold → the cell is empty (R27). Otherwise its color is the alpha-weighted average.
 
@@ -212,7 +218,7 @@ Squared error is used so that a few badly wrong beads count more than many sligh
 
 **Merging rare colors** (R29) runs next: while some color is used by fewer than the set number of beads, its cells move to their nearest other color in S.
 
-**Dithering** (R28), if on, replaces the plain match in the final pass. Cells are visited in order of h, then c. Each cell takes its nearest color in S, and the difference (in Lab) is passed on to the unvisited neighbors: 3/8 to lower left (c−1, h+1), 3/8 to lower right (c+1, h+1), 2/8 to below (c, h+2). Starting weights; tune them on test pictures.
+**Dithering** (R28), if on, replaces the plain match in the final pass. Cells are visited in order of h, then c. Each cell takes its nearest color in S, and the difference (in Lab) is passed on to the unvisited neighbors: 3/8 to lower left (c−1, h+1), 3/8 to lower right (c+1, h+1), 2/8 to below (c, h+2). Only 75 % of the difference is passed on, and a cell carries at most 12 Lab units in each channel: catalog greys are slightly tinted, and with the full difference the tint built up into stray beads of a far-off color (red dots in a grey gradient). When every allowed color fits the limit, dithering may use all of them, since a mix needs colors on both sides of a shade.
 
 ### 6.7 Placing (R31)
 
@@ -312,6 +318,8 @@ Manual check in the browser: the "Done when" list in the requirements.
 6. The Should items: select tools, resize, make unlimited, turn the view, dithering, cleanup, crop and adjustments.
 
 In parallel: add the common Delica colors to the catalog, without which import results look rough (see Dependencies in the requirements).
+
+**Status:** steps 1–6 and the Delica colors are done. Still to do: splitting the printable chart onto A4 pages (§9.2), the IndexedDB fallback for very large designs (§7), PNG export (R38, a Could), and listing the new Delica colors' other sizes.
 
 ## Decisions
 

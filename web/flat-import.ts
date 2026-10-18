@@ -6,7 +6,7 @@ import type { ResolvedBead } from "../src/catalog/catalog.js";
 import { catalogColors, type FlatBeadSize } from "../src/flat/beads.js";
 import { hexToLab } from "../src/flat/color.js";
 import type { FlatDesign } from "../src/flat/grid.js";
-import { importCells, importRows } from "../src/flat/import.js";
+import { type Adjustments, importCells, importRows } from "../src/flat/import.js";
 import type { ImportRequest, ImportResponse } from "../src/flat/import.worker.js";
 import { boundsRect, fitView } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
@@ -62,6 +62,15 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     allow: $<HTMLButtonElement>("import-allow"),
     cancel: $<HTMLButtonElement>("import-cancel"),
     place: $<HTMLButtonElement>("import-place"),
+    cropArea: $("crop-area"),
+    cropBox: $("crop-box"),
+    cropReset: $<HTMLButtonElement>("crop-reset"),
+    merge: $<HTMLInputElement>("import-merge"),
+    dither: $<HTMLInputElement>("import-dither"),
+    brightness: $<HTMLInputElement>("adjust-brightness"),
+    contrast: $<HTMLInputElement>("adjust-contrast"),
+    saturation: $<HTMLInputElement>("adjust-saturation"),
+    adjustReset: $<HTMLButtonElement>("adjust-reset"),
   };
 
   const worker = new Worker(new URL("../src/flat/import.worker.ts", import.meta.url), { type: "module" });
@@ -78,7 +87,10 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     workerKey?: string;
     result?: { columns: number; rows: number; assign: Int32Array; used: { index: number; count: number }[]; meanDeltaE: number; palette: ImportColor[] };
     timer?: number;
-  } = { imageId: 0, palette: [], excluded: new Set(), requestId: 0 };
+    /** The part of the picture to use, as fractions of its width and height. */
+    crop: Crop;
+    cropping?: { x: number; y: number };
+  } = { imageId: 0, palette: [], excluded: new Set(), requestId: 0, crop: FULL };
 
   function columns(): number {
     return clampInt(els.width.value, 4, 300, 60);
@@ -87,7 +99,10 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
   function rows(): number {
     const { bitmap, context } = state;
     if (!bitmap || !context) return 1;
-    if (els.link.checked) return importRows(bitmap.width, bitmap.height, columns(), context.size.box);
+    if (els.link.checked) {
+      const { crop } = state;
+      return importRows(bitmap.width * (crop.x1 - crop.x0), bitmap.height * (crop.y1 - crop.y0), columns(), context.size.box);
+    }
     return clampInt(els.height.value, 1, 600, 1);
   }
 
@@ -143,7 +158,9 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     const cols = columns();
     const rowCount = rows();
     const alphaThreshold = clampInt(els.alpha.value, 1, 100, 50) / 100;
-    const sampleKey = `${state.imageId}:${cols}:${rowCount}:${alphaThreshold}:${context.size.box.w}:${context.size.box.d}`;
+    const adjust = adjustments();
+    const { crop } = state;
+    const sampleKey = [state.imageId, cols, rowCount, alphaThreshold, context.size.box.w, context.size.box.d, crop.x0, crop.y0, crop.x1, crop.y1, adjust.brightness, adjust.contrast, adjust.saturation].join(":");
     const request: ImportRequest = {
       id: ++state.requestId,
       sampleKey,
@@ -151,11 +168,14 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       rows: rowCount,
       box: context.size.box,
       alphaThreshold,
+      adjust,
       palette: state.palette.map((c) => hexToLab(c.rgb)),
       maxColors: clampInt(els.max.value, 2, 62, 12),
+      minBeads: clampInt(els.merge.value, 0, 10000, 0),
+      dither: els.dither.checked,
     };
     if (withPixels || state.workerKey !== sampleKey) {
-      request.pixels = pixelsFor(bitmap, cols);
+      request.pixels = pixelsFor(bitmap, cols, crop);
       state.workerKey = sampleKey;
     }
     pending.set(request.id, state.palette);
@@ -246,6 +266,77 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
   els.colorsFrom.addEventListener("change", () => schedule(0));
   els.max.addEventListener("input", () => schedule());
   els.alpha.addEventListener("input", () => schedule());
+  els.merge.addEventListener("input", () => schedule());
+  els.dither.addEventListener("change", () => schedule(0));
+  for (const slider of [els.brightness, els.contrast, els.saturation]) {
+    slider.addEventListener("input", () => {
+      showAdjustments();
+      schedule();
+    });
+  }
+  els.adjustReset.addEventListener("click", () => {
+    for (const slider of [els.brightness, els.contrast, els.saturation]) slider.value = "0";
+    showAdjustments();
+    schedule(0);
+  });
+
+  function adjustments(): Adjustments {
+    return { brightness: Number(els.brightness.value), contrast: Number(els.contrast.value), saturation: Number(els.saturation.value) };
+  }
+
+  function showAdjustments(): void {
+    for (const slider of [els.brightness, els.contrast, els.saturation]) {
+      $(`${slider.id}-value`).textContent = slider.value;
+    }
+  }
+
+  // Cropping: drag a rectangle on the picture.
+  const fractionAt = (event: PointerEvent) => {
+    const r = els.source.getBoundingClientRect();
+    return { x: clamp01((event.clientX - r.left) / r.width), y: clamp01((event.clientY - r.top) / r.height) };
+  };
+  els.cropArea.addEventListener("pointerdown", (event) => {
+    els.cropArea.setPointerCapture(event.pointerId);
+    state.cropping = fractionAt(event);
+  });
+  els.cropArea.addEventListener("pointermove", (event) => {
+    if (!state.cropping) return;
+    const a = state.cropping;
+    const b = fractionAt(event);
+    showCrop({ x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) });
+  });
+  els.cropArea.addEventListener("pointerup", (event) => {
+    if (!state.cropping) return;
+    const a = state.cropping;
+    const b = fractionAt(event);
+    state.cropping = undefined;
+    const crop = { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) };
+    // A click (or a sliver) isn't a crop.
+    if (crop.x1 - crop.x0 < 0.03 || crop.y1 - crop.y0 < 0.03) {
+      showCrop(state.crop);
+      return;
+    }
+    state.crop = crop;
+    showCrop(crop);
+    schedule(0);
+  });
+  els.cropReset.addEventListener("click", () => {
+    state.crop = FULL;
+    showCrop(FULL);
+    schedule(0);
+  });
+
+  function showCrop(crop: Crop): void {
+    const full = crop.x0 === 0 && crop.y0 === 0 && crop.x1 === 1 && crop.y1 === 1;
+    els.cropBox.hidden = full;
+    els.cropReset.hidden = full;
+    Object.assign(els.cropBox.style, {
+      left: `${crop.x0 * 100}%`,
+      top: `${crop.y0 * 100}%`,
+      width: `${(crop.x1 - crop.x0) * 100}%`,
+      height: `${(crop.y1 - crop.y0) * 100}%`,
+    });
+  }
   els.colors.addEventListener("click", (event) => {
     const id = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-id]")?.dataset.id;
     if (!id) return;
@@ -286,6 +377,8 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       state.imageId++;
       state.excluded.clear();
       state.result = undefined;
+      state.crop = FULL;
+      showCrop(FULL);
       state.context = getContext();
       if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
       state.sourceUrl = URL.createObjectURL(file);
@@ -299,10 +392,23 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
   };
 }
 
-/** The picture drawn at SAMPLES_PER_BEAD pixels per bead across, keeping its shape. */
-function pixelsFor(bitmap: ImageBitmap, columns: number): { width: number; height: number; data: Uint8ClampedArray } {
+interface Crop {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+const FULL: Crop = { x0: 0, y0: 0, x1: 1, y1: 1 };
+
+/** The cropped picture drawn at SAMPLES_PER_BEAD pixels per bead across, keeping its shape. */
+function pixelsFor(bitmap: ImageBitmap, columns: number, crop: Crop): { width: number; height: number; data: Uint8ClampedArray } {
+  const sx = bitmap.width * crop.x0;
+  const sy = bitmap.height * crop.y0;
+  const sw = Math.max(1, bitmap.width * (crop.x1 - crop.x0));
+  const sh = Math.max(1, bitmap.height * (crop.y1 - crop.y0));
   let width = Math.min(MAX_SIDE, columns * SAMPLES_PER_BEAD);
-  let height = Math.round((width * bitmap.height) / bitmap.width);
+  let height = Math.round((width * sh) / sw);
   if (height > MAX_SIDE) {
     width = Math.max(1, Math.round((width * MAX_SIDE) / height));
     height = MAX_SIDE;
@@ -311,9 +417,13 @@ function pixelsFor(bitmap: ImageBitmap, columns: number): { width: number; heigh
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, width, height);
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height);
   const data = ctx.getImageData(0, 0, width, height).data;
   return { width, height, data };
+}
+
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v));
 }
 
 function shortName(name: string): string {

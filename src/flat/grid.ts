@@ -212,6 +212,53 @@ export function makeUnlimited(design: FlatDesign): FlatDesign {
   return rest;
 }
 
+// ---- Selections ----
+
+/** The selection rectangle between two cells, in either order. */
+export function boundsBetween(a: Cell, b: Cell): Bounds {
+  return { c0: Math.min(a.c, b.c), c1: Math.max(a.c, b.c), h0: Math.min(a.h, b.h), h1: Math.max(a.h, b.h) };
+}
+
+/** Painted cells inside some bounds, with their beads. */
+export function cellsIn(design: FlatDesign, b: Bounds): { c: number; h: number; key: string }[] {
+  const out: { c: number; h: number; key: string }[] = [];
+  for (const [k, key] of design.cells) {
+    const cell = parseCellKey(k);
+    if (inBounds(b, cell)) out.push({ ...cell, key });
+  }
+  return out;
+}
+
+/**
+ * The painted cells inside some bounds, moved so the block starts near
+ * (0, 0), and the move that puts them back. The move keeps the offset, so the
+ * block's cells are real cells.
+ */
+export function liftBlock(design: FlatDesign, b: Bounds): { cells: { c: number; h: number; key: string }[]; dc: number; dh: number } {
+  const dc = b.c0;
+  const dh = b.h0 - mod(b.c0 + b.h0, 2);
+  return { cells: cellsIn(design, b).map(({ c, h, key }) => ({ c: c - dc, h: h - dh, key })), dc, dh };
+}
+
+/**
+ * Mirrors the cells inside some bounds left to right ("columns") or top to
+ * bottom ("rows"). When the mirror line falls between offsets, the mirrored
+ * cells also move half a bead, so they stay real cells. Cells that would land
+ * outside a trimmed canvas are dropped.
+ */
+export function mirrorCells(design: FlatDesign, b: Bounds, axis: "columns" | "rows"): FlatDesign {
+  const inside = cellsIn(design, b);
+  const sumC = b.c0 + b.c1;
+  const sumH = b.h0 + b.h1;
+  const next = new Map(design.cells);
+  for (const { c, h } of inside) next.delete(cellKey(c, h));
+  for (const { c, h, key } of inside) {
+    const to = axis === "columns" ? { c: sumC - c, h: h + mod(sumC, 2) } : { c, h: sumH - h + mod(sumH, 2) };
+    if (canPaint(design, to)) next.set(cellKey(to.c, to.h), key);
+  }
+  return { ...design, cells: next };
+}
+
 // ---- Moving blocks ----
 
 /** A block of cells can move by (dc, dh) only if the offset stays the same: dc + dh even. */

@@ -161,13 +161,15 @@ export interface ChartInput {
   box: BeadBox;
   shape: Shape;
   sizeLabel: string;
+  /** Draw the beads a quarter turn clockwise, as in the turned view. */
+  turned?: boolean;
 }
 
 /**
  * A printable SVG (in mm): the title, the beads to scale with column and row
  * numbers, the bead list with amounts, and the word chart when there is one.
  */
-export function renderFlatChartSvg({ design, beads, box, shape, sizeLabel }: ChartInput): string {
+export function renderFlatChartSvg({ design, beads, box, shape, sizeLabel, turned = false }: ChartInput): string {
   const area: Bounds | undefined = design.bounds ?? paintedBounds(design);
   const k = BEAD_MM / box.d;
   const bw = box.w * k;
@@ -179,7 +181,10 @@ export function renderFlatChartSvg({ design, beads, box, shape, sizeLabel }: Cha
   const size = area ? boundsSize(area) : { columns: 0, rows: 0 };
   const gridW = size.columns * bw;
   const gridH = area ? ((size.rows + 1) * bd) / 2 : 0;
-  const width = Math.max(180, MARGIN * 2 + gutter + gridW);
+  // On paper, the grid's size across and down.
+  const across = turned ? gridH : gridW;
+  const down = turned ? gridW : gridH;
+  const width = Math.max(180, MARGIN * 2 + gutter + across);
   const textWidth = width - 2 * MARGIN;
 
   parts.push(text(MARGIN, 18, design.title || "Untitled design", 7, INK, "650"));
@@ -199,31 +204,41 @@ export function renderFlatChartSvg({ design, beads, box, shape, sizeLabel }: Cha
       const [c, h] = key.split(",").map(Number) as [number, number];
       return { c, h };
     });
+    // Beads in the grid's own frame, turned on paper by the group's transform.
+    const grid: string[] = [];
     for (const { c, h } of cells) {
-      const x = x0 + (c - area.c0) * bw + bw * 0.04;
-      const cy = y + ((h - area.h0) * bd) / 2 + bd * 0.04;
+      const x = (c - area.c0) * bw + bw * 0.04;
+      const cy = ((h - area.h0) * bd) / 2 + bd * 0.04;
       const key = design.cells.get(cellKey(c, h));
       const w = bw * 0.92;
       const hh = bd * 0.92;
       if (!key) {
-        parts.push(`<rect x="${fmt(x)}" y="${fmt(cy)}" width="${fmt(w)}" height="${fmt(hh)}" rx="${fmt(rx)}" ry="${fmt(ry)}" fill="none" stroke="#d62728" stroke-width="0.25" stroke-dasharray="0.8 0.6"/>`);
+        grid.push(`<rect x="${fmt(x)}" y="${fmt(cy)}" width="${fmt(w)}" height="${fmt(hh)}" rx="${fmt(rx)}" ry="${fmt(ry)}" fill="none" stroke="#d62728" stroke-width="0.25" stroke-dasharray="0.8 0.6"/>`);
         continue;
       }
       const rgb = beads.get(key)?.display.rgb ?? "#999999";
-      parts.push(`<rect x="${fmt(x)}" y="${fmt(cy)}" width="${fmt(w)}" height="${fmt(hh)}" rx="${fmt(rx)}" ry="${fmt(ry)}" fill="${rgb}" stroke="${darken(rgb)}" stroke-width="0.2"/>`);
+      grid.push(`<rect x="${fmt(x)}" y="${fmt(cy)}" width="${fmt(w)}" height="${fmt(hh)}" rx="${fmt(rx)}" ry="${fmt(ry)}" fill="${rgb}" stroke="${darken(rgb)}" stroke-width="0.2"/>`);
     }
-    // Column numbers above, every 5th and the first. Row numbers on the left.
+    const transform = turned ? `translate(${fmt(x0 + gridH)} ${fmt(y)}) rotate(90)` : `translate(${fmt(x0)} ${fmt(y)})`;
+    parts.push(`<g transform="${transform}">`, ...grid, "</g>");
+
+    // Every 5th column and row number (and the first): columns above and rows
+    // on the left, or the other way round when turned.
+    const above = (at: number, n: number) => parts.push(text(x0 + at, y - 2, String(n), 2.6, MUTED, "400", "middle"));
+    const left = (at: number, n: number) => parts.push(text(x0 - 2, y + at + 0.9, String(n), 2.6, MUTED, "400", "end"));
     for (let i = 0; i < size.columns; i++) {
       const n = i + 1;
       if (n !== 1 && n % 5 !== 0) continue;
-      parts.push(text(x0 + i * bw + bw / 2, y - 2, String(n), 2.6, MUTED, "400", "middle"));
+      (turned ? left : above)(i * bw + bw / 2, n);
     }
     for (let i = 0; i < size.rows; i++) {
       const n = i + 1;
       if (n !== 1 && n % 5 !== 0) continue;
-      parts.push(text(x0 - 2, y + (i * bd) / 2 + bd / 2 + 0.9, String(n), 2.6, MUTED, "400", "end"));
+      const at = (i * bd) / 2 + bd / 2;
+      if (turned) above(gridH - at, n);
+      else left(at, n);
     }
-    y += gridH + 12;
+    y += down + 12;
   } else {
     parts.push(text(MARGIN, y, "No beads yet.", 3.5, MUTED));
     y += 10;
