@@ -1,0 +1,19 @@
+# A small heart on a white band, to try the flat peyote format.
+# See docs/flat-peyote-spec.md §8.
+kind: flat-peyote
+title: Heart band
+bead: miyuki delica DB
+beads:
+  A: miyuki DB-0010
+  B: miyuki DB-0201
+  C: { color: red, display: { rgb: "#c8102e" } }
+canvas: trimmed
+first_column: high
+rows: |
+  BBBBBBBB
+  BCCBBCCB
+  CCCCCCCC
+  BCCCCCCB
+  BBCCCCBB
+  BBBCCBBB
+  AAAAAAAA

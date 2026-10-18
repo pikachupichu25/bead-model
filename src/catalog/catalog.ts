@@ -255,6 +255,17 @@ function resolveBead(key: string, entry: unknown, catalog: Catalog, fallbackRgb:
   };
 }
 
+/**
+ * The brand, line and size a product code such as "miyuki DB-0010" belongs to,
+ * and its color when the catalog has it. undefined if no product matches.
+ */
+export function findProduct(
+  catalog: Catalog,
+  text: string,
+): { brand: BrandSpec; line: LineSpec; size: SizeSpec; color?: ColorSpec } | undefined {
+  return findByProductCode(catalog, text, []);
+}
+
 function findByProductCode(catalog: Catalog, text: string, warnings: string[]) {
   const m = /^\s*(\S+)\s+(.+?)\s*$/.exec(text);
   const brand = m ? catalog.get(m[1]!.toLowerCase()) : undefined;
