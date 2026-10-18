@@ -1627,6 +1627,35 @@ select:hover {
   align-items: center;
 }
 
+.flat-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 10px;
+}
+
+.flat-banner[hidden] {
+  display: none;
+}
+
+.fill-empty {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.flat-total {
+  font-size: 13px;
+  margin: 0 0 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .flat-canvas-wrap {
   position: relative;
   flex: 1;

@@ -65,8 +65,9 @@
           <div class="ed-head">
             <h2>Beads</h2>
           </div>
-          <p class="muted ed-help">Pick a bead to paint with. B paints, E erases, I picks a bead from the canvas, H pans.</p>
+          <p class="muted ed-help">Pick a bead to paint with. B paints, E erases, I picks a bead from the canvas, H pans. Amounts to buy include 10&nbsp;% spare.</p>
           <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
+          <p class="flat-total muted" id="bead-total"></p>
           <div class="add-color">
             <select id="add-catalog" aria-label="Add a catalog color"></select>
             <span class="add-own">
@@ -85,12 +86,25 @@
             <button type="button" role="radio" data-tool="pick" aria-checked="false" title="Pick a bead (I, or alt-click)">Pick</button>
             <button type="button" role="radio" data-tool="hand" aria-checked="false" title="Pan (H, or hold space)">Hand</button>
           </div>
+          <button type="button" class="button small" id="trim" title="Cut the canvas down to the painted beads">Trim canvas</button>
           <span class="spacer"></span>
           <div class="zoom-buttons">
             <button type="button" class="button icon" id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button>
             <button type="button" class="button icon" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
             <button type="button" class="button small" id="zoom-fit" title="Fit to beads (0)">Fit to beads</button>
           </div>
+        </div>
+        <div class="flat-banner" id="empty-banner" role="alert" hidden>
+          <span id="empty-text"></span>
+          <span class="spacer"></span>
+          <label class="toggle">
+            <input type="checkbox" id="empty-show" />
+            <span>Show them</span>
+          </label>
+          <span class="fill-empty">
+            <select id="empty-bead" aria-label="Bead to fill the empty spots with"></select>
+            <button type="button" class="button small" id="empty-fill">Fill them</button>
+          </span>
         </div>
         <div class="flat-canvas-wrap" id="canvas-wrap">
           <canvas id="canvas" aria-label="Bead canvas. Click or drag to paint."></canvas>

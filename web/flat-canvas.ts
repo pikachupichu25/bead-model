@@ -22,6 +22,8 @@ export interface CanvasScene {
   /** Rulers count from this column and row (1 = c0, h0). */
   origin: { c: number; h: number };
   hover?: Cell;
+  /** Cells to point out, such as the empty spots inside a trimmed canvas. */
+  highlight?: readonly Cell[];
 }
 
 const BG = "#fdfcf9";
@@ -136,6 +138,16 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
     ctx.setLineDash(bounds ? [] : [6 * px, 4 * px]);
     ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
     ctx.setLineDash([]);
+  }
+
+  if (scene.highlight?.length) {
+    const marks = new Path2D();
+    for (const { c, h } of scene.highlight) marks.roundRect(c * box.w - bw / 2, (h * box.d) / 2 - bd / 2, bw, bd, radius);
+    ctx.fillStyle = "rgb(214 39 40 / 0.18)";
+    ctx.fill(marks);
+    ctx.strokeStyle = "#d62728";
+    ctx.lineWidth = Math.max(1.5 * px, Math.min(box.w, box.d) * 0.08);
+    ctx.stroke(marks);
   }
 
   if (scene.hover) {

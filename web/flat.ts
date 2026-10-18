@@ -3,6 +3,7 @@
 
 import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
+import { beadList } from "../src/flat/chart.js";
 import { designFromYaml, designToYaml, nextFlatKey } from "../src/flat/format.js";
 import {
   boundsSize,
@@ -11,10 +12,12 @@ import {
   cellAt,
   cellCenter,
   cellKey,
-  countBeads,
+  emptyCells,
   emptyDesign,
+  fillEmptyCells,
   type FlatDesign,
   paintedBounds,
+  trim,
 } from "../src/flat/grid.js";
 import { boundsRect, cellsAlong, defaultView, fitView, toMm, type View, zoomAt } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
@@ -61,6 +64,13 @@ const els = {
   wrap: $("canvas-wrap"),
   canvas: $<HTMLCanvasElement>("canvas"),
   status: $("status"),
+  trim: $<HTMLButtonElement>("trim"),
+  beadTotal: $("bead-total"),
+  emptyBanner: $("empty-banner"),
+  emptyText: $("empty-text"),
+  emptyShow: $<HTMLInputElement>("empty-show"),
+  emptyBead: $<HTMLSelectElement>("empty-bead"),
+  emptyFill: $<HTMLButtonElement>("empty-fill"),
 };
 const ctx = els.canvas.getContext("2d")!;
 
@@ -98,6 +108,9 @@ const state: {
   pointers: Map<number, { x: number; y: number }>;
   pinch?: { distance: number; x: number; y: number };
   spaceDown: boolean;
+  /** Empty cells inside a trimmed canvas, and whether they are highlighted. */
+  empty: Cell[];
+  showEmpty: boolean;
 } = {
   design: emptyDesign(),
   resolved: undefined as unknown as Resolved,
@@ -109,6 +122,8 @@ const state: {
   paint: "A",
   pointers: new Map(),
   spaceDown: false,
+  empty: [],
+  showEmpty: false,
 };
 
 const UNDO_LIMIT = 200;
@@ -141,8 +156,11 @@ function setDesign(next: FlatDesign): void {
   state.design = next;
   state.resolved = resolve(next);
   if (!next.beads.has(state.paint)) state.paint = next.beads.keys().next().value ?? "";
+  state.empty = emptyCells(next);
+  if (state.empty.length === 0) state.showEmpty = false;
   renderPanel();
   renderStatus();
+  renderCanvasTools();
   updateUndo();
   scheduleSave();
   draw();
@@ -183,7 +201,8 @@ function renderPanel(): void {
   if (document.activeElement !== els.title) els.title.value = design.title;
   els.beadSize.textContent = resolved.size.label;
 
-  const counts = countBeads(design);
+  const list = beadList(design, resolved.beads);
+  const rows = new Map(list.rows.map((r) => [r.key, r]));
   const problemFor = new Map(resolved.problems.map((p) => [/^bead (\S+):/.exec(p)?.[1] ?? "", p]));
   els.beadList.innerHTML = [...design.beads.keys()]
     .map((key) => {
@@ -194,7 +213,7 @@ function renderPanel(): void {
         <span class="swatch big" style="background:${esc(bead?.display.rgb ?? "#999")}"></span>
         <b>${esc(key)}</b>
         <span class="flat-bead-name${problem ? " bad" : ""}">${esc(beadName(bead))}</span>
-        <span class="flat-bead-count muted">${(counts.get(key) ?? 0).toLocaleString()}</span>
+        <span class="flat-bead-count muted">${amount(rows.get(key)?.count ?? 0, rows.get(key)?.grams)}</span>
       </button></li>`;
     })
     .join("");
@@ -205,6 +224,34 @@ function renderPanel(): void {
     `<option value="">${colors.length ? "+ Add a catalog color…" : "No more catalog colors for this bead"}</option>` +
     colors.map((c) => `<option value="${esc(c.entry)}">${esc(c.entry.replace(/^\S+ /, ""))} · ${esc(c.name)}</option>`).join("");
   els.addCatalog.disabled = colors.length === 0;
+
+  els.beadTotal.textContent = list.total.count ? `Total ${amount(list.total.count, list.total.grams)}` : "";
+}
+
+/** "1,203 · 7 g", or just the count when the weight isn't known. */
+function amount(count: number, grams: number | undefined): string {
+  return count && grams !== undefined ? `${count.toLocaleString()} · ${grams.toLocaleString()} g` : count.toLocaleString();
+}
+
+/** The trim button and the empty-spots banner. */
+function renderCanvasTools(): void {
+  const { design } = state;
+  const painted = paintedBounds(design);
+  const b = design.bounds;
+  const tight = b && painted && b.c0 === painted.c0 && b.c1 === painted.c1 && b.h0 === painted.h0 && b.h1 === painted.h1;
+  els.trim.disabled = !painted || !!tight;
+  els.trim.title = !painted ? "Paint some beads first" : tight ? "The canvas already ends at the beads" : "Cut the canvas down to the painted beads";
+
+  const n = state.empty.length;
+  els.emptyBanner.hidden = n === 0;
+  if (n === 0) return;
+  els.emptyText.textContent = `${n.toLocaleString()} empty spot${n === 1 ? "" : "s"}: a flat piece needs a bead in each.`;
+  els.emptyShow.checked = state.showEmpty;
+  const chosen = els.emptyBead.value;
+  els.emptyBead.innerHTML = [...design.beads.keys()]
+    .map((key) => `<option value="${esc(key)}">${esc(key)} · ${esc(beadName(state.resolved.beads.get(key)))}</option>`)
+    .join("");
+  els.emptyBead.value = design.beads.has(chosen) ? chosen : state.paint;
 }
 
 /** The bead's color name and code, without the size every bead in the piece shares. */
@@ -283,6 +330,7 @@ function draw(): void {
         painted: design.bounds ? undefined : paintedBounds(design),
         origin: origin(),
         hover: state.tool === "hand" || state.pan ? undefined : state.hover,
+        highlight: state.showEmpty ? state.empty : undefined,
       },
       devicePixelRatio,
     );
@@ -536,6 +584,23 @@ els.redo.addEventListener("click", redo);
 els.zoomIn.addEventListener("click", () => zoomBy(1.25));
 els.zoomOut.addEventListener("click", () => zoomBy(0.8));
 els.zoomFit.addEventListener("click", fit);
+
+els.trim.addEventListener("click", () => {
+  const next = trim(state.design);
+  commit(next);
+  const n = state.empty.length;
+  showNotice(`Trimmed to the beads.${n ? ` ${n.toLocaleString()} empty spot${n === 1 ? "" : "s"} left inside.` : ""} Undo brings the unlimited canvas back.`);
+});
+
+els.emptyShow.addEventListener("change", () => {
+  state.showEmpty = els.emptyShow.checked;
+  draw();
+});
+
+els.emptyFill.addEventListener("click", () => {
+  const key = els.emptyBead.value;
+  if (key) commit(fillEmptyCells(state.design, key));
+});
 for (const button of els.tools) button.addEventListener("click", () => setTool(button.dataset.tool as Tool));
 
 els.beadList.addEventListener("click", (event) => {
