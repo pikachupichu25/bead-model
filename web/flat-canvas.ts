@@ -24,6 +24,10 @@ export interface CanvasScene {
   hover?: Cell;
   /** Cells to point out, such as the empty spots inside a trimmed canvas. */
   highlight?: readonly Cell[];
+  /** A block being placed (an import), drawn over the canvas at an offset. */
+  floating?: { cells: readonly { c: number; h: number; rgb: string }[]; dc: number; dh: number; bounds: Bounds };
+  /** Just the beads: no rulers, guides or empty cells (for previews). */
+  plain?: boolean;
 }
 
 const BG = "#fdfcf9";
@@ -57,7 +61,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
   }
 
   // Every 10th column, counted from the origin.
-  if (beadPx >= 6 && area) {
+  if (beadPx >= 6 && area && !scene.plain) {
     ctx.beginPath();
     for (let c = area.c0; c <= area.c1 + 1; c++) {
       if (mod(c - scene.origin.c, 10) !== 0) continue;
@@ -75,6 +79,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
   const bd = box.d - 2 * inset;
   const radius = Math.min(bw, bd) * RADIUS[scene.shape];
   const detailed = beadPx >= 6;
+  const showEmpty = detailed && !scene.plain;
 
   // Beads, one path per color. Walk the visible cells, or the painted cells
   // when there are fewer of them.
@@ -86,7 +91,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
     const x = c * box.w - bw / 2;
     const y = (h * box.d) / 2 - bd / 2;
     if (key === undefined) {
-      if (detailed) empty.roundRect(x, y, bw, bd, radius);
+      if (showEmpty) empty.roundRect(x, y, bw, bd, radius);
       return;
     }
     let path = byColor.get(key);
@@ -112,7 +117,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
       }
     }
   }
-  if (detailed) {
+  if (showEmpty) {
     ctx.strokeStyle = "rgb(0 0 0 / 0.09)";
     ctx.lineWidth = px;
     ctx.stroke(empty);
@@ -150,6 +155,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
     ctx.stroke(marks);
   }
 
+  if (scene.floating) drawFloating(ctx, scene, range, { bw, bd, radius, px, detailed });
+
   if (scene.hover) {
     const { c, h } = scene.hover;
     ctx.strokeStyle = ACCENT;
@@ -160,7 +167,48 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
   }
   ctx.restore();
 
-  drawRulers(ctx, scene, range);
+  if (!scene.plain) drawRulers(ctx, scene, range);
+}
+
+/** The block being placed: its beads a little see-through, and a dashed outline. */
+function drawFloating(
+  ctx: CanvasRenderingContext2D,
+  scene: CanvasScene,
+  range: Bounds,
+  bead: { bw: number; bd: number; radius: number; px: number; detailed: boolean },
+): void {
+  const { box } = scene;
+  const { cells, dc, dh, bounds } = scene.floating!;
+  const byColor = new Map<string, Path2D>();
+  const outline = new Path2D();
+  for (const cell of cells) {
+    const c = cell.c + dc;
+    const h = cell.h + dh;
+    if (c < range.c0 || c > range.c1 || h < range.h0 || h > range.h1) continue;
+    let path = byColor.get(cell.rgb);
+    if (!path) byColor.set(cell.rgb, (path = new Path2D()));
+    const x = c * box.w - bead.bw / 2;
+    const y = (h * box.d) / 2 - bead.bd / 2;
+    path.roundRect(x, y, bead.bw, bead.bd, bead.radius);
+    if (bead.detailed) outline.roundRect(x, y, bead.bw, bead.bd, bead.radius);
+  }
+  ctx.globalAlpha = 0.85;
+  for (const [rgb, path] of byColor) {
+    ctx.fillStyle = rgb;
+    ctx.fill(path);
+  }
+  ctx.globalAlpha = 1;
+  if (bead.detailed) {
+    ctx.strokeStyle = "rgb(0 0 0 / 0.3)";
+    ctx.lineWidth = bead.px;
+    ctx.stroke(outline);
+  }
+  const r = boundsRect({ c0: bounds.c0 + dc, c1: bounds.c1 + dc, h0: bounds.h0 + dh, h1: bounds.h1 + dh }, box);
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 2 * bead.px;
+  ctx.setLineDash([8 * bead.px, 5 * bead.px]);
+  ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+  ctx.setLineDash([]);
 }
 
 /** Column numbers along the top, stitched row numbers down the left, counted from the origin. */

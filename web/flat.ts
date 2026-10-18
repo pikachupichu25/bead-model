@@ -4,7 +4,7 @@
 import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
 import { beadList } from "../src/flat/chart.js";
-import { designFromYaml, designToYaml, nextFlatKey } from "../src/flat/format.js";
+import { designFromYaml, designToYaml, nextFlatKey, isFlatKey } from "../src/flat/format.js";
 import {
   boundsSize,
   type Cell,
@@ -17,10 +17,12 @@ import {
   fillEmptyCells,
   type FlatDesign,
   paintedBounds,
+  snapMove,
   trim,
 } from "../src/flat/grid.js";
 import { boundsRect, cellsAlong, defaultView, fitView, toMm, type View, zoomAt } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
+import { type ImportBlock, setupImport } from "./flat-import.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -65,6 +67,11 @@ const els = {
   canvas: $<HTMLCanvasElement>("canvas"),
   status: $("status"),
   trim: $<HTMLButtonElement>("trim"),
+  importFile: $<HTMLInputElement>("import-file"),
+  placeBar: $("place-bar"),
+  placeText: $("place-text"),
+  placeDrop: $<HTMLButtonElement>("place-drop"),
+  placeCancel: $<HTMLButtonElement>("place-cancel"),
   beadTotal: $("bead-total"),
   emptyBanner: $("empty-banner"),
   emptyText: $("empty-text"),
@@ -111,6 +118,15 @@ const state: {
   /** Empty cells inside a trimmed canvas, and whether they are highlighted. */
   empty: Cell[];
   showEmpty: boolean;
+  /** An imported block being placed, at offset (dc, dh) with dc + dh even. */
+  floating?: {
+    block: ImportBlock;
+    /** The block's cells as the canvas draws them. */
+    drawn: { c: number; h: number; rgb: string }[];
+    dc: number;
+    dh: number;
+    drag?: { x: number; y: number; dc: number; dh: number };
+  };
 } = {
   design: emptyDesign(),
   resolved: undefined as unknown as Resolved,
@@ -331,6 +347,12 @@ function draw(): void {
         origin: origin(),
         hover: state.tool === "hand" || state.pan ? undefined : state.hover,
         highlight: state.showEmpty ? state.empty : undefined,
+        floating: state.floating && {
+          cells: state.floating.drawn,
+          dc: state.floating.dc,
+          dh: state.floating.dh,
+          bounds: { c0: 0, c1: state.floating.block.columns - 1, h0: 0, h1: state.floating.block.rows - 1 },
+        },
       },
       devicePixelRatio,
     );
@@ -387,7 +409,7 @@ function setTool(tool: Tool): void {
 }
 
 function updateCursor(): void {
-  els.wrap.dataset.cursor = state.pan ? "grabbing" : state.tool === "hand" || state.spaceDown ? "grab" : state.tool === "pick" ? "pick" : "";
+  els.wrap.dataset.cursor = state.floating && !state.pan && !state.spaceDown && state.tool !== "hand" ? "move" : state.pan ? "grabbing" : state.tool === "hand" || state.spaceDown ? "grab" : state.tool === "pick" ? "pick" : "";
 }
 
 function pick(at: { x: number; y: number }): void {
@@ -450,6 +472,10 @@ els.canvas.addEventListener("pointerdown", (event) => {
     return;
   }
   const at = mmAt(event);
+  if (state.floating) {
+    if (event.button === 0) state.floating.drag = { ...at, dc: state.floating.dc, dh: state.floating.dh };
+    return;
+  }
   if (event.button === 2) startStroke("erase", at);
   else if (event.button === 0 && (event.altKey || state.tool === "pick")) pick(at);
   else if (event.button === 0) startStroke(state.tool === "erase" ? "erase" : "paint", at);
@@ -471,6 +497,13 @@ els.canvas.addEventListener("pointermove", (event) => {
     return;
   }
   const at = mmAt(event);
+  const drag = state.floating?.drag;
+  if (drag) {
+    const { w, d } = box();
+    const move = snapMove((at.x - drag.x) / w, (2 * (at.y - drag.y)) / d);
+    moveFloating(drag.dc + move.dc, drag.dh + move.dh);
+    return;
+  }
   const cell = cellAt(at.x, at.y, box());
   if (!state.hover || state.hover.c !== cell.c || state.hover.h !== cell.h) {
     state.hover = cell;
@@ -491,6 +524,7 @@ function endPointer(event: PointerEvent): void {
     updateCursor();
     return;
   }
+  if (state.floating) state.floating.drag = undefined;
   if (state.stroke) endStroke();
 }
 
@@ -675,6 +709,26 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (state.floating) {
+    const f = state.floating;
+    const arrows: Record<string, [number, number]> = { arrowleft: [-1, 1], arrowright: [1, 1], arrowup: [0, -2], arrowdown: [0, 2] };
+    if (key in arrows) {
+      event.preventDefault();
+      const [dc, dh] = arrows[key]!;
+      // Sideways, alternate up and down half a bead, so the block doesn't drift.
+      moveFloating(f.dc + dc, f.dh + (dc === 0 ? dh : f.dh % 2 === 0 ? 1 : -1));
+      return;
+    }
+    if (key === "enter") {
+      event.preventDefault();
+      dropFloating();
+      return;
+    }
+    if (key === "escape") {
+      cancelFloating();
+      return;
+    }
+  }
   if (key === " ") {
     event.preventDefault();
     if (!state.spaceDown) {
@@ -695,6 +749,124 @@ document.addEventListener("keyup", (event) => {
     state.spaceDown = false;
     updateCursor();
   }
+});
+
+// ---- Importing and placing a picture ----
+
+const importer = setupImport(
+  () => ({
+    size: state.resolved.size,
+    design: state.design,
+    beads: state.resolved.beads,
+    nameOf: (key) => beadName(state.resolved.beads.get(key)),
+  }),
+  (block) => startPlacing(block),
+);
+
+async function importFile(file: File | Blob, name = "picture"): Promise<void> {
+  if (state.floating) cancelFloating();
+  try {
+    await importer.open(file, name);
+  } catch (e) {
+    showNotice(esc(e instanceof Error ? e.message : String(e)));
+  }
+}
+
+/** Puts the block in the middle of the view, to be dragged into place. */
+function startPlacing(block: ImportBlock): void {
+  const center = toMm(state.view, state.size.width / 2, state.size.height / 2);
+  const at = cellAt(center.x, center.y, box());
+  const move = snapMove(at.c - (block.columns - 1) / 2, at.h - (block.rows - 1) / 2);
+  const drawn = block.cells.map((cell) => ({ c: cell.c, h: cell.h, rgb: cell.color.rgb }));
+  state.floating = { block, drawn, dc: move.dc, dh: move.dh };
+  state.stroke = undefined;
+  els.placeBar.hidden = false;
+  els.placeText.textContent = `Drag the ${block.columns} × ${block.rows} picture into place, or move it with the arrow keys. Moving one column also moves it half a bead.`;
+  updateCursor();
+  draw();
+}
+
+function moveFloating(dc: number, dh: number): void {
+  if (!state.floating) return;
+  state.floating.dc = dc;
+  state.floating.dh = dh;
+  draw();
+}
+
+function cancelFloating(): void {
+  state.floating = undefined;
+  els.placeBar.hidden = true;
+  updateCursor();
+  draw();
+}
+
+/**
+ * Paints the block in, as one undo step. Colors the design doesn't have yet
+ * become new beads. Empty cells of the block leave the canvas as it was.
+ */
+function dropFloating(): void {
+  const f = state.floating;
+  if (!f) return;
+  const { design } = state;
+  const beads = new Map(design.beads);
+  const keyFor = new Map<string, string>();
+  for (const { color } of f.block.cells) {
+    if (keyFor.has(color.id)) continue;
+    let key = color.key && beads.has(color.key) ? color.key : undefined;
+    key ??= [...beads].find(([, entry]) => typeof entry === "string" && entry === color.entry)?.[0];
+    if (!key) {
+      key = nextFlatKey(beads.keys());
+      if (!key || !isFlatKey(key)) {
+        showNotice("This would pass 62 bead colors, the most a design can have. Import again with fewer colors.", true);
+        return;
+      }
+      beads.set(key, color.entry);
+    }
+    keyFor.set(color.id, key);
+  }
+  const cells = new Map(design.cells);
+  let outside = 0;
+  for (const cell of f.block.cells) {
+    const at = { c: cell.c + f.dc, h: cell.h + f.dh };
+    if (!canPaint(design, at)) {
+      outside++;
+      continue;
+    }
+    cells.set(cellKey(at.c, at.h), keyFor.get(cell.color.id)!);
+  }
+  cancelFloating();
+  commit({ ...design, beads, cells });
+  if (outside) showNotice(`${outside.toLocaleString()} bead${outside === 1 ? "" : "s"} fell outside the canvas and weren't placed.`);
+}
+
+els.placeDrop.addEventListener("click", dropFloating);
+els.placeCancel.addEventListener("click", cancelFloating);
+
+els.importFile.addEventListener("change", () => {
+  const file = els.importFile.files?.[0];
+  els.importFile.value = "";
+  if (file) void importFile(file, file.name);
+});
+
+els.wrap.addEventListener("dragover", (event) => {
+  if (![...(event.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) return;
+  event.preventDefault();
+  els.wrap.classList.add("dropping");
+});
+els.wrap.addEventListener("dragleave", () => els.wrap.classList.remove("dropping"));
+els.wrap.addEventListener("drop", (event) => {
+  event.preventDefault();
+  els.wrap.classList.remove("dropping");
+  const file = event.dataTransfer?.files[0];
+  if (file) void importFile(file, file.name);
+});
+
+document.addEventListener("paste", (event) => {
+  if ((event.target as HTMLElement).closest("input, textarea")) return;
+  const file = [...(event.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
+  if (!file) return;
+  event.preventDefault();
+  void importFile(file, "pasted picture");
 });
 
 // ---- Helpers ----

@@ -165,7 +165,7 @@ Left: the picture, with a crop box (R30). Right: the bead result, drawn like the
 |---|---|
 | Width in beads | 60 (max 300) |
 | Height in beads | follows the picture (§6.3), or unlinked to set both |
-| Colors from | the bead's catalog colors / one brand's / only the design's colors / my colors (R24) |
+| Colors from | the bead's catalog colors / only the design's colors / both (R24). A piece has one bead size, so its catalog colors already come from one brand and line |
 | At most N colors | 12, range 2–62 (R25) |
 | Merge colors with fewer than N beads | 0 = off (R29) |
 | Dithering | off (R28) |
@@ -198,7 +198,7 @@ All colors are compared in **CIELAB** (D65) with **CIEDE2000** (ΔE00), which tr
 
 - Palette colors come from each catalog color's `display.rgb`. Finish and opacity are ignored (out of scope).
 - `color.ts` has `srgbToLab(rgb)` and `deltaE2000(lab1, lab2)`, tested against the published Sharma et al. test pairs.
-- For speed, each cell color is rounded to 6 bits per channel and its nearest palette colors are cached in a lookup table, built once per palette.
+- For speed, cell colors are rounded to whole Lab units and each distinct color is matched once.
 
 ### 6.6 Limiting the number of colors (R25)
 
@@ -206,7 +206,7 @@ Picking the N most-used colors after matching loses small but important details 
 
 1. Start with every allowed palette color. Match each cell to its nearest; the colors in use are the set S.
 2. While S has more than N colors: for each color in S, its **cost** is the sum over its cells of `ΔE(cell, next nearest in S)² − ΔE(cell, nearest)²`. Remove the color with the lowest cost and rematch its cells.
-3. The work is done on the distinct cell colors with their counts, not on every cell, so it stays fast.
+3. The work is done on the distinct cell colors with their counts, not on every cell, so it stays fast. Costs are kept up to date as colors go: only the cells whose nearest or second nearest color was dropped are recounted.
 
 Squared error is used so that a few badly wrong beads count more than many slightly wrong ones.
 
@@ -225,7 +225,9 @@ After **Place**, the result is a floating block over the canvas, drawn semi-tran
 
 ### 6.8 Speed (R32)
 
-The pipeline runs in a Web Worker so the dialog stays responsive. Changing a setting cancels the run in progress. The picture is sampled once per size and crop, and the cell colors are reused when only the palette, the color limit, merging or dithering change.
+The pipeline runs in a Web Worker so the dialog stays responsive. Settings are debounced, and a result that a newer request has overtaken is dropped (a run already going isn't stopped). The picture is sampled once per size and crop, and the cell colors are reused when only the palette, the color limit, merging or dithering change.
+
+Measured in Node on a worst case, a picture of pure noise 300 beads wide (73 000 beads, nearly every bead a different color): sampling takes 0.2 s, and matching takes 0.08 s with 20 palette colors and 0.7 s with 300. Real pictures have far fewer distinct colors.
 
 ## 7. Saving and undo (R16, R33)
 
