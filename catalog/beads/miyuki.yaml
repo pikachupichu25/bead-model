@@ -1,10 +1,15 @@
 # Source: Miyuki official size table. Lengths are derived as 100 / beads_per_10cm.
 # Display colors are picked by eye and approximate.
+# Delica color codes and names: Angular by Design's Delica listing
+# (https://angularbydesign.com/miyuki-delica-db-listing/). Miyuki doesn't publish
+# official color names, so names follow that retailer. Display colors are set
+# from the names, not measured.
 brand: miyuki
 name: Miyuki
 country: JP
 sources:
   - https://www.miyuki-beads.co.jp/english/seedbeads/seedgrain.html
+  - https://angularbydesign.com/miyuki-delica-db-listing/
 lines:
   delica:
     name: Delica
@@ -20,6 +25,201 @@ lines:
       "0010": { name: black, display: { rgb: "#151515" } }
       "0035": { name: galvanized silver, display: { rgb: "#b9bcc0", finish: [metallic] } }
       "0201": { name: white pearl ceylon, display: { rgb: "#f1ede2", finish: [pearl] } }
+      # Colors below are listed for 11/0 (DB) only until their other sizes are checked.
+      # Metallic and plated
+      "0001": { name: gunmetal, sizes: [DB], display: { rgb: "#4a4c50", finish: [metallic] } }
+      "0002": { name: metallic dark blue iris, sizes: [DB], display: { rgb: "#2b3550", finish: [metallic] } }
+      "0003": { name: metallic green iris, sizes: [DB], display: { rgb: "#2f4034", finish: [metallic] } }
+      "0004": { name: metallic purple iris, sizes: [DB], display: { rgb: "#3e2f48", finish: [metallic] } }
+      "0005": { name: black AB, sizes: [DB], display: { rgb: "#1c1c22", finish: [ab] } }
+      "0006": { name: gunmetal iris, sizes: [DB], display: { rgb: "#3c3f46", finish: [metallic] } }
+      "0007": { name: brown iris, sizes: [DB], display: { rgb: "#4a3a2c", finish: [metallic] } }
+      "0011": { name: metallic olive, sizes: [DB], display: { rgb: "#5a5a34", finish: [metallic] } }
+      "0012": { name: metallic raspberry, sizes: [DB], display: { rgb: "#6e2a3c", finish: [metallic] } }
+      "0021": { name: nickel-plated, sizes: [DB], display: { rgb: "#9a9a96", finish: [metallic] } }
+      "0022": { name: metallic bronze, sizes: [DB], display: { rgb: "#7a5a34", finish: [metallic] } }
+      "0022L": { name: metallic light bronze, sizes: [DB], display: { rgb: "#a08050", finish: [metallic] } }
+      "0031": { name: 24kt gold-plated, sizes: [DB], display: { rgb: "#c9a24a", finish: [metallic] } }
+      "0034": { name: 24kt light gold-plated, sizes: [DB], display: { rgb: "#d8bf7a", finish: [metallic] } }
+      "0037": { name: copper-lined crystal, sizes: [DB], display: { rgb: "#c9906a", finish: [color-lined] } }
+      "0038": { name: palladium-plated, sizes: [DB], display: { rgb: "#a8a8a4", finish: [metallic] } }
+      "0040": { name: copper-plated, sizes: [DB], display: { rgb: "#b06a40", finish: [metallic] } }
+      "1848": { name: duracoat galvanized dusty orchid, sizes: [DB], display: { rgb: "#9a7a90", finish: [metallic] } }
+      "1849": { name: duracoat galvanized magenta, sizes: [DB], display: { rgb: "#a03070", finish: [metallic] } }
+      "1850": { name: duracoat galvanized eggplant, sizes: [DB], display: { rgb: "#4a2a48", finish: [metallic] } }
+      "1851": { name: duracoat galvanized light smoky pewter, sizes: [DB], display: { rgb: "#8a8a8e", finish: [metallic] } }
+      "1852": { name: duracoat galvanized pewter, sizes: [DB], display: { rgb: "#6a6a6e", finish: [metallic] } }
+      # Silver-lined
+      "0041": { name: silver-lined crystal, sizes: [DB], display: { rgb: "#e4e8ec", opacity: 0.7, finish: [silver-lined] } }
+      "0042": { name: silver-lined gold, sizes: [DB], display: { rgb: "#d9a530", finish: [silver-lined] } }
+      "0043": { name: silver-lined red, sizes: [DB], display: { rgb: "#b81c24", finish: [silver-lined] } }
+      "0044": { name: silver-lined aqua, sizes: [DB], display: { rgb: "#58b8c4", finish: [silver-lined] } }
+      "0045": { name: silver-lined orange, sizes: [DB], display: { rgb: "#e8761c", finish: [silver-lined] } }
+      "0046": { name: silver-lined green, sizes: [DB], display: { rgb: "#2f9a3c", finish: [silver-lined] } }
+      "0047": { name: silver-lined cobalt, sizes: [DB], display: { rgb: "#1f3fa0", finish: [silver-lined] } }
+      "0048": { name: silver-lined grey, sizes: [DB], display: { rgb: "#8c9094", finish: [silver-lined] } }
+      "0144": { name: silver-lined amber, sizes: [DB], display: { rgb: "#b8701e", finish: [silver-lined] } }
+      "0145": { name: silver-lined yellow, sizes: [DB], display: { rgb: "#f0cc20", finish: [silver-lined] } }
+      "0146": { name: silver-lined lilac, sizes: [DB], display: { rgb: "#a68cc0", finish: [silver-lined] } }
+      "0147": { name: silver-lined peridot, sizes: [DB], display: { rgb: "#8cb83c", finish: [silver-lined] } }
+      "0148": { name: silver-lined dark green, sizes: [DB], display: { rgb: "#1d5a32", finish: [silver-lined] } }
+      "0149": { name: silver-lined capri blue, sizes: [DB], display: { rgb: "#1a5a8a", finish: [silver-lined] } }
+      "0150": { name: silver-lined brown, sizes: [DB], display: { rgb: "#6a3c1c", finish: [silver-lined] } }
+      "1201": { name: silver-lined dark topaz, sizes: [DB], display: { rgb: "#8a5a28", finish: [silver-lined] } }
+      "1202": { name: silver-lined ruby, sizes: [DB], display: { rgb: "#a01438", finish: [silver-lined] } }
+      "1203": { name: silver-lined peach, sizes: [DB], display: { rgb: "#e8a07a", finish: [silver-lined] } }
+      "1204": { name: silver-lined dark amethyst, sizes: [DB], display: { rgb: "#4a2050", finish: [silver-lined] } }
+      "1205": { name: silver-lined smoky amethyst, sizes: [DB], display: { rgb: "#6e5468", finish: [silver-lined] } }
+      "1206": { name: silver-lined dark peridot, sizes: [DB], display: { rgb: "#5a7a20", finish: [silver-lined] } }
+      "1207": { name: silver-lined olive green, sizes: [DB], display: { rgb: "#5e6a2a", finish: [silver-lined] } }
+      "1208": { name: silver-lined teal, sizes: [DB], display: { rgb: "#1a6a6a", finish: [silver-lined] } }
+      "1209": { name: silver-lined dark aqua, sizes: [DB], display: { rgb: "#1a7a90", finish: [silver-lined] } }
+      "1210": { name: silver-lined blue, sizes: [DB], display: { rgb: "#2a5ab0", finish: [silver-lined] } }
+      "1211": { name: silver-lined light gray, sizes: [DB], display: { rgb: "#b0b4b8", finish: [silver-lined] } }
+      "1212": { name: silver-lined pale topaz, sizes: [DB], display: { rgb: "#d8bc8a", finish: [silver-lined] } }
+      # Gold-lined
+      "2521": { name: 24kt gold-lined peach, sizes: [DB], display: { rgb: "#f0b090", finish: [color-lined] } }
+      "2522": { name: 24kt gold-lined aqua, sizes: [DB], display: { rgb: "#70c0c0", finish: [color-lined] } }
+      "2523": { name: 24kt gold-lined blue, sizes: [DB], display: { rgb: "#5070b8", finish: [color-lined] } }
+      "2524": { name: 24kt gold-lined lilac, sizes: [DB], display: { rgb: "#b8a0c8", finish: [color-lined] } }
+      "2525": { name: 24kt gold-lined light gray, sizes: [DB], display: { rgb: "#c4c0b8", finish: [color-lined] } }
+      # Opaque
+      "0200": { name: opaque white, sizes: [DB], display: { rgb: "#f6f6f2" } }
+      "0231": { name: ceylon white, sizes: [DB], display: { rgb: "#f0ece0", finish: [pearl] } }
+      "0721": { name: opaque yellow, sizes: [DB], display: { rgb: "#f2c81a" } }
+      "0722": { name: opaque orange, sizes: [DB], display: { rgb: "#e8661c" } }
+      "0723": { name: opaque red, sizes: [DB], display: { rgb: "#b5141e" } }
+      "0724": { name: opaque green, sizes: [DB], display: { rgb: "#1f7a3a" } }
+      "0725": { name: opaque light blue, sizes: [DB], display: { rgb: "#2f6cb4" } }
+      "0726": { name: opaque cobalt, sizes: [DB], display: { rgb: "#1c2f7a" } }
+      "0727": { name: opaque coral, sizes: [DB], display: { rgb: "#e05a48" } }
+      "0728": { name: opaque lilac, sizes: [DB], display: { rgb: "#9a7ab8" } }
+      "0729": { name: opaque turquoise, sizes: [DB], display: { rgb: "#2aa8a8" } }
+      "0730": { name: opaque light lapis, sizes: [DB], display: { rgb: "#3e7cc0" } }
+      "0731": { name: opaque grey, sizes: [DB], display: { rgb: "#6e7276" } }
+      "0732": { name: opaque ivory, sizes: [DB], display: { rgb: "#f0e2b8" } }
+      "0733": { name: opaque lime, sizes: [DB], display: { rgb: "#8cc43c" } }
+      "0734": { name: opaque dark brown, sizes: [DB], display: { rgb: "#4a2a1a" } }
+      "0735": { name: opaque cocoa, sizes: [DB], display: { rgb: "#6a4030" } }
+      "1130": { name: light opaque ivory, sizes: [DB], display: { rgb: "#f4ead0" } }
+      "1131": { name: opaque dark ivory, sizes: [DB], display: { rgb: "#e6cfa0" } }
+      "1132": { name: opaque dark yellow, sizes: [DB], display: { rgb: "#e8a81a" } }
+      "1133": { name: opaque light orange, sizes: [DB], display: { rgb: "#f08a3c" } }
+      "1134": { name: opaque chocolate, sizes: [DB], display: { rgb: "#4e3020" } }
+      "1135": { name: opaque olive green, sizes: [DB], display: { rgb: "#6a6a2a" } }
+      "1136": { name: opaque light turquoise, sizes: [DB], display: { rgb: "#6ec8c8" } }
+      "1137": { name: opaque ice blue, sizes: [DB], display: { rgb: "#b8d8e8" } }
+      "1138": { name: opaque light lapis, sizes: [DB], display: { rgb: "#6a96cc" } }
+      "1139": { name: opaque gray, sizes: [DB], display: { rgb: "#8e9296" } }
+      "1140": { name: dark opaque red, sizes: [DB], display: { rgb: "#8a1420" } }
+      "1490": { name: opaque bisque glazed, sizes: [DB], display: { rgb: "#f0dcc0" } }
+      "1491": { name: opaque pale yellow glazed, sizes: [DB], display: { rgb: "#f4e8a0" } }
+      "1492": { name: opaque light peach glazed, sizes: [DB], display: { rgb: "#f6c8a8" } }
+      "1493": { name: opaque light salmon glazed, sizes: [DB], display: { rgb: "#f2a890" } }
+      "1494": { name: opaque pale rose glazed, sizes: [DB], display: { rgb: "#f0b8c0" } }
+      "1495": { name: opaque pink champagne glazed, sizes: [DB], display: { rgb: "#e8c4b8" } }
+      "1496": { name: opaque light mint glazed, sizes: [DB], display: { rgb: "#c4e4c8" } }
+      "1497": { name: opaque light sky blue glazed, sizes: [DB], display: { rgb: "#bcdcf0" } }
+      "1498": { name: opaque light smoke glazed, sizes: [DB], display: { rgb: "#c8c8c8" } }
+      "2351": { name: duracoat opaque french vanilla, sizes: [DB], display: { rgb: "#f2e6c8" } }
+      "2352": { name: duracoat opaque terracotta, sizes: [DB], display: { rgb: "#b85a3a" } }
+      "2353": { name: duracoat opaque raspberry, sizes: [DB], display: { rgb: "#a8284a" } }
+      "2354": { name: duracoat opaque barn red, sizes: [DB], display: { rgb: "#8a2a24" } }
+      "2355": { name: duracoat opaque grape purple, sizes: [DB], display: { rgb: "#5a2a6a" } }
+      "2356": { name: duracoat opaque pale turquoise, sizes: [DB], display: { rgb: "#9ad4d0" } }
+      "2357": { name: duracoat opaque army green, sizes: [DB], display: { rgb: "#5a5e34" } }
+      "2358": { name: duracoat opaque evergreen, sizes: [DB], display: { rgb: "#1e4a34" } }
+      "2359": { name: duracoat opaque violet blue, sizes: [DB], display: { rgb: "#4a4aa0" } }
+      "2360": { name: duracoat opaque dark purple, sizes: [DB], display: { rgb: "#3a1e4a" } }
+      "2361": { name: duracoat opaque soft pink, sizes: [DB], display: { rgb: "#f0c0c8" } }
+      "2362": { name: duracoat opaque antique cream, sizes: [DB], display: { rgb: "#ecdcb8" } }
+      "2363": { name: duracoat opaque oyster beige, sizes: [DB], display: { rgb: "#d8c8b0" } }
+      "2364": { name: duracoat opaque navajo white, sizes: [DB], display: { rgb: "#f0d8a8" } }
+      "2365": { name: duracoat opaque ash gray, sizes: [DB], display: { rgb: "#b8b8b4" } }
+      "2366": { name: duracoat opaque soft gray, sizes: [DB], display: { rgb: "#a0a2a4" } }
+      "2367": { name: duracoat opaque slate gray, sizes: [DB], display: { rgb: "#6a7078" } }
+      "2368": { name: duracoat opaque charcoal gray, sizes: [DB], display: { rgb: "#3e4044" } }
+      # Matte opaque
+      "0310": { name: matte black, sizes: [DB], display: { rgb: "#1c1c1c", finish: [matte] } }
+      "0750": { name: matte opaque white, sizes: [DB], display: { rgb: "#f2f2ee", finish: [matte] } }
+      "0751": { name: matte opaque yellow, sizes: [DB], display: { rgb: "#ecc430", finish: [matte] } }
+      "0752": { name: matte opaque orange, sizes: [DB], display: { rgb: "#e06a2a", finish: [matte] } }
+      "0753": { name: matte opaque red, sizes: [DB], display: { rgb: "#b02028", finish: [matte] } }
+      "0754": { name: matte opaque green, sizes: [DB], display: { rgb: "#2a7a44", finish: [matte] } }
+      "0755": { name: matte opaque light blue, sizes: [DB], display: { rgb: "#3a70b8", finish: [matte] } }
+      "0756": { name: matte opaque cobalt, sizes: [DB], display: { rgb: "#243a80", finish: [matte] } }
+      "0757": { name: matte opaque coral, sizes: [DB], display: { rgb: "#dc6450", finish: [matte] } }
+      "0758": { name: matte opaque lilac, sizes: [DB], display: { rgb: "#9a80b8", finish: [matte] } }
+      "0759": { name: matte opaque turquoise, sizes: [DB], display: { rgb: "#34a8a8", finish: [matte] } }
+      "0760": { name: matte opaque lapis, sizes: [DB], display: { rgb: "#3e78bc", finish: [matte] } }
+      "0761": { name: matte opaque grey, sizes: [DB], display: { rgb: "#74787c", finish: [matte] } }
+      "0762": { name: matte opaque ivory, sizes: [DB], display: { rgb: "#ecdcb4", finish: [matte] } }
+      "0763": { name: matte opaque lime, sizes: [DB], display: { rgb: "#90c048", finish: [matte] } }
+      "1581": { name: matte opaque light ivory, sizes: [DB], display: { rgb: "#f0e6cc", finish: [matte] } }
+      "1582": { name: matte opaque dark yellow, sizes: [DB], display: { rgb: "#e0a42a", finish: [matte] } }
+      "1583": { name: matte opaque light orange, sizes: [DB], display: { rgb: "#ec8c48", finish: [matte] } }
+      "1584": { name: matte opaque chocolate, sizes: [DB], display: { rgb: "#503424", finish: [matte] } }
+      "1585": { name: matte opaque olive green, sizes: [DB], display: { rgb: "#6c6c34", finish: [matte] } }
+      "1586": { name: matte opaque light turquoise, sizes: [DB], display: { rgb: "#74c4c4", finish: [matte] } }
+      "1587": { name: matte opaque ice blue, sizes: [DB], display: { rgb: "#bcd6e4", finish: [matte] } }
+      "1588": { name: matte opaque light lapis, sizes: [DB], display: { rgb: "#6c94c8", finish: [matte] } }
+      "1589": { name: matte opaque gray, sizes: [DB], display: { rgb: "#8e9294", finish: [matte] } }
+      "1910": { name: matte opaque dark brown, sizes: [DB], display: { rgb: "#4c2e20", finish: [matte] } }
+      "2401": { name: opaque light buttercream matte, sizes: [DB], display: { rgb: "#f2e2b0", finish: [matte] } }
+      "2403": { name: opaque rich mocha matte, sizes: [DB], display: { rgb: "#5c3c2c", finish: [matte] } }
+      "2404": { name: opaque jungle green matte, sizes: [DB], display: { rgb: "#3e5a34", finish: [matte] } }
+      "2405": { name: opaque smoky violet matte, sizes: [DB], display: { rgb: "#6a5878", finish: [matte] } }
+      "2406": { name: opaque steel grey matte, sizes: [DB], display: { rgb: "#6a7078", finish: [matte] } }
+      "2407": { name: opaque teal waters matte, sizes: [DB], display: { rgb: "#2e6e74", finish: [matte] } }
+      "2408": { name: opaque stone blue matte, sizes: [DB], display: { rgb: "#5a7490", finish: [matte] } }
+      "2409": { name: opaque iron gray matte, sizes: [DB], display: { rgb: "#4a4e52", finish: [matte] } }
+      # Transparent
+      "0141": { name: transparent crystal, sizes: [DB], display: { rgb: "#eef0f2", opacity: 0.35 } }
+      "0702": { name: transparent light topaz, sizes: [DB], display: { rgb: "#d8a050", opacity: 0.6 } }
+      "0703": { name: transparent orange, sizes: [DB], display: { rgb: "#ec7020", opacity: 0.6 } }
+      "0704": { name: transparent red, sizes: [DB], display: { rgb: "#c01828", opacity: 0.6 } }
+      "0705": { name: transparent green, sizes: [DB], display: { rgb: "#2e9a40", opacity: 0.6 } }
+      "0706": { name: transparent aqua, sizes: [DB], display: { rgb: "#6ac0d0", opacity: 0.6 } }
+      "0707": { name: transparent cobalt, sizes: [DB], display: { rgb: "#2040a8", opacity: 0.6 } }
+      "0708": { name: transparent grey, sizes: [DB], display: { rgb: "#8a8e92", opacity: 0.6 } }
+      "0709": { name: transparent amber, sizes: [DB], display: { rgb: "#b8681c", opacity: 0.6 } }
+      "0710": { name: transparent yellow, sizes: [DB], display: { rgb: "#f2d02a", opacity: 0.6 } }
+      "0711": { name: transparent lilac, sizes: [DB], display: { rgb: "#b098cc", opacity: 0.6 } }
+      "0712": { name: transparent peridot, sizes: [DB], display: { rgb: "#9ac040", opacity: 0.6 } }
+      "0713": { name: transparent dark green, sizes: [DB], display: { rgb: "#1e5e34", opacity: 0.6 } }
+      "0714": { name: transparent capri blue, sizes: [DB], display: { rgb: "#1e6a9a", opacity: 0.6 } }
+      "0715": { name: transparent dark brown, sizes: [DB], display: { rgb: "#5a3418", opacity: 0.6 } }
+      "1101": { name: transparent dark topaz, sizes: [DB], display: { rgb: "#8e5a24", opacity: 0.6 } }
+      "1102": { name: transparent ruby, sizes: [DB], display: { rgb: "#a8143a", opacity: 0.6 } }
+      "1103": { name: transparent peach, sizes: [DB], display: { rgb: "#f0a888", opacity: 0.6 } }
+      "1104": { name: transparent dark amethyst, sizes: [DB], display: { rgb: "#4e2058", opacity: 0.6 } }
+      "1105": { name: transparent smoky amethyst, sizes: [DB], display: { rgb: "#806878", opacity: 0.6 } }
+      "1106": { name: transparent dark peridot, sizes: [DB], display: { rgb: "#6a8a22", opacity: 0.6 } }
+      "1107": { name: transparent olive green, sizes: [DB], display: { rgb: "#6a702a", opacity: 0.6 } }
+      "1108": { name: transparent teal, sizes: [DB], display: { rgb: "#1e7070", opacity: 0.6 } }
+      "1109": { name: transparent dark aqua, sizes: [DB], display: { rgb: "#1e8098", opacity: 0.6 } }
+      "1110": { name: transparent blue, sizes: [DB], display: { rgb: "#3466c0", opacity: 0.6 } }
+      "1111": { name: transparent light gray, sizes: [DB], display: { rgb: "#c0c4c8", opacity: 0.6 } }
+      "1112": { name: transparent pale topaz, sizes: [DB], display: { rgb: "#e0c898", opacity: 0.6 } }
+      # Matte transparent
+      "0741": { name: matte transparent crystal, sizes: [DB], display: { rgb: "#e8eaec", opacity: 0.45, finish: [matte] } }
+      "0742": { name: matte transparent light topaz, sizes: [DB], display: { rgb: "#d6a464", opacity: 0.7, finish: [matte] } }
+      "0743": { name: matte transparent yellow, sizes: [DB], display: { rgb: "#eccc48", opacity: 0.7, finish: [matte] } }
+      "0744": { name: matte transparent orange, sizes: [DB], display: { rgb: "#e8783a", opacity: 0.7, finish: [matte] } }
+      "0745": { name: matte transparent red, sizes: [DB], display: { rgb: "#b82a34", opacity: 0.7, finish: [matte] } }
+      "0746": { name: matte transparent green, sizes: [DB], display: { rgb: "#3a9a4c", opacity: 0.7, finish: [matte] } }
+      "0747": { name: matte transparent aqua, sizes: [DB], display: { rgb: "#78c0cc", opacity: 0.7, finish: [matte] } }
+      "0748": { name: matte transparent cobalt, sizes: [DB], display: { rgb: "#2e4aa4", opacity: 0.7, finish: [matte] } }
+      "0749": { name: matte transparent grey, sizes: [DB], display: { rgb: "#8e9296", opacity: 0.7, finish: [matte] } }
+      "0764": { name: matte transparent amber, sizes: [DB], display: { rgb: "#b4703a", opacity: 0.7, finish: [matte] } }
+      "0765": { name: matte transparent lilac, sizes: [DB], display: { rgb: "#ac9ac8", opacity: 0.7, finish: [matte] } }
+      "0766": { name: matte transparent peridot, sizes: [DB], display: { rgb: "#9cbc50", opacity: 0.7, finish: [matte] } }
+      "0767": { name: matte transparent dark green, sizes: [DB], display: { rgb: "#2a5e3e", opacity: 0.7, finish: [matte] } }
+      "0768": { name: matte transparent capri blue, sizes: [DB], display: { rgb: "#2a6a98", opacity: 0.7, finish: [matte] } }
+      "0769": { name: matte transparent brown, sizes: [DB], display: { rgb: "#5e3a24", opacity: 0.7, finish: [matte] } }
+      "1262": { name: matte transparent ruby, sizes: [DB], display: { rgb: "#a42444", opacity: 0.7, finish: [matte] } }
+      "1264": { name: matte transparent dark amethyst, sizes: [DB], display: { rgb: "#52285c", opacity: 0.7, finish: [matte] } }
+      "1268": { name: matte transparent teal, sizes: [DB], display: { rgb: "#2a7070", opacity: 0.7, finish: [matte] } }
   round:
     name: Round Rocailles
     shape: round

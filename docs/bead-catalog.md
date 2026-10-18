@@ -270,6 +270,13 @@ The program rejects a catalog, or warns, when:
 - **Size labels only (`11/0 round`).** This is what patterns use today, but it is wrong by up to 10% between brands (2.0 vs 2.2 mm).
 - **JSON or CSV.** CSV suits the color lists, which can be long. If the color lists grow large, they can move to one CSV per line, keeping the geometry in YAML.
 
+## Delica colors
+
+Image import in the flat designer ([flat-peyote-spec.md](flat-peyote-spec.md) §6) matches pictures to catalog colors, so it needs many of them. `miyuki.yaml` has about 190 Delica colors, picked to cover the spectrum: opaque, matte, transparent, matte transparent, silver-lined, gold-lined, metallic and Duracoat colors. Codes and names come from [Angular by Design's Delica listing](https://angularbydesign.com/miyuki-delica-db-listing/); Miyuki publishes no official color names. Colors whose listed name is only a finish (such as "Inside Dyed" or "Luminous") are left out, since the name doesn't say the color.
+
+- Display colors are set by eye from the names, not measured, so matching is approximate.
+- The new colors list only `DB` (11/0) in `sizes`, because the source covers 11/0. Many are also sold as DBS, DBM or DBL; add those sizes once checked.
+
 ## Questions for review
 
 1. **Pattern references:** is `miyuki DB-0010` the right short form, or would you rather always write the mapping?
