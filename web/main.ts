@@ -1,6 +1,7 @@
 // Step-by-step pattern viewer: instruction rows on the left, the diagram of
-// the selected step on the right with the other rounds faded. A step is
-// usually one round; a tube start strings rounds 1 and 2 in one step.
+// the selected step on the right with the other rounds faded (in 3D, the step's
+// beads are outlined instead). A step is usually one round; a tube start
+// strings rounds 1 and 2 in one step.
 // The 3D view shows the expected shape of the piece as built up to the step.
 
 import { catalogFromFiles, type ResolvedBead, resolveBeads } from "../src/catalog/catalog.js";
@@ -449,7 +450,7 @@ function renderShape(): void {
           .join("")
       : [...input.beads.values()]
           .map((b) => `<li>${swatch(b)}${esc(b.key)}</li>`)
-          .join("") + (els.fade.checked ? `<li><span class="key-swatch key-done"></span>Earlier steps</li>` : "");
+          .join("") + (els.fade.checked ? `<li><span class="key-swatch key-current"></span>Current step</li>` : "");
 
   const current = input.compiled.steps[state.index]!.rounds.map((r) => r.round);
   els.chart.innerHTML = renderGrowthChart(state.model.profile.rounds, shape.rounds, current, els.chart.clientWidth || 600);

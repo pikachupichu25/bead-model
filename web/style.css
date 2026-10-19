@@ -14,6 +14,8 @@
   --error-line: #f3b4b4;
   /* The diagram keeps a light card in both themes: bead outlines are drawn for it. */
   --diagram-bg: #fdfcf9;
+  /* Outline round the current step's beads in the 3D view. */
+  --current-stroke: #ff2e88;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 16px rgb(0 0 0 / 0.04);
   --radius: 12px;
   color-scheme: light;
@@ -570,6 +572,11 @@ select:hover {
 
 .key-swatch.key-done {
   opacity: 0.22;
+}
+
+.key-swatch.key-current {
+  background: transparent;
+  border: 2px solid var(--current-stroke);
 }
 
 .tooltip {

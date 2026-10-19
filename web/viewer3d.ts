@@ -8,7 +8,7 @@ import type { Shape, ShapeModel, Vec3 } from "../src/shape/shape.js";
 import { VERDICT_COLORS } from "./growth-chart.js";
 
 export interface ViewOptions {
-  /** The step being shown; its beads keep full color, earlier ones fade when `highlight` is on. */
+  /** The step being shown; its beads get a colored outline when `highlight` is on. */
   step: number;
   highlight: boolean;
   colorBy: "bead" | "shape";
@@ -23,6 +23,8 @@ export class BeadViewer {
   private readonly raycaster = new THREE.Raycaster();
   /** For picking: which bead each instance of each mesh is. */
   private meshes: { mesh: THREE.InstancedMesh; ids: number[] }[] = [];
+  /** Outlines round the current step's beads; not pickable. */
+  private outlines: THREE.InstancedMesh[] = [];
   private geometries = new Map<string, THREE.BufferGeometry>();
   private model?: ShapeModel;
   private running = false;
@@ -56,8 +58,8 @@ export class BeadViewer {
     this.clear();
     const { compiled, beads } = model;
     const verdictOf = new Map(shape.rounds.map((r) => [r.round, r.verdict]));
-    const background = new THREE.Color(this.background());
-    this.scene.background = background;
+    this.scene.background = new THREE.Color(this.background());
+    const stroke = new THREE.Color(this.stroke());
 
     const byKey = new Map<string, number[]>();
     for (const id of shape.ids) {
@@ -87,15 +89,36 @@ export class BeadViewer {
 
         const info = compiled.beads[id]!;
         color.set(options.colorBy === "shape" ? VERDICT_COLORS[verdictOf.get(info.round) ?? "start"] : bead.display.rgb);
-        if (options.highlight && info.step < options.step) color.lerp(background, 0.55);
         mesh.setColorAt(i, color);
       });
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       this.group.add(mesh);
       this.meshes.push({ mesh, ids });
+      if (options.highlight) this.outline(bead, ids.filter((id) => compiled.beads[id]!.step === options.step), shape, stroke);
     }
     this.start();
+  }
+
+  /**
+   * Strokes beads with a slightly larger copy drawn inside out: only its back
+   * faces render, so it shows as a rim round the bead's silhouette.
+   */
+  private outline(bead: ResolvedBead, ids: number[], shape: Shape, stroke: THREE.Color): void {
+    if (ids.length === 0) return;
+    const material = new THREE.MeshBasicMaterial({ color: stroke, side: THREE.BackSide });
+    const mesh = new THREE.InstancedMesh(this.geometry(bead), material, ids.length);
+    const matrix = new THREE.Matrix4();
+    const up = new THREE.Vector3(0, 1, 0);
+    const scale = new THREE.Vector3(1, 1, 1).multiplyScalar(OUTLINE_SCALE);
+    ids.forEach((id, i) => {
+      const q = new THREE.Quaternion().setFromUnitVectors(up, toThree(shape.axis.get(id)!));
+      matrix.compose(toThree(shape.position.get(id)!), q, scale);
+      mesh.setMatrixAt(i, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    this.group.add(mesh);
+    this.outlines.push(mesh);
   }
 
   /** Points the camera at the shape from above and a little to the side. */
@@ -153,6 +176,12 @@ export class BeadViewer {
       mesh.dispose();
     }
     this.meshes = [];
+    for (const mesh of this.outlines) {
+      this.group.remove(mesh);
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    }
+    this.outlines = [];
   }
 
   private resize(): void {
@@ -165,6 +194,10 @@ export class BeadViewer {
 
   private background(): string {
     return getComputedStyle(this.container).getPropertyValue("--diagram-bg").trim() || "#fdfcf9";
+  }
+
+  private stroke(): string {
+    return getComputedStyle(this.container).getPropertyValue("--current-stroke").trim() || "#ff2e88";
   }
 
   /** A bead turned on a lathe round its hole (the y axis), at its real size. */
@@ -204,6 +237,9 @@ export class BeadViewer {
     return geometry;
   }
 }
+
+/** How much bigger the outline copy is than its bead; the rim is about half of the extra. */
+const OUTLINE_SCALE = 1.22;
 
 /** The model is z-up; three.js is y-up. */
 function toThree([x, y, z]: Vec3): THREE.Vector3 {
