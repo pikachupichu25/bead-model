@@ -310,7 +310,7 @@ One prediction to check against photos: **rigid flat-ended beads in a ring sit f
 
 ### Filled pieces
 
-A closed piece worked around a core bead (the [ball](references/06-beaded-ball.md), the [whale](references/07-whale.md)) caved in: nothing in the model pushed outward, so thread pull and bending let the bottom settle as a wide, rippled disk (2.5 mm of ripple on the whale) and the belly fold in. Patterns marked `filled: true` now get a pressure from inside:
+A closed piece worked around a core bead (the [ball](references/06-beaded-ball.md), the [whale](references/07-whale.md)) caved in: nothing in the model pushed outward, so thread pull and bending let the bottom settle as a wide, rippled disk (2.5 mm of ripple on the whale) and the belly fold in. Patterns marked `filled: true` now get a pressure from inside (the full story, with what was tried: [fix-filled-pieces.md](fix-filled-pieces.md)):
 
 - **Volume.** A closed surface of triangles through the bead centers: each round zipped to the up beads it was worked into, with a flat lid on the first and last rounds. The energy gains −P·V, and ∂V/∂p = (q × r)/6 per triangle (p, q, r).
 - **Size of P.** The thread pulls back like a skin, which holds at most about 2γ/R (Laplace). A fixed P would blow big pieces up and barely touch small ones, so each step sets P = `FILL_PRESSURE` / (R·L): R is the radius of a sphere with the surface's area, L the mean bead length. The whale blew up from about 0.35; the value is 0.3.
