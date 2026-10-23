@@ -2,6 +2,8 @@
 
 A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures.
 
+**Demo:** https://bead-model.vercel.app
+
 ## Current focus: Circular Peyote (3D)
 
 The first goal is a 3D model of **circular peyote stitch**, where beads are added in rounds that spiral out from a center. The model should:
