@@ -46,6 +46,8 @@ export interface Pattern {
   stepUp: StepUp;
   /** Diameter of the thread, mm, if the pattern gives it. */
   threadDiameter?: number;
+  /** The piece is stuffed or worked around a core bead, so it is pushed out from inside. */
+  filled: boolean;
   rounds: RoundSpec[];
 }
 
@@ -98,6 +100,9 @@ export function parsePattern(yamlText: string): Pattern {
     issues.push("`thread_diameter` must be the thread's diameter in mm, e.g. 0.15");
   }
 
+  const filled = doc.filled ?? false;
+  if (typeof filled !== "boolean") issues.push("`filled` must be true or false");
+
   if (issues.length > 0) throw new PatternError(issues);
   return {
     title,
@@ -107,6 +112,7 @@ export function parsePattern(yamlText: string): Pattern {
     start,
     stepUp: stepUp as StepUp,
     threadDiameter: threadDiameter as number | undefined,
+    filled: filled as boolean,
     rounds,
   };
 }

@@ -7,7 +7,7 @@ import { compilePattern } from "../src/pattern/compile.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
 import { solveShape } from "../src/shape/engines.js";
 import { shapeModel } from "../src/shape/shape.js";
-import { beadBody, buildTensionShape, tensionReport } from "../src/shape/tension.js";
+import { beadBody, buildTensionShape, enclosingFaces, tensionReport } from "../src/shape/tension.js";
 
 const catalog = loadCatalog("catalog/beads");
 
@@ -218,6 +218,39 @@ describe("closing round", () => {
     const radius = new Map(shape.rounds.map((r) => [r.round, r.radius]));
     expect(Math.abs(radius.get(1)! - radius.get(25)!)).toBeLessThan(0.3);
     expect(Math.abs(radius.get(2)! - radius.get(24)!)).toBeLessThan(0.3);
+  });
+});
+
+describe("filled pieces", () => {
+  it("closes the surface it pushes on, with every edge shared by two triangles", () => {
+    for (const name of ["06-beaded-ball", "07-whale"]) {
+      const { compiled } = fromFile(name);
+      const faces = enclosingFaces(compiled, new Set(compiled.beads.map((b) => b.id)));
+      const edges = new Set(faces.flatMap(([p, q, r]) => [`${p}>${q}`, `${q}>${r}`, `${r}>${p}`]));
+      expect(edges.size).toBe(3 * faces.length);
+      for (const edge of edges) expect(edges.has(edge.split(">").reverse().join(">"))).toBe(true);
+      expect(new Set(faces.flat()).size).toBe(compiled.beads.length);
+    }
+  });
+
+  // Without the filling the whale caved in: its bottom settled as a wide
+  // rippled disk (2.5 mm of ripple) and its belly folded in.
+  it("rounds the whale out instead of squashing it", () => {
+    const { model } = fromFile("07-whale");
+    const shape = buildTensionShape(model);
+    for (const r of shape.rounds) expect(r.ruffle).toBeLessThan(1);
+    const radius = shape.rounds.map((r) => r.radius);
+    expect(Math.max(...radius)).toBeLessThan(10);
+    // Without stretching the thread more than the unfilled whale's worst.
+    expect(Math.max(...tensionReport(model).threads.map((t) => t.extra))).toBeLessThan(1.2);
+  }, 20_000);
+
+  it("is read from the pattern, checked, and kept by the editor", () => {
+    const text = `title: t\nbeads: { A: { size: 11/0, shape: round } }\nfilled: true\nstart: center (1A) x4\nrounds: { 2: (1A) x4 }`;
+    expect(parsePattern(text).filled).toBe(true);
+    expect(parsePattern(TUBE).filled).toBe(false);
+    expect(parsePattern(draftToYaml(draftFromYaml(text))).filled).toBe(true);
+    expect(() => parsePattern(text.replace("filled: true", "filled: yes please"))).toThrow(PatternError);
   });
 });
 

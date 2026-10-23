@@ -51,6 +51,22 @@ export const THREAD_DIAMETER = 0.2;
 /** Rounding of a cylinder bead's edges, as a fraction of its smaller size. */
 const EDGE_ROUNDING = 0.12;
 
+/**
+ * Pressure inside a filled piece (stuffed, or worked round a core bead). It
+ * pushes the fabric out, E = −P·V, so the piece takes the roundest shape its
+ * thread allows instead of caving in. The thread pulls back like a skin, and
+ * a skin of radius R holds a pressure of at most about 2γ/R (Laplace), where
+ * γ, its pull per mm, is about one thread per bead length. Any more and the
+ * piece would blow up. So P is set each step from the size of the piece and
+ * its beads, P = FILL_PRESSURE / (R·L), with R the radius of a sphere of the
+ * same surface area and L the mean bead length. On its own that blew the
+ * whale up from about 0.35, so as a guard the pressure stops pushing once
+ * the piece holds as much as a sphere of its surface area at the start of
+ * the step (the most a skin that size can hold): any more would have to
+ * stretch the thread.
+ */
+export const FILL_PRESSURE = 0.3;
+
 /** Solver settings: the most L-BFGS steps when settling each step. */
 export const SOLVER = { iterations: 400 };
 
@@ -132,6 +148,10 @@ interface Build {
   neighbours: Map<number, Set<number>>;
   /** Thread diameter, mm. */
   thread: number;
+  /** Pressure from inside, the most volume it pushes to, and the triangles round that volume. */
+  pressure: number;
+  fullVolume: number;
+  faces: [number, number, number][];
   random: () => number;
   /** Solved shape after each step. */
   shapes: Shape[];
@@ -170,6 +190,9 @@ function startBuild(model: ShapeModel): Build {
     passCount: compiled.beads.map(() => 0),
     neighbours: threadNeighbours(compiled),
     thread: compiled.pattern.threadDiameter ?? THREAD_DIAMETER,
+    pressure: 0,
+    fullVolume: 0,
+    faces: [],
     random: seeded(compiled.beads.length),
     shapes: [],
   };
@@ -218,6 +241,20 @@ function addStep(build: Build, stepIndex: number): void {
   // A tube start is a loose loop until the next round pulls it into a band:
   // settling it alone would flatten the zigzag the next round needs.
   const looseLoop = stepIndex === 0 && compiled.pattern.start.kind === "tube";
+  // The filling pushes from the first of the widest rounds on, when the cup
+  // is as wide as it gets and the core goes in. Pushing on the flat start,
+  // through a lid over its rim, pulled the threads at its increases open;
+  // waiting until the piece closes left the open cup to buckle, a different
+  // way in each JavaScript engine.
+  const widest = Math.max(...compiled.rounds.map((r) => r.beads.length));
+  const cored = compiled.rounds.some((r) => r.beads.length === widest && r.beads[0]! <= step.beads.at(-1)!);
+  if (compiled.pattern.filled && cored) {
+    build.faces = enclosingFaces(compiled, new Set(build.placed));
+    const area = build.faces.reduce((t, [i, j, k]) => t + Math.hypot(...cross(sub(x[j]!, x[i]!), sub(x[k]!, x[i]!))) / 2, 0);
+    const length = mean(build.placed.map((id) => build.body[id]!.length));
+    build.pressure = area > 0 ? FILL_PRESSURE / (Math.sqrt(area / (4 * Math.PI)) * length) : 0;
+    build.fullVolume = area ** 1.5 / (6 * Math.sqrt(Math.PI));
+  }
   if (!looseLoop) settle(build, SOLVER.iterations);
 
   // Hand out a copy: settling the next step moves the beads again.
@@ -569,6 +606,23 @@ function energy(build: Build, pairs: [number, number][], out: Float64Array): num
 
   e += contactEnergy(build, pairs, index, force, torque);
 
+  // Pressure from inside: −P·V, with V the volume inside the triangles
+  // through the bead centers. ∂V/∂p = (q × r)/6 for each triangle (p, q, r).
+  // It eases off over the last tenth before the full volume.
+  if (build.faces.length > 0) {
+    let volume = 0;
+    for (const [i, j, k] of build.faces) volume += dot(x[i]!, cross(x[j]!, x[k]!)) / 6;
+    const ease = 0.1 * build.fullVolume;
+    const over = Math.min(Math.max(Math.abs(volume) - (build.fullVolume - ease), 0), ease);
+    e -= build.pressure * (Math.min(Math.abs(volume), build.fullVolume - ease) + over - (over * over) / (2 * ease));
+    const pull = -build.pressure * (1 - over / ease) * Math.sign(volume);
+    for (const [i, j, k] of build.faces) {
+      at(i, x[i]!, scale(cross(x[j]!, x[k]!), pull / 6));
+      at(j, x[j]!, scale(cross(x[k]!, x[i]!), pull / 6));
+      at(k, x[k]!, scale(cross(x[i]!, x[j]!), pull / 6));
+    }
+  }
+
   placed.forEach((id, k) => {
     const g = cross(torque[k]!, a[id]!);
     out.set(force[k]!, 6 * k);
@@ -698,6 +752,52 @@ function contactEnergy(
     }
   }
   return e;
+}
+
+/**
+ * Triangles through the bead centers that close round the inside of the piece
+ * built so far: a strip between each round and the up beads it is worked
+ * into, and a flat lid on the first and last rounds. Only for a piece started
+ * from a center ring; a tube has no bottom to push on.
+ */
+export function enclosingFaces(compiled: CompiledPattern, placed: Set<number>): [number, number, number][] {
+  if (compiled.pattern.start.kind !== "center") return [];
+  const rounds = compiled.rounds.filter((r) => r.beads.length > 0 && r.beads.every((id) => placed.has(id)));
+  const faces: [number, number, number][] = [];
+  let ring: number[] = [];
+  for (const round of rounds.slice(1)) {
+    const up = round.upBeads;
+    if (up.length < 3) continue;
+    // Lid over the first ring, facing the other way from the strips.
+    if (faces.length === 0) for (let i = 1; i + 1 < up.length; i++) faces.push([up[0]!, up[i + 1]!, up[i]!]);
+    // Zip the round to its up beads: up bead i sits at i round the ring, a
+    // bead in gap i between i and i + 1.
+    const at = round.beads
+      .map((id) => {
+        const b = compiled.beads[id]!;
+        return { id, t: b.gap! + (b.slot + 1) / (b.slotsInGap + 1) };
+      })
+      .sort((p, q) => p.t - q.t);
+    const m = up.length;
+    const n = at.length;
+    let i = 0;
+    let j = 0;
+    while (i < m || j < n) {
+      const nextUp = i + 1;
+      const nextNew = j + 1 < n ? at[j + 1]!.t : at[0]!.t + m;
+      if (j >= n || (i < m && nextUp <= nextNew)) {
+        faces.push([up[i]!, up[(i + 1) % m]!, at[j % n]!.id]);
+        i++;
+      } else {
+        faces.push([up[i % m]!, at[(j + 1) % n]!.id, at[j]!.id]);
+        j++;
+      }
+    }
+    ring = at.map((b) => b.id);
+  }
+  // Lid over the last round.
+  for (let i = 1; i + 1 < ring.length; i++) faces.push([ring[0]!, ring[i]!, ring[i + 1]!]);
+  return faces;
 }
 
 /** Excess thread length over which the pull eases in (mm), so the energy is smooth. */

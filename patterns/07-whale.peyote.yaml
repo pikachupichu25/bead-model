@@ -2,6 +2,7 @@
 title: Beaded whale (body)
 source: https://asleepycreative.com/beaded-animal-easy-whale-tutorial/
 status: unverified
+filled: true                      # worked round a core bead
 beads:
   A: { size: 11/0, shape: round, color: "purple (back)" }
   B: { size: 11/0, shape: round, color: "off white (belly)" }

@@ -308,6 +308,17 @@ With generic bead sizes (catalog estimates) and the first-guess constants:
 
 One prediction to check against photos: **rigid flat-ended beads in a ring sit further out than ΣL/2π.** Their inner corners touch first and leave wedge gaps outside. A 16-Delica tube comes out at R ≈ 4.0 mm, not 3.3, and a 32-bead bezel band at about 7.3 mm, not 6.6. The profile model uses ΣL/2π, as the springs model did.
 
+### Filled pieces
+
+A closed piece worked around a core bead (the [ball](references/06-beaded-ball.md), the [whale](references/07-whale.md)) caved in: nothing in the model pushed outward, so thread pull and bending let the bottom settle as a wide, rippled disk (2.5 mm of ripple on the whale) and the belly fold in. Patterns marked `filled: true` now get a pressure from inside:
+
+- **Volume.** A closed surface of triangles through the bead centers: each round zipped to the up beads it was worked into, with a flat lid on the first and last rounds. The energy gains −P·V, and ∂V/∂p = (q × r)/6 per triangle (p, q, r).
+- **Size of P.** The thread pulls back like a skin, which holds at most about 2γ/R (Laplace). A fixed P would blow big pieces up and barely touch small ones, so each step sets P = `FILL_PRESSURE` / (R·L): R is the radius of a sphere with the surface's area, L the mean bead length. The whale blew up from about 0.35; the value is 0.3.
+- **Guard.** The pressure eases off and stops once the volume reaches that of a sphere with the surface's area at the start of the step, the most such a skin can hold: more would have to stretch the thread. With it, even 0.6 settles.
+- **When.** From the first of the widest rounds on, when the cup is as wide as it gets and the core goes in. Pushing from the start, through a lid over the flat start's rim, pulled the threads at its increases open (up to 1.65 mm past their slack, against 1.09 mm without filling). Waiting until the first decrease left the open cup to buckle unpushed for 8 rounds, and it buckled differently in Node and in Chrome (ripple 1.0 mm against 5.2 mm at round 18), because floating-point differences pick which way it goes.
+
+On the whale: ripple under 0.7 mm in every round (it was up to 2.5 mm), in Node and in Chrome alike, about 19 mm across and 16 mm tall, with no thread pulled further open than without the filling.
+
 ### Costs
 
 A whole piece takes 0.4 s (flat circle, 77 beads) to 3 s (Moo Deng, 170 beads) in Node, about 3–10 times the springs model. Steps are built in order and cached, so stepping through a piece solves each step once. Most of the time is contacts. If bigger pieces need it, the first speed-up is to settle only the last few rounds at each step and the whole piece at the end.
@@ -322,6 +333,7 @@ A whole piece takes 0.4 s (flat circle, 77 beads) to 3 s (Moo Deng, 170 beads) i
 | Lean of a new bead to the front | 0.1 of its diameter | `FRONT_LEAN` |
 | Edge rounding of cylinder beads | 12% of the smaller size | `EDGE_ROUNDING` |
 | Contact stiffness | 400 per unit tension | `CONTACT` |
+| Pressure in a `filled` piece | 0.3 / (R·L) per unit tension | `FILL_PRESSURE` |
 
 All are first guesses, to be fitted to photos as in [shape-model.md §4](shape-model.md#4-what-to-calibrate-next).
 

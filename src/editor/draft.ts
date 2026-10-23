@@ -18,6 +18,8 @@ export interface Draft {
   stepUp: StepUp;
   /** Thread diameter in mm, if the pattern gives one (edited in the YAML). */
   threadDiameter?: number;
+  /** Stuffed or worked around a core (edited in the YAML). */
+  filled: boolean;
   beads: DraftBead[];
   /** As written in the file, e.g. `center 3A` or `tube (1A, 1B) x16`. */
   start: string;
@@ -54,6 +56,7 @@ export function emptyDraft(kind: "center" | "tube" = "center", count = kind === 
     source: "original",
     status: "unverified",
     stepUp: "group",
+    filled: false,
     beads: [{ key: "A", spec: { size: "11/0", shape: "cylinder", color: "main", display: { rgb: "#4e79a7" } } }],
     start: `${kind} (1A) x${count}`,
     rounds: [],
@@ -106,6 +109,7 @@ export function draftToYaml(draft: Draft): string {
   lines.push(`start: ${scalar(draft.start)}`);
   if (draft.stepUp !== "group") lines.push(`step_up: ${draft.stepUp}`);
   if (draft.threadDiameter !== undefined) lines.push(`thread_diameter: ${draft.threadDiameter}`);
+  if (draft.filled) lines.push("filled: true");
   lines.push("rounds:");
   const ranges = roundRanges(draft);
   draft.rounds.forEach((round, i) => {
@@ -162,6 +166,7 @@ export function draftFromYaml(text: string): Draft {
     status: typeof doc.status === "string" ? doc.status : "",
     stepUp: doc.step_up === "first" ? "first" : "group",
     threadDiameter: typeof doc.thread_diameter === "number" ? doc.thread_diameter : undefined,
+    filled: doc.filled === true,
     beads: Object.entries(isRecord(doc.beads) ? doc.beads : {}).map(([key, spec]) => ({ key, spec })),
     start: typeof doc.start === "string" ? doc.start : "",
     rounds: rounds.sort((a, b) => a.from - b.from).map((r) => r.round),

@@ -2,6 +2,7 @@
 title: Beaded ball (16 mm)
 source: https://asleepycreative.com/how-to-make-a-3d-beaded-ball-for-beginners/
 status: unverified
+filled: true                      # worked round a core bead
 beads:
   A: { size: 11/0, shape: round, color: "any" }
 # Round numbers match the source's rows. The source stacks its increases and
