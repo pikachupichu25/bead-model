@@ -1,0 +1,24 @@
+# Reference 7, see docs/references/07-whale.md. Body only: the fins, tail and eyes are sewn on after.
+title: Beaded whale (body)
+source: https://asleepycreative.com/beaded-animal-easy-whale-tutorial/
+status: unverified
+beads:
+  A: { size: 11/0, shape: round, color: "purple (back)" }
+  B: { size: 11/0, shape: round, color: "off white (belly)" }
+# Round numbers match the source's rows. Same ball as reference 6, but with one more
+# 16-bead row and one fewer 8-bead row, and the belly in a second color from row 19.
+start: center (1A) x4             # row 1: 4-bead ring
+rounds:
+  2: (1A) x4                      # 4 beads
+  3: (2A) x4                      # 8 beads
+  4-5: (1A) x8
+  6: (1A, 2A) x4                  # 12 beads
+  7-8: (1A) x12
+  9: (2A, 1A, 1A) x4              # 16 beads, the widest rows
+  10-18: (1A) x16                 # 9 rows; the source's size adjustment for the core bead
+  19: (0, 1B, 1B, 1B) x4          # 12 beads, first belly row. Decreases evenly spaced (source photo)
+  20-21: (1B) x12
+  22: (0, 1B, 1B) x4              # 8 beads
+  23: (1B) x8
+  24: (0, 1B) x4                  # 4 beads
+  25: (1B) x4                     # the source leaves a small opening here

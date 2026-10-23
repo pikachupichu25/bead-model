@@ -11,6 +11,7 @@ These are **our own structured notes** on each pattern, with a link to the origi
 | 3 | [03-flat-triangle.md](03-flat-triangle.md) | Triangle (increases fixed at 3 corners) | Clearly Helena; The Artisan Duck |
 | 4 | [04-christmas-mug-trinket-box.md](04-christmas-mug-trinket-box.md) | Disk with an uneven start (first 3 rounds only) | Thread A Bead (Lynsey James), paid pattern |
 | 6 | [06-beaded-ball.md](06-beaded-ball.md) | Closed ball (increases, a straight band, then decreases) | A Sleepy Creative |
+| 7 | [07-whale.md](07-whale.md) | Two-color ball with fins, tail and eyes sewn on | A Sleepy Creative |
 
 ## Verification status
 
