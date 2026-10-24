@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Beads</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="beads-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+        <nav class="page-nav" aria-label="Pages">
+          <a href="./index.html">Steps</a>
+          <a href="./editor.html">Editor</a>
+          <a href="./flat.html">Flat</a>
+          <a href="./beads.html" aria-current="page">My beads</a>
+        </nav>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="button" id="export-text">Export as text…</button>
+        <button type="button" class="button" id="backup">Back up (.json)</button>
+        <label class="button" for="restore-file">Restore…</label>
+        <input id="restore-file" type="file" accept=".json,application/json" hidden />
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <dialog class="new-dialog export-dialog" id="export-dialog" aria-labelledby="export-title">
+      <form method="dialog">
+        <h2 id="export-title">My beads as text</h2>
+        <pre class="word-chart mono export-text" id="export-preview"></pre>
+        <div class="dialog-actions">
+          <span class="spacer"></span>
+          <button type="button" class="button" id="export-copy">Copy</button>
+          <button type="button" class="button" id="export-download">Download .txt</button>
+          <button type="submit" class="button primary">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <main class="beads-app">
+      <section class="beads-card" aria-labelledby="add-title">
+        <h2 id="add-title">Add beads I have</h2>
+        <p class="muted ed-help">Pick a bead size, then click every color you have. Click again to take it off.</p>
+        <div class="ed-row">
+          <label class="ed-field grow">
+            <span>Bead size</span>
+            <select id="size"></select>
+          </label>
+          <label class="ed-field grow">
+            <span>Find a color</span>
+            <input type="search" id="search" placeholder="code or name, e.g. 0010 or silver" />
+          </label>
+        </div>
+        <p class="muted beads-count" id="size-count"></p>
+        <ul class="color-grid" id="colors" aria-label="Catalog colors"></ul>
+        <div class="own-add">
+          <span class="muted">Not in the catalog?</span>
+          <input type="text" id="own-name" placeholder="color name" aria-label="Own color name" />
+          <input type="color" id="own-rgb" value="#c48a90" aria-label="Own color" />
+          <button type="button" class="button small" id="own-add">+ Add own color</button>
+        </div>
+      </section>
+
+      <section class="beads-card" aria-labelledby="mine-title">
+        <div class="ed-head">
+          <h2 id="mine-title">My beads</h2>
+          <span class="muted" id="mine-count"></span>
+        </div>
+        <p class="muted ed-help">Kept in this browser, so they're here next time you open the page. Back up to move them to another browser. In the Editor and the Flat designer, tick <b>Only my beads</b> to build from these.</p>
+        <input type="search" id="mine-filter" class="mine-filter" placeholder="Filter my beads" aria-label="Filter my beads" />
+        <div id="mine"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./beads.ts"></script>
+  </body>
+</html>

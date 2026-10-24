@@ -2,6 +2,7 @@
 // the piece. See docs/flat-peyote-spec.md.
 
 import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
+import { type MyBeads, ownedColorsFor, ownedSizes, ownsProduct } from "../src/collection/my-beads.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
 import { beadList, formatRow, oddTurnNote, pieceCount, renderFlatChartSvg, wordChart, wordChartText } from "../src/flat/chart.js";
 import { designFromYaml, designToYaml, nextFlatKey, isFlatKey } from "../src/flat/format.js";
@@ -34,6 +35,7 @@ import {
 import { boundsRect, cellsAlong, defaultView, fitView, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
 import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
+import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -70,6 +72,8 @@ const els = {
   addCatalog: $<HTMLSelectElement>("add-catalog"),
   addOwnColor: $<HTMLInputElement>("add-own-color"),
   addOwn: $<HTMLButtonElement>("add-own"),
+  onlyMine: $<HTMLInputElement>("only-mine"),
+  onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   tools: [...document.querySelectorAll<HTMLButtonElement>("[data-tool]")],
   zoomIn: $<HTMLButtonElement>("zoom-in"),
   zoomOut: $<HTMLButtonElement>("zoom-out"),
@@ -104,6 +108,12 @@ const els = {
   makeUnlimited: $<HTMLButtonElement>("make-unlimited"),
 };
 const ctx = els.canvas.getContext("2d")!;
+
+/** The beads on the My beads page, and whether to offer only those. */
+let myBeads: MyBeads = loadMyBeads();
+let onlyMine = loadOnlyMine();
+/** The `beads:` entries behind the "+ Add a color" options, by option value. */
+let addChoices: unknown[] = [];
 
 type Tool = "paint" | "erase" | "fill" | "pick" | "select" | "hand";
 
@@ -276,18 +286,29 @@ function renderPanel(): void {
       return `<li><button type="button" role="radio" aria-checked="${on}" data-key="${esc(key)}" title="${esc(problem ?? bead?.label ?? key)}">
         <span class="swatch big" style="background:${esc(bead?.display.rgb ?? "#999")}"></span>
         <b>${esc(key)}</b>
-        <span class="flat-bead-name${problem ? " bad" : ""}">${esc(beadName(bead))}</span>
+        <span class="flat-bead-name${problem ? " bad" : ""}">${esc(beadName(bead))}${onlyMine && !isMine(design.beads.get(key)) ? ` <span class="not-mine">not mine</span>` : ""}</span>
         <span class="flat-bead-count muted">${amount(rows.get(key)?.count ?? 0, rows.get(key)?.grams)}</span>
       </button></li>`;
     })
     .join("");
 
-  const used = new Set([...design.beads.values()].filter((v) => typeof v === "string"));
-  const colors = catalogColors(resolved.size).filter((c) => !used.has(c.entry));
+  const used = new Set([...design.beads.values()].map((v) => JSON.stringify(v)));
+  const colors = (
+    onlyMine
+      ? ownedColorsFor(myBeads, resolved.size)
+      : catalogColors(resolved.size).map((c) => ({ entry: c.entry as unknown, name: c.name, code: c.entry.replace(/^\S+ /, "") }))
+  ).filter((c) => !used.has(JSON.stringify(c.entry)));
+  addChoices = colors.map((c) => c.entry);
+  const none = onlyMine ? "No more of my beads in this size" : "No more catalog colors for this bead";
   els.addCatalog.innerHTML =
-    `<option value="">${colors.length ? "+ Add a catalog color…" : "No more catalog colors for this bead"}</option>` +
-    colors.map((c) => `<option value="${esc(c.entry)}">${esc(c.entry.replace(/^\S+ /, ""))} · ${esc(c.name)}</option>`).join("");
+    `<option value="">${colors.length ? (onlyMine ? "+ Add one of my beads…" : "+ Add a catalog color…") : none}</option>` +
+    colors.map((c, i) => `<option value="${i}">${esc(c.code === "own" ? "own" : c.code)} · ${esc(c.name)}</option>`).join("");
   els.addCatalog.disabled = colors.length === 0;
+  // Only my beads: no new colors of my own here, they're added on the My beads page.
+  els.addOwn.parentElement!.hidden = onlyMine;
+  els.onlyMine.checked = onlyMine;
+  const mine = ownedColorsFor(myBeads, resolved.size).length;
+  els.onlyMineCount.textContent = mine ? `${mine} in this size` : myBeads.beads.length ? "none in this size: add some" : "add your beads";
 
   els.beadTotal.textContent = list.total.count ? `Total ${amount(list.total.count, list.total.grams)}` : "";
 }
@@ -341,6 +362,13 @@ function beadName(bead: ResolvedBead | undefined): string {
   const line = `${size.brand.id === "generic" ? "" : `${size.brand.name} `}${size.line.name} `;
   const short = bead.label.startsWith(size.label) ? bead.label.slice(size.label.length) : bead.label.replace(line, "");
   return short.trim().replace(/^\((.*)\)$/, "$1") || bead.label;
+}
+
+/** Whether a `beads:` entry is one of my beads in this piece's size. */
+function isMine(entry: unknown): boolean {
+  if (typeof entry === "string") return ownsProduct(myBeads, entry);
+  const text = JSON.stringify(entry);
+  return ownedColorsFor(myBeads, state.resolved.size).some((c) => JSON.stringify(c.entry) === text);
 }
 
 function addBead(entry: unknown): void {
@@ -825,7 +853,8 @@ els.beadList.addEventListener("click", (event) => {
 });
 
 els.addCatalog.addEventListener("change", () => {
-  if (els.addCatalog.value) addBead(els.addCatalog.value);
+  const entry = els.addCatalog.value ? addChoices[Number(els.addCatalog.value)] : undefined;
+  if (entry !== undefined) addBead(entry);
 });
 
 els.addOwn.addEventListener("click", () => {
@@ -838,12 +867,34 @@ els.title.addEventListener("change", () => {
   if (title !== state.design.title) commit({ ...state.design, title });
 });
 
-els.newBead.innerHTML = allBeadSizes(catalog)
-  .map((s) => `<option value="${esc(s.text)}">${esc(s.label)}</option>`)
-  .join("");
+els.onlyMine.addEventListener("change", () => {
+  onlyMine = els.onlyMine.checked;
+  saveOnlyMine(onlyMine);
+  renderPanel();
+});
+
+// My beads changed in another tab.
+onMyBeadsChange(() => {
+  myBeads = loadMyBeads();
+  onlyMine = loadOnlyMine();
+  renderPanel();
+});
+
+/** The bead sizes for a new design. With only my beads, the sizes I have come first. */
+function renderNewBeadOptions(): void {
+  const option = (s: { text: string; label: string }) => `<option value="${esc(s.text)}">${esc(s.label)}</option>`;
+  const sizes = allBeadSizes(catalog);
+  const mine = ownedSizes(myBeads, catalog);
+  els.newBead.innerHTML =
+    onlyMine && mine.size
+      ? `<optgroup label="Sizes I have">${sizes.filter((s) => mine.has(s.text)).map(option).join("")}</optgroup>` +
+        `<optgroup label="Other sizes">${sizes.filter((s) => !mine.has(s.text)).map(option).join("")}</optgroup>`
+      : sizes.map(option).join("");
+}
 
 els.newButton.addEventListener("click", () => {
-  els.newBead.value = state.design.bead;
+  renderNewBeadOptions();
+  els.newBead.value = onlyMine && !ownedSizes(myBeads, catalog).has(state.design.bead) ? (els.newBead.options[0]?.value ?? state.design.bead) : state.design.bead;
   els.newName.value = "Untitled design";
   els.newDialog.showModal();
   els.newName.select();
@@ -851,7 +902,7 @@ els.newButton.addEventListener("click", () => {
 els.newCancel.addEventListener("click", () => els.newDialog.close());
 els.newForm.addEventListener("submit", () => {
   const size = resolveBeadSize(catalog, els.newBead.value);
-  const first = catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
+  const first = (onlyMine ? ownedColorsFor(myBeads, size)[0]?.entry : undefined) ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
   const title = els.newName.value.trim() || "Untitled design";
   state.paint = "A";
   load({ title, bead: els.newBead.value, beads: new Map([["A", first]]), cells: new Map() });
@@ -980,6 +1031,8 @@ const importer = setupImport(
     design: state.design,
     beads: state.resolved.beads,
     nameOf: (key) => beadName(state.resolved.beads.get(key)),
+    mine: ownedColorsFor(myBeads, state.resolved.size),
+    onlyMine,
   }),
   (block) => startPlacing(block),
 );

@@ -17,6 +17,9 @@ export interface ImportContext {
   beads: ReadonlyMap<string, ResolvedBead>;
   /** A bead's short name, without the size every bead in the piece shares. */
   nameOf(key: string): string;
+  /** My beads in this size (from the My beads page), and whether the designer offers only those. */
+  mine: { entry: unknown; name: string; rgb: string; code: string }[];
+  onlyMine: boolean;
 }
 
 /** A color the import may use: a catalog color, or a bead already in the design. */
@@ -134,6 +137,12 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
         if (!out.has(c.entry)) out.set(c.entry, { id: c.entry, entry: c.entry, name: `${c.entry.replace(/^\S+ /, "")} · ${c.name}`, rgb: c.rgb });
       }
     }
+    if (from === "mine") {
+      for (const c of context.mine) {
+        const id = typeof c.entry === "string" ? c.entry : `mine:${JSON.stringify(c.entry)}`;
+        out.set(id, { id, entry: c.entry, name: `${c.code} · ${c.name}`, rgb: c.rgb });
+      }
+    }
     return [...out.values()];
   }
 
@@ -152,7 +161,11 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     if (palette.length === 0) {
       state.result = undefined;
       els.summary.textContent =
-        els.colorsFrom.value === "catalog" ? "This bead has no catalog colors yet. Choose “Only colors in this design”." : "No colors left to use.";
+        els.colorsFrom.value === "catalog"
+          ? "This bead has no catalog colors yet. Choose “Only colors in this design”."
+          : els.colorsFrom.value === "mine"
+            ? "You have no beads in this size yet. Add them on the My beads page."
+            : "No colors left to use.";
       els.summary.classList.add("bad");
       els.place.disabled = true;
       els.colors.innerHTML = "";
@@ -451,7 +464,9 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       resetTransform();
       applyTransform();
       clearTimeout(state.timer); // run() below starts the first conversion
-      if (catalogColors(state.context.size).length === 0) els.colorsFrom.value = "design";
+      if (state.context.onlyMine) els.colorsFrom.value = "mine";
+      else if (els.colorsFrom.value === "mine") els.colorsFrom.value = "catalog";
+      if (els.colorsFrom.value !== "mine" && catalogColors(state.context.size).length === 0) els.colorsFrom.value = "design";
       els.place.disabled = true;
       els.dialog.showModal();
       run();

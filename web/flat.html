@@ -16,6 +16,7 @@
           <a href="./index.html">Steps</a>
           <a href="./editor.html">Editor</a>
           <a href="./flat.html" aria-current="page">Flat</a>
+          <a href="./beads.html">My beads</a>
         </nav>
       </div>
       <div class="toolbar">
@@ -90,6 +91,7 @@
               <option value="catalog">Catalog colors for this bead</option>
               <option value="design">Only colors in this design</option>
               <option value="both">Both</option>
+              <option value="mine">My beads in this size</option>
             </select>
           </label>
           <label class="ed-field">
@@ -198,6 +200,10 @@
           <p class="muted ed-help">Pick a bead to paint with. B paints, E erases, I picks a bead from the canvas, H pans. Amounts to buy include 10&nbsp;% spare.</p>
           <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
           <p class="flat-total muted" id="bead-total"></p>
+          <div class="only-mine-row">
+            <label><input type="checkbox" id="only-mine" /> Only my beads</label>
+            <a href="./beads.html" class="muted" id="only-mine-count"></a>
+          </div>
           <div class="add-color">
             <select id="add-catalog" aria-label="Add a catalog color"></select>
             <span class="add-own">
