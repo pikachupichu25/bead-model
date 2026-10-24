@@ -1,6 +1,6 @@
 # Nora Net Designer: Design
 
-**Status: draft for review.** Describes the bead structure the designer works on. Requirements and spec come after this is agreed.
+**Status: draft for review.** Describes the bead structure the designer works on. The requirements are in [nora-net-requirements.md](nora-net-requirements.md).
 
 A design tool, next to the [flat peyote designer](flat-peyote-spec.md), for **Nora beading** (เครื่องลูกปัดโนรา): the open bead netting from southern Thailand used on the costumes of Nora dancers, and today also on earrings, collars and wall pieces. Instead of the close-packed rows of peyote, the beads form a net of small rings with holes in the middle. Patterns come from coloring whole rings, so a design reads as flowers, diamonds and lines of color on an open lattice.
 
