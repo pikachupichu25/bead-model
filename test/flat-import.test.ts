@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hexToLab, hexToRgb } from "../src/flat/color.js";
 import { isCell } from "../src/flat/grid.js";
-import { adjustPixels, importCells, importRows, matchColors, NO_ADJUSTMENTS, type Pixels, sampleCells } from "../src/flat/import.js";
+import { adjustPixels, importCells, importRows, matchColors, NO_ADJUSTMENTS, type Pixels, sampleCells, transformedSize } from "../src/flat/import.js";
 
 const delica = { w: 1.3, d: 1.6 };
 
@@ -27,6 +27,16 @@ describe("size", () => {
     expect(importRows(500, 500, 60, delica)).toBe(97);
     expect(importRows(1000, 500, 60, delica)).toBe(48);
     expect(importRows(1000, 1, 3, delica)).toBe(1);
+  });
+
+  it("turns and stretches the picture's size", () => {
+    expect(transformedSize(400, 300, { rotate: 0, stretchX: 1, stretchY: 1 })).toEqual({ width: 400, height: 300 });
+    expect(transformedSize(400, 300, { rotate: 90, stretchX: 1, stretchY: 1 })).toEqual({ width: 300, height: 400 });
+    expect(transformedSize(400, 300, { rotate: -180, stretchX: 2, stretchY: 0.5 })).toEqual({ width: 800, height: 150 });
+    // A square turned 45° needs √2 times the room.
+    const turned = transformedSize(100, 100, { rotate: 45, stretchX: 1, stretchY: 1 });
+    expect(turned.width).toBeCloseTo(100 * Math.SQRT2);
+    expect(turned.height).toBeCloseTo(100 * Math.SQRT2);
   });
 
   it("lists the cells of the piece, all of them real cells", () => {

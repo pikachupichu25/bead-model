@@ -112,6 +112,31 @@
           </label>
         </div>
         <details class="import-adjust">
+          <summary>Turn and stretch the picture</summary>
+          <div class="import-settings">
+            <div class="ed-field">
+              <span>Quarter turn</span>
+              <span class="input-unit">
+                <button type="button" class="button small" id="turn-left" aria-label="Turn left 90°" title="Turn left 90°">⟲</button>
+                <button type="button" class="button small" id="turn-right" aria-label="Turn right 90°" title="Turn right 90°">⟳</button>
+              </span>
+            </div>
+            <label class="ed-field slider">
+              <span>Angle <output id="turn-angle-value">0°</output></span>
+              <input type="range" id="turn-angle" min="-180" max="180" step="1" value="0" />
+            </label>
+            <label class="ed-field slider">
+              <span>Stretch across <output id="stretch-x-value">100%</output></span>
+              <input type="range" id="stretch-x" min="25" max="300" step="5" value="100" />
+            </label>
+            <label class="ed-field slider">
+              <span>Stretch down <output id="stretch-y-value">100%</output></span>
+              <input type="range" id="stretch-y" min="25" max="300" step="5" value="100" />
+            </label>
+            <button type="button" class="button small" id="turn-reset">Reset</button>
+          </div>
+        </details>
+        <details class="import-adjust">
           <summary>Adjust the picture</summary>
           <div class="import-settings">
             <label class="ed-field slider">

@@ -6,7 +6,7 @@ import type { ResolvedBead } from "../src/catalog/catalog.js";
 import { catalogColors, type FlatBeadSize } from "../src/flat/beads.js";
 import { hexToLab } from "../src/flat/color.js";
 import type { FlatDesign } from "../src/flat/grid.js";
-import { type Adjustments, importCells, importRows } from "../src/flat/import.js";
+import { type Adjustments, importCells, importRows, NO_TRANSFORM, type Transform, transformedSize } from "../src/flat/import.js";
 import type { ImportRequest, ImportResponse } from "../src/flat/import.worker.js";
 import { boundsRect, fitView } from "../src/flat/view.js";
 import { drawScene } from "./flat-canvas.js";
@@ -71,14 +71,26 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     contrast: $<HTMLInputElement>("adjust-contrast"),
     saturation: $<HTMLInputElement>("adjust-saturation"),
     adjustReset: $<HTMLButtonElement>("adjust-reset"),
+    turnLeft: $<HTMLButtonElement>("turn-left"),
+    turnRight: $<HTMLButtonElement>("turn-right"),
+    angle: $<HTMLInputElement>("turn-angle"),
+    stretchX: $<HTMLInputElement>("stretch-x"),
+    stretchY: $<HTMLInputElement>("stretch-y"),
+    turnReset: $<HTMLButtonElement>("turn-reset"),
   };
 
   const worker = new Worker(new URL("../src/flat/import.worker.ts", import.meta.url), { type: "module" });
 
   const state: {
     bitmap?: ImageBitmap;
+    name: string;
+    /** The picture once turned and stretched; everything after works on this. */
+    picture?: ImageBitmap | OffscreenCanvas;
+    /** Changes whenever the picture does. */
     imageId: number;
     sourceUrl?: string;
+    /** The turned picture shown on the left, when it isn't the file as is. */
+    turnedUrl?: string;
     context?: ImportContext;
     palette: ImportColor[];
     excluded: Set<string>;
@@ -90,18 +102,18 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     /** The part of the picture to use, as fractions of its width and height. */
     crop: Crop;
     cropping?: { x: number; y: number };
-  } = { imageId: 0, palette: [], excluded: new Set(), requestId: 0, crop: FULL };
+  } = { name: "picture", imageId: 0, palette: [], excluded: new Set(), requestId: 0, crop: FULL };
 
   function columns(): number {
     return clampInt(els.width.value, 4, 300, 60);
   }
 
   function rows(): number {
-    const { bitmap, context } = state;
-    if (!bitmap || !context) return 1;
+    const { picture, context } = state;
+    if (!picture || !context) return 1;
     if (els.link.checked) {
       const { crop } = state;
-      return importRows(bitmap.width * (crop.x1 - crop.x0), bitmap.height * (crop.y1 - crop.y0), columns(), context.size.box);
+      return importRows(picture.width * (crop.x1 - crop.x0), picture.height * (crop.y1 - crop.y0), columns(), context.size.box);
     }
     return clampInt(els.height.value, 1, 600, 1);
   }
@@ -131,8 +143,8 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
   }
 
   function run(): void {
-    const { bitmap, context } = state;
-    if (!bitmap || !context) return;
+    const { picture, context } = state;
+    if (!picture || !context) return;
     if (els.link.checked) els.height.value = String(rows());
     const palette = allowedColors(context).filter((c) => !state.excluded.has(c.id));
     state.palette = palette;
@@ -153,8 +165,8 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
   }
 
   function send(withPixels: boolean): void {
-    const { bitmap, context } = state;
-    if (!bitmap || !context) return;
+    const { picture, context } = state;
+    if (!picture || !context) return;
     const cols = columns();
     const rowCount = rows();
     const alphaThreshold = clampInt(els.alpha.value, 1, 100, 50) / 100;
@@ -175,7 +187,7 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       dither: els.dither.checked,
     };
     if (withPixels || state.workerKey !== sampleKey) {
-      request.pixels = pixelsFor(bitmap, cols, crop);
+      request.pixels = pixelsFor(picture, cols, crop);
       state.workerKey = sampleKey;
     }
     pending.set(request.id, state.palette);
@@ -290,6 +302,62 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     }
   }
 
+  // Turning and stretching: redraw the picture, then crop and sample that.
+  function transform(): Transform {
+    return { rotate: Number(els.angle.value), stretchX: Number(els.stretchX.value) / 100, stretchY: Number(els.stretchY.value) / 100 };
+  }
+
+  function showTransform(): void {
+    $("turn-angle-value").textContent = `${els.angle.value}°`;
+    $("stretch-x-value").textContent = `${els.stretchX.value}%`;
+    $("stretch-y-value").textContent = `${els.stretchY.value}%`;
+  }
+
+  /** Redraws the turned picture. The crop was drawn on the old one, so it's cleared. */
+  function applyTransform(delay = 120): void {
+    const { bitmap } = state;
+    if (!bitmap) return;
+    showTransform();
+    const t = transform();
+    const plain = t.rotate % 360 === 0 && t.stretchX === 1 && t.stretchY === 1;
+    state.picture = plain ? bitmap : transformed(bitmap, t);
+    state.imageId++;
+    state.crop = FULL;
+    showCrop(FULL);
+    els.sourceCaption.textContent = `${state.name} · ${Math.round(state.picture.width)} × ${Math.round(state.picture.height)} px`;
+    if (state.turnedUrl) URL.revokeObjectURL(state.turnedUrl);
+    state.turnedUrl = undefined;
+    if (plain) {
+      els.source.src = state.sourceUrl!;
+    } else {
+      const id = state.imageId;
+      void (state.picture as OffscreenCanvas).convertToBlob().then((blob) => {
+        if (id !== state.imageId) return; // turned again since
+        state.turnedUrl = URL.createObjectURL(blob);
+        els.source.src = state.turnedUrl;
+      });
+    }
+    schedule(delay);
+  }
+
+  const turnBy = (degrees: number) => {
+    // Keep the angle in −180…180, the slider's range.
+    els.angle.value = String(((((Number(els.angle.value) + degrees + 180) % 360) + 360) % 360) - 180);
+    applyTransform(0);
+  };
+  els.turnLeft.addEventListener("click", () => turnBy(-90));
+  els.turnRight.addEventListener("click", () => turnBy(90));
+  for (const slider of [els.angle, els.stretchX, els.stretchY]) slider.addEventListener("input", () => applyTransform());
+  els.turnReset.addEventListener("click", () => {
+    resetTransform();
+    applyTransform(0);
+  });
+
+  function resetTransform(): void {
+    els.angle.value = "0";
+    els.stretchX.value = els.stretchY.value = "100";
+  }
+
   // Cropping: drag a rectangle on the picture.
   const fractionAt = (event: PointerEvent) => {
     const r = els.source.getBoundingClientRect();
@@ -374,16 +442,15 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       }
       state.bitmap?.close();
       state.bitmap = bitmap;
-      state.imageId++;
+      state.name = name;
       state.excluded.clear();
       state.result = undefined;
-      state.crop = FULL;
-      showCrop(FULL);
       state.context = getContext();
       if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
       state.sourceUrl = URL.createObjectURL(file);
-      els.source.src = state.sourceUrl;
-      els.sourceCaption.textContent = `${name} · ${bitmap.width} × ${bitmap.height} px`;
+      resetTransform();
+      applyTransform();
+      clearTimeout(state.timer); // run() below starts the first conversion
       if (catalogColors(state.context.size).length === 0) els.colorsFrom.value = "design";
       els.place.disabled = true;
       els.dialog.showModal();
@@ -401,8 +468,22 @@ interface Crop {
 
 const FULL: Crop = { x0: 0, y0: 0, x1: 1, y1: 1 };
 
+/** The picture turned about its center and stretched, on a canvas just big enough (at most MAX_SIDE a side). */
+function transformed(bitmap: ImageBitmap, t: Transform): OffscreenCanvas {
+  const size = transformedSize(bitmap.width, bitmap.height, t);
+  const fit = Math.min(1, MAX_SIDE / Math.max(size.width, size.height));
+  const canvas = new OffscreenCanvas(Math.max(1, Math.round(size.width * fit)), Math.max(1, Math.round(size.height * fit)));
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.scale(t.stretchX * fit, t.stretchY * fit);
+  ctx.rotate((t.rotate * Math.PI) / 180);
+  ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+  return canvas;
+}
+
 /** The cropped picture drawn at SAMPLES_PER_BEAD pixels per bead across, keeping its shape. */
-function pixelsFor(bitmap: ImageBitmap, columns: number, crop: Crop): { width: number; height: number; data: Uint8ClampedArray } {
+function pixelsFor(bitmap: ImageBitmap | OffscreenCanvas, columns: number, crop: Crop): { width: number; height: number; data: Uint8ClampedArray } {
   const sx = bitmap.width * crop.x0;
   const sy = bitmap.height * crop.y0;
   const sw = Math.max(1, bitmap.width * (crop.x1 - crop.x0));

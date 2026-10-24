@@ -22,6 +22,26 @@ export function importRows(pictureWidth: number, pictureHeight: number, columns:
   return Math.max(1, Math.round((2 * columns * box.w * (pictureHeight / pictureWidth)) / box.d) - 1);
 }
 
+/** Turning and stretching applied to the picture before cropping (§6.2). */
+export interface Transform {
+  /** Degrees clockwise. */
+  rotate: number;
+  /** Stretch across and down, 1 = as is. Applied after turning, along the turned picture's sides. */
+  stretchX: number;
+  stretchY: number;
+}
+
+export const NO_TRANSFORM: Transform = { rotate: 0, stretchX: 1, stretchY: 1 };
+
+/** The size of a width × height picture once turned (the corners it leaves are transparent) and stretched. */
+export function transformedSize(width: number, height: number, { rotate, stretchX, stretchY }: Transform): { width: number; height: number } {
+  const a = (rotate * Math.PI) / 180;
+  // Round off float noise so quarter turns swap the sides exactly.
+  const cos = Math.abs(Math.round(Math.cos(a) * 1e9) / 1e9);
+  const sin = Math.abs(Math.round(Math.sin(a) * 1e9) / 1e9);
+  return { width: (width * cos + height * sin) * stretchX, height: (width * sin + height * cos) * stretchY };
+}
+
 /** The cells of a columns × rows piece, row by row from the top. Column 0 sits high. */
 export function importCells(columns: number, rows: number): Cell[] {
   const cells: Cell[] = [];

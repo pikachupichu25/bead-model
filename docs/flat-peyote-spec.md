@@ -175,6 +175,8 @@ Left: the picture. Dragging on it draws a crop box (R30), and **Reset crop** cle
 | At most N colors | 12, range 2–62 (R25) |
 | Merge colors with fewer than N beads | 0 = off (R29) |
 | Dithering | off (R28) |
+| Turn | 0°: quarter-turn buttons and an angle slider, −180° to 180°. The picture turns about its center onto a canvas just big enough, so the corners it leaves are transparent |
+| Stretch across, stretch down | 100 %, range 25–300 %, along the turned picture's sides. Turning or stretching clears the crop, which was drawn on the old picture |
 | Brightness, contrast, saturation | 0 (R30) |
 | Transparent below | 50 % alpha (R27) |
 
