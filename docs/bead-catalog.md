@@ -125,6 +125,7 @@ Each line has a `code` template that builds the code you see on a tube, so a pat
 | Miyuki Delica | `{size}-{color}` | `DB-0010` |
 | Miyuki Round | `{size}-{color}` | `11-401` |
 | Toho Round | `TR-{size}-{color}` | `TR-11-49F` |
+| Toho Treasure | `TT-{size}-{color}` | `TT-01-41` |
 | Preciosa Rocailles | `{size} {color}` | `10/0 23980` |
 
 A Size has a short `code` (`DB`, `11`, `10/0`) used in this template. Product codes are only unique within a brand, so a pattern always says the brand too.

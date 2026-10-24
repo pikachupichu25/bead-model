@@ -1,12 +1,19 @@
 # Toho publishes beads per kg only. Sizes here come from retailers or are
 # estimates, so measure before relying on them (see docs/bead-research.md §5).
-# Code templates: TR (round) is seen at retailers; TDR and TB are unverified.
+# Code templates: TR (round) and TT-01 (Treasure 11/0) are seen at retailers;
+# TDR, TB and TT-08 (Treasure 3.3 mm) are unverified.
+# Treasure color names follow Perles & Co's listings, plus a few from
+# Serendipity Beads and i-beads. Display colors are set from the names.
 brand: toho
 name: Toho
 country: JP
 sources:
   - https://www.tohobeads.net/grainbeads/
   - https://www.perlesandco.co.uk/resources/ft29351-miyuki-vs-toho.html
+  - https://www.perlesandco.co.uk/toho-toho-treasures-1.8-mm-c-55_2527_405.html
+  - https://www.perlesandco.co.uk/toho-toho-treasures-3.3-mm-c-55_2527_727.html
+  - https://beadsonline.com.au/toho-33954.html
+  - https://www.serendipitybeads.co.nz/Category_13/all/TOHO-TREASURE-CYLINDER-BEADS.htm
 lines:
   round:
     name: Round
@@ -36,3 +43,75 @@ lines:
     sizes:
       "11": { label: 11/0, outer_diameter: 1.8, length: 1.5, hole: 0.8, beads_per_gram: 186 }
     basis: { default: retailer, beads_per_gram: official }
+  treasure:
+    name: Treasure
+    shape: cylinder
+    code: "TT-{size}-{color}"
+    sizes:
+      # 11/0 is sold as 1.8 mm; some shops list 1.7 x 1.3 mm with a 0.7 mm hole.
+      "01": { label: 11/0, outer_diameter: 1.8, length: 1.3, hole: 0.7, beads_per_gram: 186 }
+      # 8/0 is sold as 3.3 mm: Perles & Co gives a 3.1 mm height and 1.7 mm hole.
+      "08": { label: 8/0, outer_diameter: 3.3, length: 3.1, hole: 1.7 }
+    basis: { default: retailer, beads_per_gram: official }
+    colors:
+      # Sold in both sizes
+      "49F":   { name: opaque frosted jet, display: { rgb: "#262626", finish: [matte] } }
+      "123":   { name: opaque luster light beige, display: { rgb: "#e6d8bc", finish: [luster] } }
+      "221":   { name: metallic bronze, display: { rgb: "#7a5a34", finish: [metallic] } }
+      "557":   { name: galvanized starlight, display: { rgb: "#c8c4b8", finish: [metallic] } }
+      "614":   { name: matte iris brown, display: { rgb: "#3e2e24", finish: [matte, metallic] } }
+      "617":   { name: matte dark olive, display: { rgb: "#4a4a2a", finish: [matte] } }
+      "703":   { name: matte mauve mocha, display: { rgb: "#5a3a3e", finish: [matte] } }
+      # 3.3 mm only, as far as checked
+      "82":    { name: metallic nebula, sizes: ["08"], display: { rgb: "#3a3050", finish: [metallic] } }
+      # 11/0 only, as far as checked
+      # Opaque
+      "41":    { name: opaque white, sizes: ["01"], display: { rgb: "#f4f4f0" } }
+      "41F":   { name: opaque frosted white, sizes: ["01"], display: { rgb: "#ecece6", finish: [matte] } }
+      "43":    { name: opaque blue turquoise, sizes: ["01"], display: { rgb: "#2a9ab0" } }
+      "45A":   { name: opaque cherry, sizes: ["01"], display: { rgb: "#a8162a" } }
+      "49":    { name: opaque jet, sizes: ["01"], display: { rgb: "#111111" } }
+      "51":    { name: opaque light beige, sizes: ["01"], display: { rgb: "#e8dcc4" } }
+      "51F":   { name: opaque frosted light beige, sizes: ["01"], display: { rgb: "#ddd2bc", finish: [matte] } }
+      "55":    { name: opaque turquoise, sizes: ["01"], display: { rgb: "#3cb4b4" } }
+      "121":   { name: opaque luster white, sizes: ["01"], display: { rgb: "#f2f0e8", finish: [luster] } }
+      "122":   { name: opaque luster navajo white, sizes: ["01"], display: { rgb: "#ecdcb8", finish: [luster] } }
+      # Ceylon
+      "141":   { name: ceylon snowflake, sizes: ["01"], display: { rgb: "#f4f2ec", finish: [pearl] } }
+      "143":   { name: ceylon aqua, sizes: ["01"], display: { rgb: "#a8d8d4", finish: [pearl] } }
+      "147":   { name: ceylon light ivory, sizes: ["01"], display: { rgb: "#f0e6cc", finish: [pearl] } }
+      "905":   { name: ceylon peach blush, sizes: ["01"], display: { rgb: "#f0c8b4", finish: [pearl] } }
+      # Transparent
+      "1F":    { name: transparent frosted crystal, sizes: ["01"], display: { rgb: "#e4e8ea", opacity: 0.6, finish: [matte] } }
+      "2":     { name: transparent light topaz, sizes: ["01"], display: { rgb: "#e0b060", opacity: 0.6 } }
+      "3":     { name: transparent aquamarine, sizes: ["01"], display: { rgb: "#80c8d0", opacity: 0.6 } }
+      "8":     { name: transparent cobalt, sizes: ["01"], display: { rgb: "#1f3c9a", opacity: 0.6 } }
+      "11":    { name: transparent rosaline, sizes: ["01"], display: { rgb: "#e8a0b0", opacity: 0.6 } }
+      "12":    { name: transparent lemon, sizes: ["01"], display: { rgb: "#f0e050", opacity: 0.6 } }
+      "169":   { name: transparent rainbow rosaline, sizes: ["01"], display: { rgb: "#e8a4b4", opacity: 0.6, finish: [ab] } }
+      # Silver-lined and color-lined
+      "22":    { name: silver-lined light topaz, sizes: ["01"], display: { rgb: "#e0a840", finish: [silver-lined] } }
+      "27BD":  { name: silver-lined teal, sizes: ["01"], display: { rgb: "#1a7a80", finish: [silver-lined] } }
+      "35":    { name: silver-lined sapphire, sizes: ["01"], display: { rgb: "#2050a8", finish: [silver-lined] } }
+      "PF22":  { name: permafinish silver-lined light topaz, sizes: ["01"], display: { rgb: "#e0a840", finish: [silver-lined] } }
+      "770":   { name: yellow-lined crystal, sizes: ["01"], display: { rgb: "#f0dc60", finish: [color-lined] } }
+      "954":   { name: aqua/light jonquil-lined, sizes: ["01"], display: { rgb: "#a8d4a0", finish: [color-lined] } }
+      # Metallic and galvanized
+      "81":    { name: metallic hematite, sizes: ["01"], display: { rgb: "#3c3c40", finish: [metallic] } }
+      "82F":   { name: frosted metallic nebula, sizes: ["01"], display: { rgb: "#3e3452", finish: [matte, metallic] } }
+      "85F":   { name: frosted metallic iris purple, sizes: ["01"], display: { rgb: "#3a2a48", finish: [matte, metallic] } }
+      "88":    { name: metallic cosmos, sizes: ["01"], display: { rgb: "#2a3a48", finish: [metallic] } }
+      "329":   { name: gold luster african sunset, sizes: ["01"], display: { rgb: "#b8502a", finish: [luster] } }
+      "561":   { name: galvanized green teal, sizes: ["01"], display: { rgb: "#2a5a50", finish: [metallic] } }
+      "566":   { name: frosted metallic antique silver, sizes: ["01"], display: { rgb: "#9a9a96", finish: [matte, metallic] } }
+      "722":   { name: galvanized midas gold, sizes: ["01"], display: { rgb: "#c8a040", finish: [metallic] } }
+      "PF557": { name: permafinish galvanized starlight, sizes: ["01"], display: { rgb: "#c8c4b8", finish: [metallic] } }
+      "PF557F": { name: permafinish matte galvanized starlight, sizes: ["01"], display: { rgb: "#bcb8ae", finish: [matte, metallic] } }
+      "PF558": { name: permafinish galvanized aluminum, sizes: ["01"], display: { rgb: "#b4b6b8", finish: [metallic] } }
+      "PF558F": { name: permafinish matte galvanized aluminum, sizes: ["01"], display: { rgb: "#a8aaac", finish: [matte, metallic] } }
+      "PF559": { name: permafinish galvanized yellow gold, sizes: ["01"], display: { rgb: "#d4ac48", finish: [metallic] } }
+      "PF559F": { name: permafinish matte galvanized yellow gold, sizes: ["01"], display: { rgb: "#c4a048", finish: [matte, metallic] } }
+      # Matte
+      "612":   { name: matte gunmetal, sizes: ["01"], display: { rgb: "#3a3c40", finish: [matte] } }
+      "706":   { name: matte iris teal, sizes: ["01"], display: { rgb: "#1e4a4c", finish: [matte, metallic] } }
+      "707":   { name: matte iris peridot, sizes: ["01"], display: { rgb: "#4a5a2a", finish: [matte, metallic] } }

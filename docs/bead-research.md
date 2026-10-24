@@ -108,8 +108,8 @@ Toho's official site ([tohobeads.net](https://www.tohobeads.net/grainbeads/)) li
 | Round | 6/0 | 4.0 | ? | 1.1 – 1.5 | 17 |
 | Demi Round | 11/0, 8/0, 6/0 | same as Round | ~0.9 for 11/0 | same as Round | 186, 76, 29 |
 | Aiko (cylinder) | 11/0 | 1.8 | ~1.5 | 0.8 | 186 |
-| Treasure (cylinder) | 11/0 | 1.8 | ? | slightly larger than Delica | 186 |
-| Treasure (cylinder) | 3.3 mm | 3.3 | 3.1 | 1.7 | |
+| Treasure (cylinder) | 11/0 (sold as 1.8 mm) | 1.8 (some shops: 1.7) | ~1.3 | ~0.7 (shops give 0.6 – 1.1) | 186 |
+| Treasure (cylinder) | 8/0 (sold as 3.3 mm) | 3.3 | 3.1 | 1.7 | |
 | Cube | 3, 4 mm | 3.0, 4.0 | 3.0, 4.0 | | 21, 9.7 |
 | Square Hole | 11/0, 8/0 | | | square | 115, 42 |
 | Triangle | 12/0, 11/0, 10/0, 5/0 | | | | |
@@ -122,6 +122,7 @@ Notes:
 
 - **Demi Round** is a thin round: same outer diameter and hole as the Round, but much shorter. A useful bead for tight curves.
 - **Aiko** is not a Delica: it is a bit bigger (1.8 vs 1.6), so the two don't mix in one grid.
+- **Treasure** comes in two sizes, 1.8 mm (11/0) and 3.3 mm (8/0). Retailers code the 11/0 as `TT-01-<color>`; the 8/0 code is unverified, so the catalog uses `TT-08-<color>`. Toho's chart lists only the 11/0, at 186,300 beads/kg.
 - The `?` lengths need to be measured (see section 8).
 
 ## 6. Preciosa (Czech)
@@ -196,4 +197,7 @@ The same color number is usually sold in several sizes of a line (Miyuki 401 bla
 - Beadaholique, Seed Bead Size Chart (Delica lengths): https://beadaholique.com/blogs/techniques-guides/seed-bead-size-chart
 - Perles & Co, Miyuki vs Toho: https://www.perlesandco.co.uk/resources/ft29351-miyuki-vs-toho.html
 - Perles & Co, Toho Aiko vs Miyuki Delica: https://www.perlesandco.co.uk/resources/ft37492-toho-aiko-vs-miyuki.html
+- Perles & Co, Toho Treasures 1.8 mm: https://www.perlesandco.co.uk/toho-toho-treasures-1.8-mm-c-55_2527_405.html
+- Perles & Co, Toho Treasures 3.3 mm: https://www.perlesandco.co.uk/toho-toho-treasures-3.3-mm-c-55_2527_727.html
+- Beads Online, Toho Treasure 11/0 (1.7 x 1.3 mm, 0.7 mm hole): https://beadsonline.com.au/toho-33954.html
 - Blue Streak Crystals, Preciosa seed beads: https://www.bluestreakcrystals.com/blogs/news/what-are-preciosa-seed-beads

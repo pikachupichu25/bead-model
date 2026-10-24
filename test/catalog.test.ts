@@ -59,6 +59,11 @@ describe("resolveBeads", () => {
     });
   });
 
+  it("finds a Toho Treasure by product code, in either size", () => {
+    expect(resolve("toho TT-01-41")).toMatchObject({ shape: "cylinder", outerDiameter: 1.8, length: 1.3, warnings: [] });
+    expect(resolve("toho TT-08-557")).toMatchObject({ outerDiameter: 3.3, display: { finish: ["metallic"] } });
+  });
+
   it("uses the middle of a size range", () => {
     expect(resolve("preciosa 10/0 23980").outerDiameter).toBeCloseTo(2.3);
   });
