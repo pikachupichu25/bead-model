@@ -231,6 +231,13 @@ After **Place**, the result is a floating block over the canvas, drawn semi-tran
 - On a trimmed canvas, cells of the block outside the bounds are dropped, with a warning saying how many.
 - Drop is one undo step.
 
+**The picture behind the beads.** With "Keep the picture behind the beads" on (the default), the cropped, turned picture is placed with the block, under it: it covers the block's columns × rows exactly, as sampling does (§6.4), so each bead sits over the part of the picture it was matched to. **Place picture only** places just the picture at that size, with no beads, to bead over by hand. Only one picture is kept, and placing another replaces it.
+
+- It is drawn under the beads, so it shows through the empty cells. Painted beads cover it.
+- The toolbar gets **Picture** (show or hide, also P), a strength slider (10–100 %, 50 % to start) and **Remove**.
+- **Pick** on an empty cell over the picture picks the design's bead closest to the picture there, averaged over the cell in linear light and matched by ΔE2000 (§6.5). The notice gives the ΔE, so a poor match shows.
+- It isn't part of the design: it isn't saved in the `.yaml` file and isn't affected by undo. It is kept in IndexedDB (too big for localStorage), so it comes back after a reload. Where storage is blocked, it lasts until the page closes.
+
 ### 6.8 Speed (R32)
 
 The pipeline runs in a Web Worker so the dialog stays responsive. Settings are debounced, and a result that a newer request has overtaken is dropped (a run already going isn't stopped). The picture is sampled once per size and crop, and the cell colors are reused when only the palette, the color limit, merging or dithering change.

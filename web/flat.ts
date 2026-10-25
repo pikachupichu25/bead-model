@@ -5,6 +5,7 @@ import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
 import { type MyBeads, ownedColorsFor, ownedSizes, ownsProduct } from "../src/collection/my-beads.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
 import { beadList, formatRow, oddTurnNote, pieceCount, renderFlatChartSvg, wordChart, wordChartText } from "../src/flat/chart.js";
+import { deltaE2000, hexToLab, LINEAR, linearToLab } from "../src/flat/color.js";
 import { designFromYaml, designToYaml, nextFlatKey, isFlatKey } from "../src/flat/format.js";
 import {
   type Bounds,
@@ -32,7 +33,8 @@ import {
   snapMove,
   trim,
 } from "../src/flat/grid.js";
-import { boundsRect, cellsAlong, defaultView, fitView, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
+import { boundsRect, cellsAlong, defaultView, fitView, type Rect, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
+import { clearBackdrop, loadBackdrop, saveBackdrop } from "./flat-backdrop.js";
 import { drawScene } from "./flat-canvas.js";
 import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
 import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
@@ -106,6 +108,10 @@ const els = {
   canvasRows: $<HTMLInputElement>("canvas-rows"),
   canvasApply: $<HTMLButtonElement>("canvas-apply"),
   makeUnlimited: $<HTMLButtonElement>("make-unlimited"),
+  backdropTools: $("backdrop-tools"),
+  backdropShow: $<HTMLButtonElement>("backdrop-show"),
+  backdropOpacity: $<HTMLInputElement>("backdrop-opacity"),
+  backdropRemove: $<HTMLButtonElement>("backdrop-remove"),
 };
 const ctx = els.canvas.getContext("2d")!;
 
@@ -130,6 +136,16 @@ interface Resolved {
   size: FlatBeadSize;
   beads: Map<string, ResolvedBead>;
   problems: string[];
+}
+
+interface Backdrop {
+  image: OffscreenCanvas;
+  /** Where it lies, in mm. */
+  rect: Rect;
+  opacity: number;
+  shown: boolean;
+  /** Its pixels, read the first time a color is picked from it. */
+  pixels?: ImageData;
 }
 
 /** A paint or erase stroke in progress. It works on a copy of the cells and is one undo step. */
@@ -177,6 +193,8 @@ const state: {
   clipboard?: Clipboard;
   /** An edge of a trimmed canvas being dragged, and the bounds it would give. */
   resizing?: { edge: Edge; bounds: Bounds };
+  /** A picture behind the beads, to bead over. Not part of the design or its undo. */
+  backdrop?: Backdrop;
 } = {
   design: emptyDesign(),
   resolved: undefined as unknown as Resolved,
@@ -441,6 +459,7 @@ function draw(): void {
         origin: origin(),
         hover: state.tool === "hand" || state.pan ? undefined : state.hover,
         highlight: state.showEmpty ? state.empty : undefined,
+        backdrop: backdropScene(),
         floating: state.floating && {
           cells: state.floating.drawn,
           dc: state.floating.dc,
@@ -451,6 +470,20 @@ function draw(): void {
       devicePixelRatio,
     );
   });
+}
+
+/** The picture to draw behind the beads: the one being placed, or the one already there. */
+function backdropScene() {
+  const f = state.floating;
+  const shown = state.backdrop?.shown ?? true;
+  const opacity = state.backdrop?.opacity ?? Number(els.backdropOpacity.value) / 100;
+  if (f?.block.picture) {
+    const r = blockRect(f.block);
+    const dx = f.dc * box().w;
+    const dy = (f.dh * box().d) / 2;
+    return { image: f.block.picture, rect: { x0: r.x0 + dx, x1: r.x1 + dx, y0: r.y0 + dy, y1: r.y1 + dy }, opacity: Math.max(opacity, 0.5) };
+  }
+  return state.backdrop && shown ? state.backdrop : undefined;
 }
 
 function setView(view: View): void {
@@ -560,8 +593,49 @@ function resizeTo(bounds: Bounds): void {
 
 function pick(at: { x: number; y: number }): void {
   const cell = cellAt(at.x, at.y, box());
-  const key = state.design.cells.get(cellKey(cell.c, cell.h));
+  const key = state.design.cells.get(cellKey(cell.c, cell.h)) ?? closestToBackdrop(cell);
   if (key) selectBead(key);
+}
+
+/** On an empty spot over the picture: the design's bead closest to the picture's color there, averaged in linear light as the import does. */
+function closestToBackdrop(cell: Cell): string | undefined {
+  const b = state.backdrop;
+  if (!b?.shown || state.design.beads.size === 0) return undefined;
+  const { w, d } = box();
+  const { image, rect } = b;
+  const sx = image.width / (rect.x1 - rect.x0);
+  const sy = image.height / (rect.y1 - rect.y0);
+  const x0 = Math.floor((cell.c * w - w / 2 - rect.x0) * sx);
+  const x1 = Math.ceil((cell.c * w + w / 2 - rect.x0) * sx);
+  const y0 = Math.floor(((cell.h * d) / 2 - d / 2 - rect.y0) * sy);
+  const y1 = Math.ceil(((cell.h * d) / 2 + d / 2 - rect.y0) * sy);
+  if (x1 <= 0 || y1 <= 0 || x0 >= image.width || y0 >= image.height) return undefined;
+  b.pixels ??= image.getContext("2d")!.getImageData(0, 0, image.width, image.height);
+  const { data, width } = b.pixels;
+  let r = 0;
+  let g = 0;
+  let bl = 0;
+  let alpha = 0;
+  for (let y = Math.max(0, y0); y < Math.min(image.height, y1); y++) {
+    for (let x = Math.max(0, x0); x < Math.min(image.width, x1); x++) {
+      const p = (y * width + x) * 4;
+      const a = data[p + 3]! / 255;
+      r += LINEAR[data[p]!]! * a;
+      g += LINEAR[data[p + 1]!]! * a;
+      bl += LINEAR[data[p + 2]!]! * a;
+      alpha += a;
+    }
+  }
+  if (alpha === 0) return undefined;
+  const lab = linearToLab(r / alpha, g / alpha, bl / alpha);
+  let best: string | undefined;
+  let bestDelta = Infinity;
+  for (const [key, bead] of state.resolved.beads) {
+    const delta = deltaE2000(lab, hexToLab(bead.display.rgb));
+    if (delta < bestDelta) [best, bestDelta] = [key, delta];
+  }
+  if (best) showNotice(`Picked ${esc(best)}, the closest bead in this design to the picture here (ΔE ${bestDelta.toFixed(1)}).`);
+  return best;
 }
 
 /** Fills the area of one color under a point (§5). On an unlimited canvas it stays inside the painted area. */
@@ -1011,6 +1085,7 @@ document.addEventListener("keydown", (event) => {
   else if (key === "m") setTool("select");
   else if (key === "g") setTool("fill");
   else if (key === "r") turn();
+  else if (key === "p") toggleBackdrop();
   else if (key === "+" || key === "=") zoomBy(1.25);
   else if (key === "-") zoomBy(0.8);
   else if (key === "0") fit();
@@ -1044,6 +1119,11 @@ async function importFile(file: File | Blob, name = "picture"): Promise<void> {
   } catch (e) {
     showNotice(esc(e instanceof Error ? e.message : String(e)));
   }
+}
+
+/** The whole columns × rows of a block at no offset, in mm. Its picture covers exactly this. */
+function blockRect(block: ImportBlock): Rect {
+  return boundsRect({ c0: 0, c1: block.columns - 1, h0: 0, h1: block.rows - 1 }, box());
 }
 
 /** The rectangle a block's cells cover, for its outline. */
@@ -1129,10 +1209,18 @@ function dropFloating(): void {
     cells.set(cellKey(at.c, at.h), keyFor.get(cell.color.id)!);
   }
   const lifted = f.lifted;
+  if (f.block.picture) {
+    const rect = backdropScene()!.rect;
+    setBackdrop({ image: f.block.picture, rect, opacity: Number(els.backdropOpacity.value) / 100, shown: true });
+  }
   state.floating = undefined;
   els.placeBar.hidden = true;
   updateCursor();
-  if (lifted) {
+  if (f.block.cells.length === 0) {
+    // Just the picture: the design doesn't change.
+    renderSelectBar();
+    draw();
+  } else if (lifted) {
     // A moved selection: one undo step from before the cells were lifted, and the selection moves with them.
     state.past.push(lifted.design);
     state.future = [];
@@ -1148,6 +1236,57 @@ function dropFloating(): void {
 }
 
 els.placeDrop.addEventListener("click", dropFloating);
+
+// ---- The picture behind the beads ----
+
+function setBackdrop(backdrop: Backdrop | undefined, save = true): void {
+  state.backdrop = backdrop;
+  els.backdropTools.hidden = !backdrop;
+  if (backdrop) {
+    els.backdropShow.setAttribute("aria-pressed", String(backdrop.shown));
+    els.backdropOpacity.value = String(Math.round(backdrop.opacity * 100));
+    els.backdropOpacity.disabled = !backdrop.shown;
+  }
+  if (save) saveBackdropSoon(true);
+  draw();
+}
+
+let backdropTimer: number | undefined;
+/** The picture as stored, so changing a setting doesn't encode it again. */
+let backdropBlob: Blob | undefined;
+/** Stores the picture's settings, and the picture itself when it is new (`withImage`). */
+function saveBackdropSoon(withImage = false): void {
+  if (withImage) backdropBlob = undefined;
+  clearTimeout(backdropTimer);
+  backdropTimer = window.setTimeout(async () => {
+    const b = state.backdrop;
+    if (!b) {
+      await clearBackdrop();
+      return;
+    }
+    backdropBlob ??= await b.image.convertToBlob();
+    await saveBackdrop({ image: backdropBlob, rect: b.rect, opacity: b.opacity, shown: b.shown });
+  }, 300);
+}
+
+function toggleBackdrop(): void {
+  const b = state.backdrop;
+  if (!b) return;
+  b.shown = !b.shown;
+  els.backdropShow.setAttribute("aria-pressed", String(b.shown));
+  els.backdropOpacity.disabled = !b.shown;
+  saveBackdropSoon();
+  draw();
+}
+
+els.backdropShow.addEventListener("click", toggleBackdrop);
+els.backdropOpacity.addEventListener("input", () => {
+  if (!state.backdrop) return;
+  state.backdrop.opacity = Number(els.backdropOpacity.value) / 100;
+  saveBackdropSoon();
+  draw();
+});
+els.backdropRemove.addEventListener("click", () => setBackdrop(undefined));
 els.placeCancel.addEventListener("click", cancelFloating);
 
 els.importFile.addEventListener("change", () => {
@@ -1331,3 +1470,18 @@ function esc(s: string): string {
   state.paint = design.beads.keys().next().value ?? "";
   setDesign(design);
 }
+
+void loadBackdrop().then(async (stored) => {
+  if (!stored || state.backdrop) return;
+  try {
+    const bitmap = await createImageBitmap(stored.image);
+    const image = new OffscreenCanvas(bitmap.width, bitmap.height);
+    image.getContext("2d")!.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    backdropBlob = stored.image;
+    setBackdrop({ image, rect: stored.rect, opacity: stored.opacity, shown: stored.shown }, false);
+  } catch {
+    // A picture that no longer reads: forget it.
+    await clearBackdrop();
+  }
+});

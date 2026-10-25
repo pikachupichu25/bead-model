@@ -4,7 +4,7 @@
 
 import type { Shape } from "../src/catalog/catalog.js";
 import { type BeadBox, type Bounds, type Cell, cellKey, inBounds, mod, parseCellKey } from "../src/flat/grid.js";
-import { boundsRect, rulerStep, toScreen, type View, visibleRange } from "../src/flat/view.js";
+import { boundsRect, type Rect, rulerStep, toScreen, type View, visibleRange } from "../src/flat/view.js";
 
 export interface CanvasScene {
   view: View;
@@ -32,6 +32,8 @@ export interface CanvasScene {
   selection?: Bounds;
   /** Show handles on the edges of a trimmed canvas, for resizing. */
   handles?: boolean;
+  /** A picture behind the beads, stretched over `rect` (mm), to bead over. */
+  backdrop?: { image: CanvasImageSource; rect: Rect; opacity: number };
 }
 
 const BG = "#fdfcf9";
@@ -63,6 +65,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, scene: CanvasScene, dpr
     const r = boundsRect(bounds, box);
     ctx.fillStyle = BG;
     ctx.fillRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+  }
+
+  if (scene.backdrop) {
+    const { image, rect, opacity } = scene.backdrop;
+    ctx.globalAlpha = opacity;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
+    ctx.globalAlpha = 1;
   }
 
   // Every 10th column, counted from the origin.

@@ -160,8 +160,13 @@
         <ul class="import-colors" id="import-colors"></ul>
         <div class="dialog-actions">
           <button type="button" class="button small" id="import-allow" hidden>Allow all colors again</button>
+          <label class="toggle">
+            <input type="checkbox" id="import-keep-picture" checked />
+            <span>Keep the picture behind the beads</span>
+          </label>
           <span class="spacer"></span>
           <button type="button" class="button" id="import-cancel">Cancel</button>
+          <button type="button" class="button" id="import-place-picture" title="Place just the picture, to bead over it by hand">Place picture only</button>
           <button type="submit" class="button primary" id="import-place">Place on canvas</button>
         </div>
       </form>
@@ -234,6 +239,11 @@
             <button type="button" role="radio" data-tool="hand" aria-checked="false" title="Pan (H, or hold space)">Hand</button>
           </div>
           <button type="button" class="button small" id="trim" title="Cut the canvas down to the painted beads">Trim canvas</button>
+          <span class="backdrop-tools" id="backdrop-tools" hidden>
+            <button type="button" class="button small" id="backdrop-show" aria-pressed="true" title="Show or hide the picture behind the beads (P)">Picture</button>
+            <input type="range" id="backdrop-opacity" min="10" max="100" step="5" value="50" aria-label="How strongly the picture shows" title="How strongly the picture shows" />
+            <button type="button" class="button small" id="backdrop-remove" title="Take the picture away">Remove</button>
+          </span>
           <span class="spacer"></span>
           <div class="zoom-buttons">
             <button type="button" class="button icon" id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button>

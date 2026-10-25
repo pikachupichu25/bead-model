@@ -1628,6 +1628,20 @@ select:hover {
   flex-wrap: wrap;
 }
 
+.backdrop-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.backdrop-tools[hidden] {
+  display: none;
+}
+
+.backdrop-tools input[type="range"] {
+  width: 90px;
+}
+
 .zoom-buttons {
   display: flex;
   gap: 6px;

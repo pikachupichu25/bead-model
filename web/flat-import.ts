@@ -38,11 +38,15 @@ export interface ImportBlock {
   columns: number;
   rows: number;
   cells: { c: number; h: number; color: ImportColor }[];
+  /** The picture the cells came from, to show behind the beads. It covers the block's columns × rows exactly. */
+  picture?: OffscreenCanvas;
 }
 
 /** Pixels per bead side the picture is drawn at before sampling (§6.4). */
 const SAMPLES_PER_BEAD = 8;
 const MAX_SIDE = 4096;
+/** The largest side of a picture kept behind the beads. */
+const BACKDROP_SIDE = 2048;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -65,6 +69,8 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     allow: $<HTMLButtonElement>("import-allow"),
     cancel: $<HTMLButtonElement>("import-cancel"),
     place: $<HTMLButtonElement>("import-place"),
+    placePicture: $<HTMLButtonElement>("import-place-picture"),
+    keepPicture: $<HTMLInputElement>("import-keep-picture"),
     cropArea: $("crop-area"),
     cropBox: $("crop-box"),
     cropReset: $<HTMLButtonElement>("crop-reset"),
@@ -442,8 +448,28 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       const p = result.assign[i]!;
       if (p >= 0) cells.push({ c, h, color: result.palette[p]! });
     });
-    onPlace({ columns: result.columns, rows: result.rows, cells });
+    onPlace({ columns: result.columns, rows: result.rows, cells, picture: els.keepPicture.checked ? croppedPicture() : undefined });
   });
+  // Just the picture, to bead over by hand.
+  els.placePicture.addEventListener("click", () => {
+    if (!state.picture) return;
+    els.dialog.close();
+    onPlace({ columns: columns(), rows: rows(), cells: [], picture: croppedPicture() });
+  });
+
+  /** The cropped part of the turned picture, at most BACKDROP_SIDE a side. */
+  function croppedPicture(): OffscreenCanvas {
+    const picture = state.picture!;
+    const { crop } = state;
+    const sw = Math.max(1, picture.width * (crop.x1 - crop.x0));
+    const sh = Math.max(1, picture.height * (crop.y1 - crop.y0));
+    const fit = Math.min(1, BACKDROP_SIDE / Math.max(sw, sh));
+    const canvas = new OffscreenCanvas(Math.max(1, Math.round(sw * fit)), Math.max(1, Math.round(sh * fit)));
+    const ctx = canvas.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(picture, picture.width * crop.x0, picture.height * crop.y0, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
 
   return {
     async open(file: Blob, name = "picture") {
