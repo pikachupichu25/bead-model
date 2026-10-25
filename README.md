@@ -1,6 +1,6 @@
-# bead-model
+# Bead Bench
 
-A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures.
+A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures. (The repository and the Cloudflare Worker are still called `bead-model`.)
 
 **Demo:** https://bead-model.bead-model.workers.dev (on Cloudflare; the old https://bead-model.vercel.app points there once the move is deployed)
 
