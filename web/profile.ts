@@ -21,6 +21,7 @@ import { loadMyDesigns, onMyDesignsChange, saveMyDesigns } from "./designs-store
 import { newDesignUrl } from "./examples.js";
 import { loadMyBeads, onMyBeadsChange } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { loadProfileName, saveProfileName } from "./profile-store.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -34,7 +35,6 @@ const catalog = catalogFromFiles(
 
 renderNav("profile");
 
-const NAME_KEY = "bead-model:profile-name";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
@@ -131,11 +131,7 @@ els.tabBeads.addEventListener("click", () => setTab("beads"));
 // ---- Events ----
 
 els.name.addEventListener("input", () => {
-  try {
-    localStorage.setItem(NAME_KEY, els.name.value.trim());
-  } catch {
-    // Storage can be off: the name holds until the page closes.
-  }
+  saveProfileName(els.name.value);
   renderHead();
 });
 
@@ -166,6 +162,7 @@ els.designList.addEventListener("click", (event) => {
 
 onMyDesignsChange(() => {
   designs = loadMyDesigns();
+  if (document.activeElement !== els.name) els.name.value = loadProfileName();
   render();
 });
 onMyBeadsChange(() => {
@@ -189,10 +186,6 @@ function showNotice(html: string): void {
 
 // ---- Start ----
 
-try {
-  els.name.value = localStorage.getItem(NAME_KEY) ?? "";
-} catch {
-  // No storage, no saved name.
-}
+els.name.value = loadProfileName();
 render();
 if (location.hash === "#beads") setTab("beads");

@@ -1,6 +1,6 @@
 # My Beads: How the Data Is Saved
 
-**Status: as built (browser only).** The last section is a proposal for later.
+**Status: as built.** Signed out, the list is kept only in the browser, as described below. **Signed in, it also syncs with the account**, one row per bead: see [my-designs.md](my-designs.md#accounts) and [cloudflare-plan.md](cloudflare-plan.md). The last section was the proposal that led to this.
 
 "My beads" is the list of beads someone has at home (see the README). The Editor and the Flat designer use it when **Only my beads** is ticked. This note says where the list lives today, what is in it, what that means for users, and how a backend with user accounts could take over later.
 
@@ -67,7 +67,9 @@ The **Export as text…** output is for people to read. It is not read back in; 
 - **It's private:** the list never leaves the device unless the user downloads a backup.
 - **Size isn't a concern:** an entry is about 60 bytes, and localStorage allows about 5 MB per site, so even thousands of beads fit.
 
-## Later: user accounts and a backend (proposal)
+## Later: user accounts and a backend (proposal, now built)
+
+This is now built on Cloudflare Workers + D1, following this plan. The one difference: the stores stayed synchronous. `web/sync.ts` works out changes by comparing localStorage with a record of the last sync, instead of the pages going through an async remote store.
 
 localStorage is enough for one person on one browser. User accounts would add sync across devices, a list that survives clearing the browser, and room for features such as sharing a list or tracking beads used per design.
 

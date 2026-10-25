@@ -1,6 +1,6 @@
 # Plan: Accounts on Cloudflare (Workers + D1)
 
-**Status: chosen. Phases 0–2 are done, apart from steps that need you (marked "needs you").** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: chosen. Phases 0–3 are done, apart from steps that need you (marked "needs you").** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 
@@ -140,6 +140,15 @@ For local dev, add the same four lines to `.dev.vars`, using the localhost GitHu
 3. ✅ Deployed. A signed-out `/api/sync` returns 401.
 
 ### Phase 3: the app uses it
+
+✅ Built as described below: `web/sync.ts`, with the diff and merge in `src/collection/sync.ts` (tested in `test/sync.test.ts`), `web/store-events.ts` (stores announce saves, and sync announces what it brought in) and `web/profile-store.ts`. Tested in the browser on the local dev server:
+- First sign-in uploaded the browser's design, pin and bead, and showed the notice.
+- A design and pin pushed from "another device" appeared, pinned first.
+- An unpin on the page reached the account a few seconds later.
+- An emptied browser pulled everything back.
+- Signing out and removing from this browser cleared it.
+
+Deployed. It runs on the live site as soon as Google or GitHub sign-in is set up.
 
 The stores stay as they are, synchronous on localStorage, so no page has to change how it loads or saves. A new `web/sync.ts` runs alongside when someone is signed in:
 

@@ -2,6 +2,7 @@
 // technique, and My profile (with My beads under it), then signing in and out.
 
 import { type Account, loadAccount, signInWith, signInWithPassword, signOut } from "./account.js";
+import { beforeSignOut, hasLocalData, startSync } from "./sync.js";
 
 export type Page = "home" | "peyote" | "flat" | "nora" | "profile";
 
@@ -21,7 +22,9 @@ export function renderNav(current: Page): void {
     (l) => `<a href="${l.href}" title="${l.title}"${l.page === current ? ' aria-current="page"' : ""}>${l.label}</a>`,
   ).join("");
   void loadAccount().then((account) => {
-    if (account) renderAccount(nav, account);
+    if (!account) return;
+    renderAccount(nav, account);
+    if (account.user) startSync(account.user.id);
   });
 }
 
@@ -67,7 +70,12 @@ function renderAccount(nav: HTMLElement, account: Account): void {
     error.textContent = err instanceof Error ? err.message : String(err);
     error.hidden = false;
   };
-  menu.querySelector("[data-sign-out]")?.addEventListener("click", () => void signOut().catch(fail));
+  menu.querySelector("[data-sign-out]")?.addEventListener("click", async () => {
+    // Your designs stay in the account either way; this only decides whether this browser keeps a copy.
+    const clear = hasLocalData() && confirm("Also remove your designs and beads from this browser?\n\nThey stay in your account. Choose Cancel to keep a copy here.");
+    await beforeSignOut(clear);
+    await signOut().catch(fail);
+  });
   for (const button of menu.querySelectorAll<HTMLButtonElement>("[data-provider]")) {
     button.addEventListener("click", () => void signInWith(button.dataset.provider as "google" | "github").catch(fail));
   }

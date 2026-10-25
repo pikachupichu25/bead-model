@@ -11,6 +11,7 @@ import {
   newDesignId,
   putDesign,
 } from "../src/collection/designs.js";
+import { announceSave, onSynced } from "./store-events.js";
 
 const STORAGE = {
   list: "bead-model:my-designs",
@@ -30,17 +31,19 @@ export function loadMyDesigns(): MyDesigns {
 export function saveMyDesigns(list: MyDesigns): boolean {
   try {
     localStorage.setItem(STORAGE.list, myDesignsToJson(list));
+    announceSave();
     return true;
   } catch {
     return false;
   }
 }
 
-/** Calls back when another tab changes the list. */
+/** Calls back when another tab, or a sync with the account, changes the list. */
 export function onMyDesignsChange(callback: () => void): void {
   window.addEventListener("storage", (event) => {
     if (event.key === null || event.key === STORAGE.list) callback();
   });
+  onSynced(callback);
 }
 
 /**

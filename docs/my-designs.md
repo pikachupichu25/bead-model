@@ -1,6 +1,6 @@
 # My Designs, Home and My Profile
 
-**Status: as built (browser only).** Like [My beads](my-beads-storage.md), everything is kept in the browser's localStorage. Nothing is sent to a server.
+**Status: as built.** Like [My beads](my-beads-storage.md), everything is kept in the browser's localStorage. Signed out, nothing is sent to a server. **Signed in, My designs, pins and the profile name also sync with the account** (see [Accounts](#accounts) below).
 
 ## The pages
 
@@ -34,6 +34,12 @@ A design is `{ id, kind, title, yaml, created, updated }`: `yaml` is the file th
 
 The code: [`src/collection/designs.ts`](../src/collection/designs.ts) (the data, the feed's order and search, tested in `test/designs.test.ts`), [`web/designs-store.ts`](../web/designs-store.ts) (the only code that touches the list in localStorage, and `openDesign`, which the designers use), [`src/gallery/thumbnail.ts`](../src/gallery/thumbnail.ts) (the card pictures), [`web/examples.ts`](../web/examples.ts) (the examples and where each design opens).
 
+## Accounts
+
+When someone signs in (the **Sign in** menu in the top bar), [`web/sync.ts`](../web/sync.ts) keeps localStorage and the account in step. It runs on page load, when the tab comes back into view, and a few seconds after a save. localStorage stays the working copy, so pages work as before, offline too. Each design, pin and the profile name is a row in the account's D1 database. When the same item changed in two places, the newer change wins. A deletion is kept as a marker, so it reaches other devices. The first sign-in on a browser adds its designs to the account and brings in the account's, and a notice says how many. Signing out offers to remove everything from the browser. The details are in [cloudflare-plan.md](cloudflare-plan.md) (Phases 2 and 3).
+
+The record of the last sync is kept under `bead-model:sync:<user id>`.
+
 ## Limits
 
-The same as My beads: per browser and per site address, lost when site data is cleared, and about 5 MB in all. A large flat design is a few tens of kB, so hundreds of designs fit. There is no backup of My designs yet beyond downloading each design. A shared feed (designs by other people) would need accounts and a backend: see the proposal in [my-beads-storage.md](my-beads-storage.md#later-user-accounts-and-a-backend-proposal).
+Signed out: per browser and per site address, lost when site data is cleared, and about 5 MB in all. A large flat design is a few tens of kB, so hundreds of designs fit. Signed in, the account keeps a copy, so clearing the browser loses nothing that has synced. A shared feed (designs by other people) is for later: designs already have an `is_public` column for it.

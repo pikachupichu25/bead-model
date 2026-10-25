@@ -2,6 +2,7 @@
 // list itself and whether the designers offer only those beads.
 
 import { emptyMyBeads, type MyBeads, myBeadsFromJson, myBeadsToJson } from "../src/collection/my-beads.js";
+import { announceSave, onSynced } from "./store-events.js";
 
 const STORAGE = {
   list: "bead-model:my-beads",
@@ -21,6 +22,7 @@ export function loadMyBeads(): MyBeads {
 export function saveMyBeads(list: MyBeads): boolean {
   try {
     localStorage.setItem(STORAGE.list, myBeadsToJson(list));
+    announceSave();
     return true;
   } catch {
     return false;
@@ -38,14 +40,16 @@ export function loadOnlyMine(): boolean {
 export function saveOnlyMine(on: boolean): void {
   try {
     localStorage.setItem(STORAGE.onlyMine, String(on));
+    announceSave();
   } catch {
     // Storage can be off. The setting holds until the page closes.
   }
 }
 
-/** Calls back when another tab changes the list or the setting. */
+/** Calls back when another tab, or a sync with the account, changes the list or the setting. */
 export function onMyBeadsChange(callback: () => void): void {
   window.addEventListener("storage", (event) => {
     if (event.key === null || event.key === STORAGE.list || event.key === STORAGE.onlyMine) callback();
   });
+  onSynced(callback);
 }
