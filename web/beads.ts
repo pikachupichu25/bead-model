@@ -19,6 +19,7 @@ import {
 } from "../src/collection/my-beads.js";
 import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
+import { renderNav } from "./nav.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -29,6 +30,8 @@ const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
 const catalog = catalogFromFiles(
   Object.entries(catalogFiles).map(([path, text]) => ({ name: path.split("/").pop()!, text })),
 );
+
+renderNav("profile");
 
 /** The bead size last picked on this page. */
 const SIZE_KEY = "bead-model:my-beads-size";

@@ -7,126 +7,58 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="./style.css" />
   </head>
-  <body>
+  <body class="gallery-page">
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
         <span>Peyote Steps</span>
-        <nav class="page-nav" aria-label="Pages">
-          <a href="./index.html" aria-current="page">Steps</a>
-          <a href="./editor.html">Editor</a>
-          <a href="./flat.html">Flat</a>
-          <a href="./nora.html">Nora</a>
-          <a href="./beads.html">My beads</a>
-        </nav>
-      </div>
-      <div class="toolbar">
-        <label class="field">
-          <span class="visually-hidden">Pattern</span>
-          <select id="pattern-select"></select>
-        </label>
-        <label class="button" for="file-input">Open pattern…</label>
-        <input id="file-input" type="file" accept=".yaml,.yml" hidden />
-        <button type="button" class="button" id="edit-pattern">Edit in editor</button>
+        <nav class="page-nav" id="page-nav" aria-label="Pages"></nav>
       </div>
     </header>
 
-    <main class="app">
-      <aside class="steps" aria-label="Instructions">
-        <section class="pattern-info" id="pattern-info"></section>
-        <ol class="round-list" id="round-list"></ol>
-        <section class="warnings" id="warnings" hidden></section>
-      </aside>
+    <div class="notice" id="notice" hidden></div>
 
-      <section class="stage" aria-live="polite">
-        <div class="stage-head">
-          <div>
-            <h1 id="stage-title"></h1>
-            <p id="stage-subtitle" class="muted"></p>
-          </div>
-          <div class="view-switch" role="tablist" aria-label="View">
-            <button type="button" role="tab" id="view-2d" aria-selected="true">Diagram</button>
-            <button type="button" role="tab" id="view-3d" aria-selected="false">3D shape</button>
-          </div>
+    <main class="gallery">
+      <section class="home-hero">
+        <h1>Designs and beads</h1>
+        <label class="home-search">
+          <span class="visually-hidden">Search designs and beads</span>
+          <input type="search" id="search" placeholder="Search designs and beads, e.g. whale, heart, DB-0010, silver" autocomplete="off" />
+        </label>
+        <div class="kind-filter" id="kind-filter" role="radiogroup" aria-label="Technique"></div>
+      </section>
+
+      <section class="start-row" id="start-row" aria-labelledby="start-title">
+        <h2 id="start-title" class="visually-hidden">Start a design</h2>
+        <a class="start-tile" href="./editor.html#new"><b>+ Circular peyote</b><span class="muted">Rounds from a ring or a tube, in 3D</span></a>
+        <a class="start-tile" href="./flat.html#new"><b>+ Flat peyote</b><span class="muted">Paint a flat piece, or start from a picture</span></a>
+        <a class="start-tile" href="./nora.html#new"><b>+ Nora net</b><span class="muted">Rings of 4 and 8 beads, with symmetry</span></a>
+      </section>
+
+      <section class="feed-section" id="bead-results" aria-labelledby="bead-results-title" hidden>
+        <div class="feed-head">
+          <h2 id="bead-results-title">Beads</h2>
+          <span class="muted" id="bead-results-count"></span>
+          <span class="spacer"></span>
+          <a href="./beads.html" class="muted">All my beads →</a>
         </div>
-        <div class="stage-options">
-          <div class="toggles" data-view="2d">
-            <label class="toggle">
-              <input type="checkbox" id="thread-toggle" checked />
-              <span>Show thread path</span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" id="upcoming-toggle" checked />
-              <span>Show upcoming rounds</span>
-            </label>
-          </div>
-          <div class="toggles" data-view="3d" hidden>
-            <label class="toggle">
-              <input type="checkbox" id="fade-toggle" checked />
-              <span>Outline current step</span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" id="shape-color-toggle" />
-              <span>Color by shape</span>
-            </label>
-            <label class="toggle">
-              <span>Model</span>
-              <select id="engine-select"></select>
-            </label>
-          </div>
+        <ul class="color-grid search-colors" id="bead-list" aria-label="Beads"></ul>
+      </section>
+
+      <section class="feed-section" id="pinned" aria-labelledby="pinned-title" hidden>
+        <div class="feed-head"><h2 id="pinned-title">Pinned</h2></div>
+        <div class="card-grid" id="pinned-list"></div>
+      </section>
+
+      <section class="feed-section" aria-labelledby="feed-title">
+        <div class="feed-head">
+          <h2 id="feed-title">New</h2>
+          <span class="muted" id="feed-count"></span>
         </div>
-
-        <div class="diagram-card">
-          <div class="diagram" id="diagram" data-view="2d"></div>
-          <div class="viewer3d" id="viewer3d" data-view="3d" hidden></div>
-          <div class="tooltip" id="tooltip" role="status" hidden></div>
-          <ul class="diagram-key muted" data-view="2d">
-            <li><span class="key-swatch key-current"></span>This step, numbered in pickup order</li>
-            <li><span class="key-swatch key-stepup"></span>Step-up bead</li>
-            <li><span class="key-thread"></span>Thread path</li>
-            <li><span class="key-swatch key-up"></span>Beads you stitch into</li>
-            <li><span class="key-swatch key-done"></span>Earlier rounds</li>
-          </ul>
-          <ul class="diagram-key muted" id="key3d" data-view="3d" hidden></ul>
-        </div>
-
-        <section class="shape-card" id="shape-card" data-view="3d" hidden>
-          <div class="shape-head">
-            <h2>Why this shape</h2>
-            <p class="muted">
-              Each bar compares a round's growth with what a flat piece needs (1.0; a piece with fixed corners lies flat
-              with less), from the bead counts and sizes alone. Below it is the shape that makes, as drawn in 3D.
-            </p>
-          </div>
-          <div class="growth-chart" id="growth-chart"></div>
-          <div class="tooltip" id="chart-tooltip" role="status" hidden></div>
-        </section>
-
-        <div class="controls">
-          <button type="button" class="button" id="prev">← Previous</button>
-          <input type="range" id="round-slider" min="0" max="0" value="0" aria-label="Round" />
-          <button type="button" class="button primary" id="next">Next →</button>
-        </div>
-        <div class="spacing" data-view="2d">
-          <label>
-            <span>Space between rounds</span>
-            <input type="range" id="round-gap" min="0" max="1.5" step="0.05" />
-            <output id="round-gap-value"></output>
-          </label>
-          <label>
-            <span>Space between beads</span>
-            <input type="range" id="bead-gap" min="0" max="1" step="0.05" />
-            <output id="bead-gap-value"></output>
-          </label>
-        </div>
-
-        <p class="hint muted" data-view="2d">Use the arrow keys to move between steps. Click a bead to jump to its step.</p>
-        <p class="hint muted" data-view="3d" hidden>Drag to turn the piece, scroll to zoom, right-drag to move it. Arrow keys move between steps.</p>
-
-        <div class="error" id="error" hidden></div>
+        <div class="card-grid" id="feed-list"></div>
       </section>
     </main>
 
-    <script type="module" src="./main.ts"></script>
+    <script type="module" src="./home.ts"></script>
   </body>
 </html>

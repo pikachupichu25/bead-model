@@ -12,7 +12,9 @@ import { describeStep, stepLabel, stepNumber, summarizeStitches } from "../src/p
 import { parsePattern, PatternError } from "../src/pattern/load.js";
 import { isShapeEngine, SHAPE_ENGINES, type ShapeEngine, solveShape } from "../src/shape/engines.js";
 import { type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
+import { loadMyDesigns } from "./designs-store.js";
 import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
+import { renderNav } from "./nav.js";
 import type { BeadViewer } from "./viewer3d.js";
 
 // Bundled patterns and catalog, read as text at build time. The Thread A Bead
@@ -45,6 +47,11 @@ const sources: PatternSource[] = Object.entries(patternFiles)
   })
   .sort((a, b) => a.id.localeCompare(b.id));
 
+// My circular peyote designs, as "design:<id>".
+for (const design of loadMyDesigns().designs) {
+  if (design.kind === "peyote") sources.push({ id: `design:${design.id}`, name: `${design.title} (mine)`, text: design.yaml });
+}
+
 // A pattern sent over from the editor ("Step through it"), kept so a reload still shows it.
 try {
   const draft = localStorage.getItem("bead-model:viewer-draft");
@@ -52,6 +59,8 @@ try {
 } catch {
   // Storage can be off (private windows): there is just no draft to show.
 }
+
+renderNav("peyote");
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
@@ -307,9 +316,19 @@ els.file.addEventListener("change", async () => {
   els.file.value = "";
 });
 
-// Opens the current pattern in the editor, which picks it up from storage.
+// Opens the current pattern in the editor: one of mine or an example by its
+// address, anything else through storage.
 els.edit.addEventListener("click", () => {
   if (!state.source) return;
+  const { id } = state.source;
+  if (id.startsWith("design:")) {
+    location.href = `./editor.html#design=${encodeURIComponent(id.slice("design:".length))}`;
+    return;
+  }
+  if (id !== "draft" && !id.startsWith("file:")) {
+    location.href = `./editor.html#example=${encodeURIComponent(id)}`;
+    return;
+  }
   try {
     localStorage.setItem("bead-model:open-in-editor", state.source.text);
   } catch {

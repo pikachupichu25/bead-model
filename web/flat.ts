@@ -37,7 +37,11 @@ import { boundsRect, cellsAlong, defaultView, fitView, type Rect, toMm, toScreen
 import { clearBackdrop, loadBackdrop, saveBackdrop } from "./flat-backdrop.js";
 import { drawScene } from "./flat-canvas.js";
 import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
+import { findDesign } from "../src/collection/designs.js";
+import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
+import { findExample } from "./examples.js";
 import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
+import { renderNav } from "./nav.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -54,6 +58,11 @@ const STORAGE = {
   draft: "bead-model:flat-draft",
   view: "bead-model:flat-view",
 };
+
+renderNav("flat");
+
+/** The design's entry in My designs. */
+const mine = openDesign("flat");
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
@@ -277,10 +286,20 @@ function updateUndo(): void {
   els.redo.disabled = state.future.length === 0;
 }
 
-/** Replaces the design with a new or opened one. The old one stays one undo away. */
-function load(design: FlatDesign): void {
+/**
+ * Opens another design: one of mine (`mine` is its id), or one that isn't
+ * saved yet and starts as `start` (a new design or an example). Without
+ * either, as for a file, it is saved at once. The design before stays in My
+ * designs, so undo starts over.
+ */
+function load(design: FlatDesign, from: { mine?: string; start?: string } = {}): void {
   resolveBeadSize(catalog, design.bead); // throws on a bad bead size, before anything changes
-  commit(design);
+  saveNow();
+  if (from.mine) mine.open(from.mine);
+  else mine.start(from.start);
+  state.past = [];
+  state.future = [];
+  setDesign(design);
   fit();
   const { problems } = state.resolved;
   if (problems.length) showNotice(`${problems.map(esc).join("<br>")}`, true);
@@ -511,7 +530,7 @@ function resizeCanvas(): void {
   els.canvas.width = Math.round(rect.width * devicePixelRatio);
   els.canvas.height = Math.round(rect.height * devicePixelRatio);
   if (first) {
-    const saved = readView();
+    const saved = restoreView ? readView() : undefined;
     if (saved) setView(saved);
     else fit();
   }
@@ -845,19 +864,33 @@ function pinchOf(): { distance: number; x: number; y: number } {
 
 let saveTimer: number | undefined;
 let saveWarned = false;
+/** False until the design from the last visit is open, so the empty one before it is never saved. */
+let started = false;
+/** Whether to show the piece where it was on the last visit. Not for a design opened from Home or the profile. */
+let restoreView = true;
 function scheduleSave(): void {
   clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    try {
-      // While lifted beads are being placed, keep the design from before the lift, so a reload loses nothing.
-      localStorage.setItem(STORAGE.draft, designToYaml(state.floating?.lifted?.design ?? state.design));
-    } catch {
-      // Storage can be off (private windows) or full. The designer still works, it just won't remember.
-      if (!saveWarned) showNotice("This design can't be kept in the browser. Download it to keep it.");
-      saveWarned = true;
-    }
-  }, 500);
+  saveTimer = window.setTimeout(saveNow, 500);
 }
+
+function saveNow(): void {
+  clearTimeout(saveTimer);
+  if (!started) return;
+  // While lifted beads are being placed, keep the design from before the lift, so a reload loses nothing.
+  const design = state.floating?.lifted?.design ?? state.design;
+  const yaml = designToYaml(design);
+  let kept = mine.save(design.title, yaml, design.cells.size === 0);
+  try {
+    localStorage.setItem(STORAGE.draft, yaml);
+  } catch {
+    kept = false;
+  }
+  // Storage can be off (private windows) or full. The designer still works, it just won't remember.
+  if (!kept && !saveWarned) showNotice("This design can't be kept in the browser. Download it to keep it.");
+  if (!kept) saveWarned = true;
+}
+
+window.addEventListener("pagehide", saveNow);
 
 let viewTimer: number | undefined;
 function scheduleSaveView(): void {
@@ -979,8 +1012,9 @@ els.newForm.addEventListener("submit", () => {
   const first = (onlyMine ? ownedColorsFor(myBeads, size)[0]?.entry : undefined) ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
   const title = els.newName.value.trim() || "Untitled design";
   state.paint = "A";
-  load({ title, bead: els.newBead.value, beads: new Map([["A", first]]), cells: new Map() });
-  showNotice("New design. The previous one is one undo away.");
+  const design: FlatDesign = { title, bead: els.newBead.value, beads: new Map([["A", first]]), cells: new Map() };
+  load(design, { start: designToYaml(design) });
+  showNotice("New design. Your other designs are on <a href=\"./profile.html\">your profile</a>.");
 });
 
 els.file.addEventListener("change", async () => {
@@ -1456,19 +1490,36 @@ function esc(s: string): string {
 // ---- Start ----
 
 {
+  // The design asked for in the address (from Home or the profile), else the one from the last visit.
+  const asked = takeDesignHash();
   let design = emptyDesign();
-  const stored = readStored(STORAGE.draft);
-  if (stored) {
-    try {
-      design = designFromYaml(stored);
-      resolveBeadSize(catalog, design.bead);
-    } catch (e) {
-      design = emptyDesign();
-      showNotice(`Couldn't reopen your last design: ${esc(e instanceof Error ? e.message : String(e))}`, true);
+  try {
+    if (asked.design) {
+      restoreView = false;
+      const saved = findDesign(loadMyDesigns(), asked.design);
+      if (!saved) throw new Error("it isn't in My designs any more");
+      design = designFromYaml(saved.yaml);
+      mine.open(saved.id);
+    } else if (asked.example) {
+      restoreView = false;
+      const example = findExample("flat", asked.example);
+      if (!example) throw new Error(`there is no example "${asked.example}"`);
+      design = designFromYaml(example.yaml);
+      mine.start(designToYaml(design));
+    } else {
+      const stored = readStored(STORAGE.draft);
+      if (stored) design = designFromYaml(stored);
     }
+    resolveBeadSize(catalog, design.bead);
+  } catch (e) {
+    design = emptyDesign();
+    mine.start(designToYaml(design));
+    showNotice(`Couldn't open the design: ${esc(e instanceof Error ? e.message : String(e))}`, true);
   }
+  started = true;
   state.paint = design.beads.keys().next().value ?? "";
   setDesign(design);
+  if (asked.isNew) els.newButton.click();
 }
 
 void loadBackdrop().then(async (stored) => {

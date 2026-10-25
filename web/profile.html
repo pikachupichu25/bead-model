@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Profile</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="gallery-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+        <nav class="page-nav" id="page-nav" aria-label="Pages"></nav>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <main class="gallery">
+      <section class="profile-head">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <div class="profile-who">
+          <label>
+            <span class="visually-hidden">My name</span>
+            <input type="text" id="name" class="profile-name" placeholder="Your name" maxlength="60" />
+          </label>
+          <p class="muted profile-stats" id="stats"></p>
+          <p class="muted profile-note">Kept in this browser only. Nothing is sent anywhere.</p>
+        </div>
+      </section>
+
+      <div class="profile-tabs" role="tablist" aria-label="Profile">
+        <button type="button" role="tab" id="tab-designs" aria-selected="true" aria-controls="panel-designs">My designs</button>
+        <button type="button" role="tab" id="tab-beads" aria-selected="false" aria-controls="panel-beads">My beads</button>
+      </div>
+
+      <section class="feed-section" id="panel-designs" role="tabpanel" aria-labelledby="tab-designs">
+        <div class="feed-head">
+          <div class="kind-filter" id="kind-filter" role="radiogroup" aria-label="Technique"></div>
+          <span class="spacer"></span>
+          <input type="search" id="filter" class="profile-filter" placeholder="Filter my designs" aria-label="Filter my designs" />
+        </div>
+        <div class="card-grid" id="design-list"></div>
+      </section>
+
+      <section class="feed-section" id="panel-beads" role="tabpanel" aria-labelledby="tab-beads" hidden>
+        <div class="feed-head">
+          <span class="muted" id="bead-count"></span>
+          <span class="spacer"></span>
+          <a class="button small primary" href="./beads.html">Add or change beads</a>
+        </div>
+        <div id="bead-groups"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./profile.ts"></script>
+  </body>
+</html>

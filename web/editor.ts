@@ -31,7 +31,11 @@ import { parsePattern, PatternError } from "../src/pattern/load.js";
 import { isShapeEngine, SHAPE_ENGINES, type ShapeEngine, solveShape } from "../src/shape/engines.js";
 import { type Shape, type ShapeModel, shapeModel, type Verdict } from "../src/shape/shape.js";
 import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
+import { findDesign } from "../src/collection/designs.js";
+import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
+import { findExample } from "./examples.js";
 import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
+import { renderNav } from "./nav.js";
 import type { BeadViewer } from "./viewer3d.js";
 
 const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
@@ -60,6 +64,11 @@ const STORAGE = {
   fromViewer: "bead-model:open-in-editor",
   spacing: "bead-model:editor-spacing",
 };
+
+renderNav("peyote");
+
+/** The pattern's entry in My designs. */
+const mine = openDesign("peyote");
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const els = {
@@ -579,13 +588,27 @@ function updateUndo(): void {
   els.redo.disabled = state.future.length === 0;
 }
 
+/** False until the draft from the last visit is open, so nothing before it is saved. */
+let started = false;
+let saveTimer: number | undefined;
 function save(): void {
+  if (!started) return;
   try {
     localStorage.setItem(STORAGE.draft, JSON.stringify(state.draft));
   } catch {
     // Storage can be off (private windows). The editor still works, it just won't remember.
   }
+  // My designs keeps the file, a little after typing stops.
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(saveNow, 500);
 }
+
+function saveNow(): void {
+  clearTimeout(saveTimer);
+  if (started) mine.save(state.draft.title || "Untitled pattern", draftToYaml(state.draft));
+}
+
+window.addEventListener("pagehide", saveNow);
 
 // ---- Events: pattern details and start ----
 
@@ -1134,7 +1157,8 @@ els.newForm.addEventListener("submit", (event) => {
   const count = Number(els.newCount.value);
   if (startCountProblem(kind, count)) return;
   els.newDialog.close();
-  load(emptyDraft(kind, count, els.newName.value.trim() || "Untitled pattern"));
+  const draft = emptyDraft(kind, count, els.newName.value.trim() || "Untitled pattern");
+  load(draft, { start: draftToYaml(draft) });
   setTab("form");
 });
 
@@ -1142,7 +1166,8 @@ els.newExample.addEventListener("change", () => {
   const example = examples.find((e) => e.id === els.newExample.value);
   if (!example) return;
   els.newDialog.close();
-  load({ ...draftFromYaml(example.text), status: "unverified" });
+  const draft = { ...draftFromYaml(example.text), status: "unverified" };
+  load(draft, { start: draftToYaml(draft) });
 });
 
 els.file.addEventListener("change", async () => {
@@ -1156,8 +1181,19 @@ els.file.addEventListener("change", async () => {
   }
 });
 
-/** Replaces the draft. Undo brings the old one back. */
-function load(draft: Draft): void {
+/**
+ * Opens another pattern: one of mine (`mine` is its id), or one that isn't
+ * saved yet and starts as `start` (a new pattern or an example). Without
+ * either, as for a file, it is saved at once. The pattern before stays in My
+ * designs, so undo starts over.
+ */
+function load(draft: Draft, from: { mine?: string; start?: string } = {}): void {
+  saveNow();
+  if (from.mine) mine.open(from.mine);
+  else mine.start(from.start);
+  state.past = [];
+  state.future = [];
+  state.saved = "";
   state.paint = draft.beads[0]?.key ?? "";
   reframe = true;
   change(draft);
@@ -1180,13 +1216,18 @@ els.downloadSteps.addEventListener("click", () => {
 
 els.openViewer.addEventListener("click", () => {
   if (!needsComplete()) return;
+  saveNow();
+  if (mine.id) {
+    location.href = `./steps.html#pattern=${encodeURIComponent(`design:${mine.id}`)}`;
+    return;
+  }
   try {
     localStorage.setItem(STORAGE.toViewer, draftToYaml(state.draft));
   } catch {
     showNotice("The browser won't let this page store the pattern, so it can't be passed to the step viewer. Download the .yaml and open it there.");
     return;
   }
-  location.href = "./index.html#pattern=draft";
+  location.href = "./steps.html#pattern=draft";
 });
 
 function needsComplete(): boolean {
@@ -1280,8 +1321,10 @@ function readStored(key: string): string | undefined {
 }
 
 {
-  // A pattern sent from the step viewer wins over the saved draft. The saved
-  // draft stays one undo away.
+  // A pattern asked for in the address (from Home or the profile), or sent
+  // from the step viewer, wins over the saved draft. The saved draft stays in
+  // My designs.
+  const asked = takeDesignHash();
   const stored = readStored(STORAGE.draft);
   const incoming = readStored(STORAGE.fromViewer);
   let saved: Draft | undefined;
@@ -1291,12 +1334,30 @@ function readStored(key: string): string | undefined {
     saved = undefined;
   }
   state.draft = saved ?? draftFromYaml(examples.find((e) => e.id === "03-flat-triangle")?.text ?? draftToYaml(emptyDraft()));
+  if (!saved) mine.start(draftToYaml(state.draft));
   state.paint = state.draft.beads[0]?.key ?? "";
   refresh();
   renderForm();
   renderStatuses();
   commit();
-  if (incoming) {
+  started = true;
+  save();
+  if (asked.design || asked.example) {
+    try {
+      if (asked.design) {
+        const design = findDesign(loadMyDesigns(), asked.design);
+        if (!design) throw new Error("it isn't in My designs any more");
+        load(draftFromYaml(design.yaml), { mine: design.id });
+      } else {
+        const example = findExample("peyote", asked.example!);
+        if (!example) throw new Error(`there is no example "${asked.example}"`);
+        const draft = { ...draftFromYaml(example.yaml), status: "unverified" };
+        load(draft, { start: draftToYaml(draft) });
+      }
+    } catch (e) {
+      showNotice(`Couldn't open the pattern: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (incoming) {
     try {
       localStorage.removeItem(STORAGE.fromViewer);
     } catch {
@@ -1304,7 +1365,7 @@ function readStored(key: string): string | undefined {
     }
     try {
       load(draftFromYaml(incoming));
-      if (saved) showNotice("Opened the pattern from the step viewer. Your previous draft is one undo away.");
+      if (saved) showNotice("Opened the pattern from the step viewer. Your previous draft is on <a href=\"./profile.html\">your profile</a>.");
     } catch (e) {
       showNotice(`Couldn't open the pattern from the viewer: ${e instanceof Error ? e.message : String(e)}`);
     }
