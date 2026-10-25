@@ -2,7 +2,7 @@
 
 A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures.
 
-**Demo:** https://bead-model.vercel.app
+**Demo:** https://bead-model.bead-model.workers.dev (on Cloudflare; the old https://bead-model.vercel.app points there once the move is deployed)
 
 ## Current focus: Circular Peyote (3D)
 

@@ -1,6 +1,6 @@
 # Plan: Accounts on Cloudflare (Workers + D1)
 
-**Status: chosen. Phases 0–3 are done, apart from steps that need you (marked "needs you").** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: built. Phases 0–4 are done, apart from steps that need you (marked "needs you"): the Google/GitHub OAuth apps, connecting GitHub for automatic deploys, and merging to `main` to turn on the moved page.** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 
@@ -103,7 +103,7 @@ The row formats are in [`src/collection/sync.ts`](../src/collection/sync.ts). A 
 1. ✅ Add `wrangler.jsonc` with assets only. `npm run serve:cf` builds the site and serves it with Wrangler on port 8787. Every page and the `#example=` links work there. Old `/flat.html` links redirect to `/flat` and keep their `#…`. `npm run deploy` publishes it (after `npx wrangler login` once). It is live at https://bead-model.bead-model.workers.dev.
 2. ✅ Every page checked on workers.dev.
 3. **To do (needs you):** connect the GitHub repo in the Cloudflare dashboard (Workers → bead-model → Settings → Builds), so a push to `main` deploys and branches get preview URLs. Use the build command `npm run build` and the deploy command `npx wrangler deploy -c dist/bead_model/wrangler.json`. Until then, deploy with `npm run deploy`.
-4. Keep Vercel running until the end of Phase 4.
+4. Keep Vercel running until the end of Phase 4. It now serves only the moved page, once this branch is merged.
 
 Done when the static site works on workers.dev and deploys on push.
 
@@ -160,10 +160,15 @@ The stores stay as they are, synchronous on localStorage, so no page has to chan
 
 ### Phase 4: switch over
 
-1. Optional: a custom domain on Cloudflare (free if the domain's DNS is on Cloudflare). Otherwise use `bead-model.<account>.workers.dev`.
-2. Update the README demo link, and the OAuth callback URLs if the domain changed.
-3. On Vercel, redirect `bead-model.vercel.app` to the new address, or show a "we moved" page. localStorage doesn't move between addresses, so the page should say: "Open the old site, sign in, and upload", or download a backup there and Restore it on the new site.
-4. Turn Vercel off once the redirect has been in place a while.
+1. ✅ **The old address becomes a "moved" page.** [`vercel.json`](../vercel.json) makes Vercel skip the install and build, and serve only [`moved/index.html`](../moved/index.html) for every path. It has to, because the Vite build now writes `dist/client`, which Vercel wouldn't serve.
+   - **Nothing saved in the browser:** the moved page goes straight to the same page on the new address. `/flat.html#…` becomes `/flat#…`.
+   - **Designs or beads saved there:** it offers **Move them and continue**. That opens the new site at `#move-from-old-site`. `web/move.ts` asks the old page for the saved designs, pins, beads and profile name (`postMessage`, with the origin checked both ways), and adds them, the same way as Restore. It then reports back, so the old page stops asking. If the user is signed in, the next sync takes it all to the account.
+
+   Tested locally, with a stand-in for the old site.
+2. ✅ The README demo link points to workers.dev.
+3. **To do (needs you): turn it on.** Merging this branch into `main` deploys the moved page on Vercel at once. Do it once Google/GitHub sign-in works on workers.dev. Before then, the new site works but nobody can sign in.
+4. **Optional (needs you):** a custom domain (Workers → bead-model → Settings → Domains & Routes). If you add one, change `BETTER_AUTH_URL` in `wrangler.jsonc`, `NEW` in `moved/index.html`, and the OAuth callback URLs.
+5. **Later (needs you):** once people have had time to move (a few months), the Vercel project can go. The moved page is only worth keeping for as long as old bookmarks matter.
 
 ### Later
 

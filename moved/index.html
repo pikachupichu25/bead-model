@@ -1,0 +1,169 @@
+<!doctype html>
+<!--
+  What bead-model.vercel.app serves once the site has moved to Cloudflare (see
+  vercel.json and docs/cloudflare-plan.md, Phase 4). Every old address lands
+  here. With nothing saved in this browser it goes straight to the same page on
+  the new address. With designs or beads saved here (localStorage can't follow a
+  site to a new address), it offers to carry them over: it opens the new site,
+  which asks for them (web/move.ts), and hands them over with postMessage.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Peyote Steps has moved</title>
+    <style>
+      :root {
+        --bg: #f6f4ef;
+        --panel: #ffffff;
+        --ink: #1f1d1a;
+        --muted: #6b665e;
+        --line: #e4dfd5;
+        --accent: #3c5a99;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171614;
+          --panel: #201f1c;
+          --ink: #ece8e1;
+          --muted: #a39d93;
+          --line: #34312c;
+          --accent: #8fb0f0;
+          color-scheme: dark;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        max-width: 460px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+      a {
+        color: var(--accent);
+      }
+      .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      button,
+      .button {
+        font: inherit;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        cursor: pointer;
+        text-decoration: none;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--panel);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Peyote Steps has moved</h1>
+      <p>It now lives at <a id="new-link" href="#"></a>.</p>
+      <div id="has-data" hidden>
+        <p id="counts"></p>
+        <p>Browsers keep saved work per address, so it won't be at the new address until you move it.</p>
+        <div class="buttons">
+          <button type="button" class="primary" id="move">Move them and continue</button>
+          <a class="button" id="skip" href="#">Continue without them</a>
+        </div>
+      </div>
+      <p id="status" hidden></p>
+    </main>
+    <script>
+      const NEW = "https://bead-model.bead-model.workers.dev";
+      const KEYS = ["bead-model:my-designs", "bead-model:my-beads", "bead-model:profile-name", "bead-model:only-my-beads"];
+
+      // The same page on the new address: /flat.html becomes /flat, and the #… stays.
+      const path = location.pathname.replace(/\/index\.html$/, "/").replace(/\.html$/, "");
+      const target = NEW + path + location.search + location.hash;
+
+      const read = (key) => {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      };
+      const count = (key, list) => {
+        try {
+          return JSON.parse(read(key) || "{}")[list]?.length || 0;
+        } catch {
+          return 0;
+        }
+      };
+      const designs = count("bead-model:my-designs", "designs");
+      const beads = count("bead-model:my-beads", "beads");
+      const moved = read("bead-model:moved");
+
+      document.getElementById("new-link").href = target;
+      document.getElementById("new-link").textContent = NEW.replace("https://", "");
+      document.getElementById("skip").href = target;
+
+      if ((designs === 0 && beads === 0) || moved) {
+        location.replace(target);
+      } else {
+        const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+        document.getElementById("counts").textContent = `This browser has ${plural(designs, "design")} and ${plural(beads, "bead")} saved here.`;
+        document.getElementById("has-data").hidden = false;
+      }
+
+      const status = (text) => {
+        const el = document.getElementById("status");
+        el.textContent = text;
+        el.hidden = false;
+      };
+
+      document.getElementById("move").addEventListener("click", () => {
+        const data = Object.fromEntries(KEYS.map((k) => [k, read(k)]));
+        const win = window.open(NEW + "/#move-from-old-site", "_blank");
+        if (!win) {
+          status("Your browser blocked the new tab. Allow pop-ups for this site and try again.");
+          return;
+        }
+        status("Opening the new address…");
+        window.addEventListener("message", (event) => {
+          if (event.origin !== NEW || event.source !== win) return;
+          if (event.data === "bead-model:ready") win.postMessage({ type: "bead-model:move", data }, NEW);
+          if (event.data === "bead-model:moved") {
+            try {
+              localStorage.setItem("bead-model:moved", String(Date.now()));
+            } catch {}
+            document.getElementById("has-data").hidden = true;
+            status("Moved. Your designs and beads are at the new address now; you can close this tab.");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

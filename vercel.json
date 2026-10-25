@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo 'No install: Vercel only serves the moved page'",
+  "buildCommand": "echo 'No build: Vercel only serves the moved page'",
+  "outputDirectory": "moved",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

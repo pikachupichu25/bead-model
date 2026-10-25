@@ -8,6 +8,7 @@ import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.
 import { designCard, esc } from "./design-card.js";
 import { loadMyDesigns, onMyDesignsChange, saveMyDesigns } from "./designs-store.js";
 import { EXAMPLES } from "./examples.js";
+import { receiveMove } from "./move.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
 
@@ -163,3 +164,9 @@ function showNotice(html: string): void {
 }
 
 render();
+receiveMove((moved, movedBeads) => {
+  designs = loadMyDesigns();
+  beads = loadMyBeads();
+  render();
+  showNotice(`Moved ${moved} design${moved === 1 ? "" : "s"} and ${movedBeads} bead${movedBeads === 1 ? "" : "s"} from the old address.`);
+});
