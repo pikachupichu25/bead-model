@@ -1,6 +1,6 @@
 # Plan: Accounts on Cloudflare (Workers + D1)
 
-**Status: built. Phases 0–4 are done, apart from steps that need you (marked "needs you"): the Google/GitHub OAuth apps, connecting GitHub for automatic deploys, and merging to `main` to turn on the moved page.** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: built. Phases 0–4 are done, apart from steps that need you (marked "needs you"): the Google OAuth client, connecting the GitHub repo for automatic deploys, and merging to `main` to turn on the moved page.** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 
@@ -9,10 +9,10 @@
 | Site | **Workers with static assets** (the Vite `dist/`) | Cloudflare now points new projects at Workers rather than Pages. One project serves both the pages and the API on one origin. Static files are served free and don't count as requests. Pages + Functions would also work, but newer features land on Workers first. |
 | API | One Worker, with [Hono](https://hono.dev) for routing, under `/api/*` | Small, made for Workers, typed. |
 | Database | **D1** (SQLite), one database `bead-model` | Free, close to the Worker, plain SQL, managed with `wrangler d1 migrations`. |
-| Sign-in | **[Better Auth](https://better-auth.com)**, storing its tables in D1, with **Google and GitHub** sign-in | Cloudflare has no user sign-in of its own. Better Auth runs in a Worker and keeps sessions in an HTTP-only cookie on our own origin. |
+| Sign-in | **[Better Auth](https://better-auth.com)**, storing its tables in D1, with **Google** sign-in (only Google, by choice) | Cloudflare has no user sign-in of its own. Better Auth runs in a Worker and keeps sessions in an HTTP-only cookie on our own origin. |
 | Email sign-in | Later: magic link through Resend (free tier) | Needs an email sender. Not needed to launch. |
 
-**No passwords.** The free Worker plan allows 10 ms of CPU per request, and a proper password hash (scrypt, Argon2) uses more than that. Google/GitHub sign-in and magic links don't hash anything, so they fit. Add passwords only on the paid plan ($5 a month).
+**No passwords.** The free Worker plan allows 10 ms of CPU per request, and a proper password hash (scrypt, Argon2) uses more than that. Google sign-in and magic links don't hash anything, so they fit. Add passwords only on the paid plan ($5 a month).
 
 ## Free limits, and what they mean here
 
@@ -52,7 +52,7 @@ The Worker reuses `src/collection/*` to check incoming data (`readSavedDesign`, 
 
 The config is [`wrangler.jsonc`](../wrangler.jsonc).
 
-Secrets, set with `wrangler secret put` and never committed: `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`. For local dev, put them in `.dev.vars`, which git ignores.
+Secrets, set with `wrangler secret put` and never committed: `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. For local dev, put them in `.dev.vars`, which git ignores.
 
 ## Schema (D1 / SQLite)
 
@@ -89,7 +89,7 @@ All JSON, under `/api`. It's two endpoints besides sign-in, so a page load costs
 
 | Method and path | Does |
 |---|---|
-| `/api/auth/*` | Better Auth: start Google/GitHub sign-in, callback, session, sign out |
+| `/api/auth/*` | Better Auth: start Google sign-in, callback, session, sign out |
 | `GET /api/me` | The signed-in user (or `null`) with counts of designs and beads, and which sign-in buttons to show |
 | `GET /api/sync?since=<now from the last pull>` | Everything of the user's stored since then, as `{ now, designs, pins, beads, profile }`. Without `since`, it returns all of it. |
 | `POST /api/sync` | Pushes `{ designs, pins, beads, profile }` (at most 100 rows). Each row is stored only if it's at least as new as the stored one. The reply is `{ now, rejected }`, where `rejected` holds the stored copies of the rows that were newer, for the browser to take. |
@@ -114,24 +114,23 @@ Done when the static site works on workers.dev and deploys on push.
 3. ✅ Added a **Sign in** menu at the end of the top bar (`web/nav.ts`, `web/account.ts`). It shows only the providers whose keys are set, and nothing at all on a host without the API (such as Vercel). When you're signed in, it shows an avatar with your name and **Sign out**.
 4. ✅ Local dev: `@cloudflare/vite-plugin` runs the Worker and a local D1 inside `npm run dev`, which serves the site and API on http://localhost:5173. Its settings come from `.dev.vars`, which is ignored by git. There, `ALLOW_PASSWORD=1` turns on email + password sign-in, for trying things without OAuth keys (local only). `vite build` now writes `dist/client` (the pages) and `dist/bead_model` (the Worker and the deploy config).
 5. ✅ Deployed with the `BETTER_AUTH_SECRET` secret set. On workers.dev, `/api/me` works and email + password is off.
-6. **To do (needs you): the Google and GitHub OAuth apps.** See [Setting up Google and GitHub sign-in](#setting-up-google-and-github-sign-in). Until their keys are set, the live site shows no Sign in button.
+6. **To do (needs you): the Google OAuth client.** See [Setting up Google sign-in](#setting-up-google-sign-in). Until its keys are set, the live site shows no Sign in button.
 
-Done when you can sign in and out with Google and GitHub, locally and on workers.dev, and `/api/me` returns you. Everything except the OAuth apps is done and was tested locally with email + password.
+Done when you can sign in and out with Google, locally and on workers.dev, and `/api/me` returns you. Everything except the OAuth client is done and was tested locally with email + password.
 
-#### Setting up Google and GitHub sign-in
+#### Setting up Google sign-in
 
-The callback URL is `<site>/api/auth/callback/<provider>`, for both `https://bead-model.bead-model.workers.dev` and `http://localhost:5173`.
+The callback URL is `<site>/api/auth/callback/google`, for both `https://bead-model.bead-model.workers.dev` and `http://localhost:5173`.
 
-- **GitHub:** go to Settings → Developer settings → OAuth Apps → New OAuth App. Set the homepage to the site URL and the callback to `…/api/auth/callback/github`. GitHub allows one callback per app, so make one app for the live site and one for localhost.
 - **Google:** go to Google Cloud console → APIs & Services → Credentials → Create OAuth client ID (Web application). Add both origins under Authorized JavaScript origins, and both `…/api/auth/callback/google` under Authorized redirect URIs. Set up the OAuth consent screen with app name, support email and the `email` and `profile` scopes.
 
 Then put the keys in place:
 
 ```
-npx wrangler secret put GITHUB_CLIENT_ID      # and GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID      # then GOOGLE_CLIENT_SECRET
 ```
 
-For local dev, add the same four lines to `.dev.vars`, using the localhost GitHub app. Secrets take effect without redeploying.
+For local dev, add the same two lines to `.dev.vars` (one Google client covers both addresses). Secrets take effect without redeploying.
 
 ### Phase 2: data API
 
@@ -148,7 +147,7 @@ For local dev, add the same four lines to `.dev.vars`, using the localhost GitHu
 - An emptied browser pulled everything back.
 - Signing out and removing from this browser cleared it.
 
-Deployed. It runs on the live site as soon as Google or GitHub sign-in is set up.
+Deployed. It runs on the live site as soon as Google sign-in is set up.
 
 The stores stay as they are, synchronous on localStorage, so no page has to change how it loads or saves. A new `web/sync.ts` runs alongside when someone is signed in:
 
@@ -166,7 +165,7 @@ The stores stay as they are, synchronous on localStorage, so no page has to chan
 
    Tested locally, with a stand-in for the old site.
 2. ✅ The README demo link points to workers.dev.
-3. **To do (needs you): turn it on.** Merging this branch into `main` deploys the moved page on Vercel at once. Do it once Google/GitHub sign-in works on workers.dev. Before then, the new site works but nobody can sign in.
+3. **To do (needs you): turn it on.** Merging this branch into `main` deploys the moved page on Vercel at once. Do it once Google sign-in works on workers.dev. Before then, the new site works but nobody can sign in.
 4. **Optional (needs you):** a custom domain (Workers → bead-model → Settings → Domains & Routes). If you add one, change `BETTER_AUTH_URL` in `wrangler.jsonc`, `NEW` in `moved/index.html`, and the OAuth callback URLs.
 5. **Later (needs you):** once people have had time to move (a few months), the Vercel project can go. The moved page is only worth keeping for as long as old bookmarks matter.
 

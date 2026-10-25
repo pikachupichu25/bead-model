@@ -7,8 +7,6 @@ export interface Env {
   BETTER_AUTH_SECRET: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
-  GITHUB_CLIENT_ID?: string;
-  GITHUB_CLIENT_SECRET?: string;
   /** "1" turns on email + password sign-in. Local dev and tests only: hashing passwords is too much CPU for the free plan. */
   ALLOW_PASSWORD?: string;
 }

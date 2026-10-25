@@ -28,7 +28,7 @@ export function renderNav(current: Page): void {
   });
 }
 
-const PROVIDER_LABELS = { google: "Google", github: "GitHub" } as const;
+const PROVIDER_LABELS = { google: "Google" } as const;
 
 /** "Sign in" (a menu of providers) when signed out; the name and "Sign out" when signed in. */
 function renderAccount(nav: HTMLElement, account: Account): void {
@@ -77,7 +77,7 @@ function renderAccount(nav: HTMLElement, account: Account): void {
     await signOut().catch(fail);
   });
   for (const button of menu.querySelectorAll<HTMLButtonElement>("[data-provider]")) {
-    button.addEventListener("click", () => void signInWith(button.dataset.provider as "google" | "github").catch(fail));
+    button.addEventListener("click", () => void signInWith(button.dataset.provider as "google").catch(fail));
   }
   menu.querySelector<HTMLFormElement>("[data-password]")?.addEventListener("submit", (event) => {
     event.preventDefault();

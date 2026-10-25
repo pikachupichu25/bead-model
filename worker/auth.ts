@@ -1,16 +1,13 @@
 // Sign-in with Better Auth, kept in D1. Made per request, since the D1 binding
-// only exists inside a request. Google and GitHub are on when their keys are set.
+// only exists inside a request. Google sign-in is on when its keys are set.
 
 import { betterAuth } from "better-auth";
 import type { Env } from "./env.js";
 
-export type Provider = "google" | "github";
+export type Provider = "google";
 
 export function enabledProviders(env: Env): Provider[] {
-  const out: Provider[] = [];
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) out.push("google");
-  if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET) out.push("github");
-  return out;
+  return env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? ["google"] : [];
 }
 
 export function makeAuth(env: Env) {
@@ -20,14 +17,10 @@ export function makeAuth(env: Env) {
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [env.BETTER_AUTH_URL],
-    socialProviders: {
-      ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    socialProviders:
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }
-        : {}),
-      ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
-        ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } }
-        : {}),
-    },
+        : {},
     emailAndPassword: { enabled: env.ALLOW_PASSWORD === "1" },
     session: {
       // Keep the session in a signed cookie for 5 minutes, so most requests don't read D1.

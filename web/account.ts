@@ -13,7 +13,7 @@ export interface AccountUser {
 export interface Account {
   user: AccountUser | null;
   /** The sign-in buttons to offer. */
-  providers: ("google" | "github")[];
+  providers: "google"[];
   /** Email + password sign-in (local dev only). */
   password: boolean;
 }
@@ -28,8 +28,8 @@ export function loadAccount(): Promise<Account | null> {
   return current;
 }
 
-/** Goes to Google or GitHub, and comes back to this page. */
-export async function signInWith(provider: "google" | "github"): Promise<void> {
+/** Goes to Google, and comes back to this page. */
+export async function signInWith(provider: "google"): Promise<void> {
   const data = await post<{ url?: string }>("/api/auth/sign-in/social", { provider, callbackURL: location.href });
   if (data.url) location.href = data.url;
 }
