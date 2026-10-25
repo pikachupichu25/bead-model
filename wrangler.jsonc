@@ -1,12 +1,31 @@
-// Cloudflare: serves the Vite build (dist/) as static assets on Workers.
-// Phase 0 of docs/cloudflare-plan.md: no Worker code or database yet.
+// Cloudflare: the Vite build (dist/client) as static assets, and a Worker for /api/*
+// (sign-in now, the data API later). See docs/cloudflare-plan.md.
+// `vite build` writes the deployable config to dist/bead_model/wrangler.json,
+// which `npm run deploy` uses.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bead-model",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./dist",
+    "directory": "./dist/client",
     // /flat serves flat.html, and so on for every page.
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    // Pages and files come straight from the assets; only the API runs the Worker.
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bead-model",
+      "database_id": "3353a3ed-ffe0-4c25-9e6d-f23a262890cd",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Secrets (BETTER_AUTH_SECRET and the GOOGLE_/GITHUB_ client ids and secrets)
+  // are set with `wrangler secret put`, and in .dev.vars for local dev.
+  "vars": {
+    "BETTER_AUTH_URL": "https://bead-model.bead-model.workers.dev"
   }
 }
