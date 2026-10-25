@@ -1,0 +1,13 @@
+// The old Cloudflare address (bead-model.bead-model.workers.dev) after the
+// Worker was renamed to bead-bench: like Vercel, it serves only the moved page,
+// for every path. `npm run deploy:moved` publishes it.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bead-model",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": ".",
+    // Every old address (/flat, /steps.html, …) gets index.html.
+    "not_found_handling": "single-page-application"
+  }
+}

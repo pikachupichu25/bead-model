@@ -11,7 +11,8 @@
     "render": "tsx src/cli.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
-    "deploy": "vite build && wrangler deploy -c dist/bead_model/wrangler.json",
+    "deploy": "vite build && wrangler deploy -c dist/bead_bench/wrangler.json",
+    "deploy:moved": "wrangler deploy -c moved/wrangler.jsonc",
     "serve:cf": "vite build && vite preview --port 8787 --strictPort",
     "db:migrate": "wrangler d1 migrations apply bead-model --local",
     "db:migrate:remote": "wrangler d1 migrations apply bead-model --remote"

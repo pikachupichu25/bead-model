@@ -1,10 +1,10 @@
 // Cloudflare: the Vite build (dist/client) as static assets, and a Worker for /api/*
 // (sign-in now, the data API later). See docs/cloudflare-plan.md.
-// `vite build` writes the deployable config to dist/bead_model/wrangler.json,
+// `vite build` writes the deployable config to dist/bead_bench/wrangler.json,
 // which `npm run deploy` uses.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bead-model",
+  "name": "bead-bench",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -26,6 +26,6 @@
   // Secrets (BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
   // are set with `wrangler secret put`, and in .dev.vars for local dev.
   "vars": {
-    "BETTER_AUTH_URL": "https://bead-model.bead-model.workers.dev"
+    "BETTER_AUTH_URL": "https://bead-bench.bead-model.workers.dev"
   }
 }

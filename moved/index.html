@@ -1,8 +1,9 @@
 <!doctype html>
 <!--
-  What bead-model.vercel.app serves once the site has moved to Cloudflare (see
-  vercel.json and docs/cloudflare-plan.md, Phase 4). Every old address lands
-  here. With nothing saved in this browser it goes straight to the same page on
+  What the old addresses serve: bead-model.vercel.app since the site moved to
+  Cloudflare (see vercel.json and docs/cloudflare-plan.md, Phase 4), and
+  bead-model.bead-model.workers.dev since the Worker was renamed to bead-bench
+  (moved/wrangler.jsonc). Every old address lands here. With nothing saved in this browser it goes straight to the same page on
   the new address. With designs or beads saved here (localStorage can't follow a
   site to a new address), it offers to carry them over: it opens the new site,
   which asks for them (web/move.ts), and hands them over with postMessage.
@@ -101,7 +102,7 @@
       <p id="status" hidden></p>
     </main>
     <script>
-      const NEW = "https://bead-model.bead-model.workers.dev";
+      const NEW = "https://bead-bench.bead-model.workers.dev";
       const KEYS = ["bead-model:my-designs", "bead-model:my-beads", "bead-model:profile-name", "bead-model:only-my-beads"];
 
       // The same page on the new address: /flat.html becomes /flat, and the #… stays.

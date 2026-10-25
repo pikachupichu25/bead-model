@@ -2,7 +2,7 @@
 
 export interface Env {
   DB: D1Database;
-  /** The site's address, e.g. "https://bead-model.bead-model.workers.dev" (or "http://localhost:5173" in dev). */
+  /** The site's address, e.g. "https://bead-bench.bead-model.workers.dev" (or "http://localhost:5173" in dev). */
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   GOOGLE_CLIENT_ID?: string;

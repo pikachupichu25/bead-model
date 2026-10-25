@@ -120,7 +120,7 @@ Done when you can sign in and out with Google, locally and on workers.dev, and `
 
 #### Setting up Google sign-in
 
-The callback URL is `<site>/api/auth/callback/google`, for both `https://bead-model.bead-model.workers.dev` and `http://localhost:5173`.
+The callback URL is `<site>/api/auth/callback/google`, for both `https://bead-bench.bead-model.workers.dev` and `http://localhost:5173`.
 
 - **Google:** go to Google Cloud console → APIs & Services → Credentials → Create OAuth client ID (Web application). Add both origins under Authorized JavaScript origins, and both `…/api/auth/callback/google` under Authorized redirect URIs. Set up the OAuth consent screen with app name, support email and the `email` and `profile` scopes.
 
@@ -166,8 +166,21 @@ The stores stay as they are, synchronous on localStorage, so no page has to chan
    Tested locally, with a stand-in for the old site.
 2. ✅ The README demo link points to workers.dev.
 3. **To do (needs you): turn it on.** Merging this branch into `main` deploys the moved page on Vercel at once. Do it once Google sign-in works on workers.dev. Before then, the new site works but nobody can sign in.
-4. **Optional (needs you):** a custom domain (Workers → bead-model → Settings → Domains & Routes). If you add one, change `BETTER_AUTH_URL` in `wrangler.jsonc`, `NEW` in `moved/index.html`, and the OAuth callback URLs.
+4. **Optional (needs you):** a custom domain (Workers → bead-bench → Settings → Domains & Routes). If you add one, change `BETTER_AUTH_URL` in `wrangler.jsonc`, `NEW` in `moved/index.html`, and the OAuth callback URLs.
 5. **Later (needs you):** once people have had time to move (a few months), the Vercel project can go. The moved page is only worth keeping for as long as old bookmarks matter.
+
+### Phase 5: rename the Worker to bead-bench
+
+The app is now called Bead Bench, so the Worker is `bead-bench` and the site lives at https://bead-bench.bead-model.workers.dev. The old Worker name, `bead-model`, now serves only the moved page ([`moved/wrangler.jsonc`](../moved/wrangler.jsonc), `npm run deploy:moved`), the same page Vercel serves. Both old addresses send people (and their saved work) straight to the new one. `web/move.ts` accepts saved work from either. The D1 database keeps its name and id, so accounts and synced data stay as they are.
+
+1. ✅ `wrangler.jsonc`, `vite.config.ts` (the build now writes `dist/bead_bench`), `npm run deploy`, `BETTER_AUTH_URL`, `NEW` in `moved/index.html` and `web/move.ts`.
+2. **To do (needs you), in this order:**
+   1. Google Cloud console → the OAuth client: add `https://bead-bench.bead-model.workers.dev` under Authorized JavaScript origins and `https://bead-bench.bead-model.workers.dev/api/auth/callback/google` under Authorized redirect URIs. Keep the old ones until step 5.
+   2. `npm run deploy`. This creates the new `bead-bench` Worker; the old one keeps running.
+   3. Secrets belong to a Worker, so set them again on the new one: `npx wrangler secret put BETTER_AUTH_SECRET` (a new random value is fine: it signs session cookies, which don't carry over to a new address anyway), then `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Check that Google sign-in works on the new address.
+   4. `npm run deploy:moved`. This replaces the old `bead-model` Worker with the moved page.
+   5. If Builds is connected (Phase 0, step 3), connect it to `bead-bench` instead, with the deploy command `npx wrangler deploy -c dist/bead_bench/wrangler.json`, and disconnect it from `bead-model`, or a push would put the full site back on the old name. Then deploy `main` to Vercel too, so its moved page points at the new address.
+3. People signed in at the old address sign in once more at the new one. Their account data is unchanged.
 
 ### Later
 

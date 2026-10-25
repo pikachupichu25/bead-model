@@ -12,3 +12,6 @@ dist/
 # Wrangler (Cloudflare) local state and secrets
 .wrangler/
 .dev.vars
+
+# Google OAuth client downloads (they hold the client secret)
+client_secret*.json

@@ -1,8 +1,8 @@
 # Bead Bench
 
-A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures. (The repository and the Cloudflare Worker are still called `bead-model`.)
+A workspace for modeling beadwork: generating, visualizing, and experimenting with bead patterns and their 3D structures. (The repository and the D1 database are still called `bead-model`.)
 
-**Demo:** https://bead-model.bead-model.workers.dev (on Cloudflare; the old https://bead-model.vercel.app points there once the move is deployed)
+**Demo:** https://bead-bench.bead-model.workers.dev (on Cloudflare; the old addresses https://bead-model.bead-model.workers.dev and https://bead-model.vercel.app point there once the move is deployed)
 
 ## Current focus: Circular Peyote (3D)
 

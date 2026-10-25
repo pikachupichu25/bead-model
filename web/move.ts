@@ -1,5 +1,5 @@
-// The other half of moved/index.html, the page the old address (bead-model.vercel.app)
-// now serves. It opens this site at #move-from-old-site and hands over the
+// The other half of moved/index.html, the page the old addresses (bead-model.vercel.app
+// and bead-model.bead-model.workers.dev) now serve. It opens this site at #move-from-old-site and hands over the
 // designs and beads saved at the old address; they're added to the ones here,
 // the same way as Restore (nothing here is lost).
 
@@ -9,7 +9,7 @@ import { loadMyDesigns, saveMyDesigns } from "./designs-store.js";
 import { loadMyBeads, loadOnlyMine, saveMyBeads, saveOnlyMine } from "./my-beads-store.js";
 import { loadProfileName, saveProfileName } from "./profile-store.js";
 
-const OLD_SITE = "https://bead-model.vercel.app";
+const OLD_SITES = ["https://bead-model.vercel.app", "https://bead-model.bead-model.workers.dev"];
 
 /** When this page was opened by the old address to receive its saved work: asks for it, and takes it in. */
 export function receiveMove(done: (designs: number, beads: number) => void): void {
@@ -18,14 +18,15 @@ export function receiveMove(done: (designs: number, beads: number) => void): voi
   const opener = window.opener as Window | null;
   if (!opener) return;
   window.addEventListener("message", (event) => {
-    if (event.origin !== OLD_SITE || event.source !== opener) return;
+    if (!OLD_SITES.includes(event.origin) || event.source !== opener) return;
     const message = event.data as { type?: string; data?: Record<string, string | null> };
     if (message?.type !== "bead-model:move" || !message.data) return;
     const { designs, beads } = takeIn(message.data);
-    opener.postMessage("bead-model:moved", OLD_SITE);
+    opener.postMessage("bead-model:moved", event.origin);
     done(designs, beads);
   });
-  opener.postMessage("bead-model:ready", OLD_SITE);
+  // Only the old address that opened this page receives it (the others are dropped).
+  for (const site of OLD_SITES) opener.postMessage("bead-model:ready", site);
 }
 
 function takeIn(data: Record<string, string | null>): { designs: number; beads: number } {

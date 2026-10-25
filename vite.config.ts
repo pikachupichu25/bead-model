@@ -26,7 +26,7 @@ export default defineConfig({
   },
   // The pages are the client build's entries (the Worker has its own, from wrangler.jsonc).
   environments: {
-    bead_model: { build: { outDir: "../dist/bead_model" } },
+    bead_bench: { build: { outDir: "../dist/bead_bench" } },
     client: {
       build: {
         outDir: "../dist/client",
