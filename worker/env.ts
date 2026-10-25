@@ -12,3 +12,9 @@ export interface Env {
   /** "1" turns on email + password sign-in. Local dev and tests only: hashing passwords is too much CPU for the free plan. */
   ALLOW_PASSWORD?: string;
 }
+
+/** The Hono app's types: the bindings, and the signed-in user's id once `signedIn` has run. */
+export interface AppEnv {
+  Bindings: Env;
+  Variables: { userId: string };
+}

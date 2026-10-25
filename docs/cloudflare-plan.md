@@ -1,6 +1,6 @@
 # Plan: Accounts on Cloudflare (Workers + D1)
 
-**Status: chosen. Phases 0 and 1 are done, apart from steps that need you (marked "needs you").** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: chosen. Phases 0–2 are done, apart from steps that need you (marked "needs you").** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 
@@ -35,113 +35,66 @@ worker/
   auth.ts           makeAuth(env): Better Auth, made per request (it needs the D1 binding)
   env.ts            the bindings, vars and secrets
   db.ts             every SQL query, each one filtered by the signed-in user's id
-  routes/designs.ts, pins.ts, beads.ts, me.ts, import.ts
+  routes/sync.ts    GET and POST /api/sync
+  test/api.test.ts  the API against a real local D1 (wrangler's getPlatformProxy)
 migrations/
   0001_auth.sql     Better Auth's tables (from its getMigrations())
   0002_app.sql      profiles, designs, pins, owned_beads (below)
 wrangler.jsonc      assets → ./dist/client, run the Worker first for /api/*, the D1 binding
-test/worker/        API tests in the Workers runtime (@cloudflare/vitest-pool-workers)
 web/
   account.ts        sign in / sign out / current user (/api/me and Better Auth's endpoints)
   nav.ts            the Sign in menu in the top bar
-  designs-store.ts, my-beads-store.ts   become local + remote (see Phase 3)
+  sync.ts           keeps localStorage and the account in step (Phase 3)
+src/collection/sync.ts   the sync format and its readers, shared by the browser and the Worker
 ```
 
-`src/` doesn't change. The Worker reuses `src/collection/*` to check incoming data (`myDesignsFromJson`, `ownedId`, and so on), so the browser and the server check data the same way.
+The Worker reuses `src/collection/*` to check incoming data (`readSavedDesign`, `readOwnedBead`, `ownedId`), so the browser and the server check data the same way.
 
-`wrangler.jsonc`, roughly:
+The config is [`wrangler.jsonc`](../wrangler.jsonc).
 
-```jsonc
-{
-  "name": "bead-model",
-  "main": "worker/index.ts",
-  "compatibility_date": "2026-10-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": { "directory": "./dist", "run_worker_first": ["/api/*"] },
-  "d1_databases": [{ "binding": "DB", "database_name": "bead-model", "database_id": "…" }]
-}
-```
-
-Secrets, set with `wrangler secret put` and never committed: `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`. For local dev, put them in `.dev.vars` (add it to `.gitignore`).
+Secrets, set with `wrangler secret put` and never committed: `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`. For local dev, put them in `.dev.vars`, which git ignores.
 
 ## Schema (D1 / SQLite)
 
-Better Auth creates `user`, `session`, `account` and `verification` (`user.id` is text). Our tables hang off `user`. Times are milliseconds since 1970, as the app already uses (`SavedDesign.created`). D1 enforces foreign keys.
+Better Auth's tables are `user`, `session`, `account` and `verification` ([`0001_auth.sql`](../migrations/0001_auth.sql)). Ours are in [`0002_app.sql`](../migrations/0002_app.sql) and hang off `user`. D1 enforces foreign keys, so deleting a user deletes their rows.
 
-```sql
--- migrations/0002_app.sql
-CREATE TABLE profiles (
-  user_id       TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE,
-  display_name  TEXT NOT NULL DEFAULT '' CHECK (length(display_name) <= 80),
-  only_my_beads INTEGER NOT NULL DEFAULT 0 CHECK (only_my_beads IN (0, 1)),
-  updated_at    INTEGER NOT NULL
-);
+| Table | Key | Holds |
+|---|---|---|
+| `profiles` | `user_id` | display name, `only_my_beads` |
+| `designs` | `(owner_id, id)`, where `id` is the browser's own `d…` id | `kind`, `title`, `yaml`, `is_public` (for later), `created_at` |
+| `pins` | `(owner_id, target)` | `pinned`, `pinned_at` (the newest pin comes first) |
+| `owned_beads` | `(owner_id, bead_key)`, where the key is `ownedId()` | a catalog code, or an own size/name/rgb; `amount`, `note` |
 
-CREATE TABLE designs (
-  id         TEXT PRIMARY KEY,                 -- crypto.randomUUID(), made by the Worker
-  owner_id   TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
-  local_id   TEXT,                             -- the "d…" id from localStorage, for safe re-upload
-  kind       TEXT NOT NULL CHECK (kind IN ('peyote', 'flat', 'nora')),
-  title      TEXT NOT NULL DEFAULT 'Untitled design' CHECK (length(title) <= 200),
-  yaml       TEXT NOT NULL CHECK (length(yaml) <= 1000000),
-  is_public  INTEGER NOT NULL DEFAULT 0 CHECK (is_public IN (0, 1)),  -- shared feed, later
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  UNIQUE (owner_id, local_id)
-);
-CREATE INDEX designs_owner_updated ON designs (owner_id, updated_at DESC);
+Every table also has:
+- **`updated_at`**, when the row last changed on the device that changed it. The newer change wins.
+- **`synced_at`**, when the server stored it. A pull asks for rows stored since its last pull, so a device with a wrong clock doesn't miss anything.
+- **`deleted`** (or `pinned = 0`): deleting keeps the row as a marker, so other devices learn about it instead of bringing it back.
 
-CREATE TABLE pins (                            -- a design id or "example:<kind>:<name>"
-  owner_id  TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
-  target    TEXT NOT NULL CHECK (length(target) <= 200),
-  pinned_at INTEGER NOT NULL,
-  PRIMARY KEY (owner_id, target)
-) WITHOUT ROWID;
+All times are milliseconds since 1970, as the app already uses. The design choices are the same as in [accounts-and-database.md](accounts-and-database.md#schema): the YAML stays the source of truth, catalog data isn't copied in, thumbnails are drawn in the browser, and there's one row per bead.
 
-CREATE TABLE owned_beads (                     -- one row per bead, keyed by ownedId()
-  owner_id   TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
-  bead_key   TEXT NOT NULL,
-  kind       TEXT NOT NULL CHECK (kind IN ('catalog', 'own')),
-  bead       TEXT,                             -- catalog: "miyuki DB-0010"
-  size       TEXT,                             -- own: "miyuki delica DB"
-  name       TEXT,
-  rgb        TEXT CHECK (rgb IS NULL OR rgb GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'),
-  amount     TEXT CHECK (length(amount) <= 100),
-  note       TEXT CHECK (length(note) <= 500),
-  updated_at INTEGER NOT NULL,
-  PRIMARY KEY (owner_id, bead_key),
-  CHECK ((kind = 'catalog' AND bead IS NOT NULL)
-      OR (kind = 'own' AND size IS NOT NULL AND name IS NOT NULL AND rgb IS NOT NULL))
-) WITHOUT ROWID;
-```
-
-The design choices are the same as in [accounts-and-database.md](accounts-and-database.md#schema): the YAML stays the source of truth, catalog data isn't copied in, thumbnails are drawn in the browser, and there's one row per bead.
+Keying designs by the browser's own id (instead of a server uuid plus `local_id`, as first planned) means a browser never has to learn new ids. Uploading the same design twice is just the same row.
 
 ### Access control lives in the Worker
 
-D1 has no row level security. **Every query goes through `worker/db.ts`, and every query there takes the user id from the session, never from the request.** It is `WHERE owner_id = ?` with the session's id, on reads, updates and deletes alike. A test per route signs in as user A and checks that user B's rows can't be read, changed or deleted.
+D1 has no row level security. **Every query goes through `worker/db.ts`, and every query there takes the user id from the session, never from the request.** It is `WHERE owner_id = ?` with the session's id, on reads, updates and deletes alike. The tests sign in as two users and check that neither sees or overwrites the other's rows.
 
 Other guards:
 - Cookies are `HttpOnly; Secure; SameSite=Lax`. Requests that change data must come with an `Origin` header matching the site.
-- Request bodies are capped at 1 MB.
+- Request bodies are capped at 2 MB, and a push at 100 rows.
 - Rate limiting is optional later (Cloudflare's Rate Limiting binding), mainly on `/api/auth/*`.
 
 ## API
 
-All JSON, all under `/api`, all need a session except `/api/auth/*` and reading a shared design.
+All JSON, under `/api`. It's two endpoints besides sign-in, so a page load costs one or two Worker requests.
 
 | Method and path | Does |
 |---|---|
 | `/api/auth/*` | Better Auth: start Google/GitHub sign-in, callback, session, sign out |
-| `GET /api/me` | The user, profile and counts |
-| `PATCH /api/me` | Change the display name or `only_my_beads` |
-| `GET /api/designs?since=<ms>` | My designs (without `yaml` unless asked), changed since a time, for sync |
-| `GET /api/designs/:id` | One design, with `yaml` |
-| `PUT /api/designs/:id` | Create or replace. Body is `{ kind, title, yaml, created, updated }`. The newer `updated` wins, and an older one gets `409` with the server copy. |
-| `DELETE /api/designs/:id` | Delete it, and its pin |
-| `GET /api/pins` · `PUT /api/pins/:target` · `DELETE /api/pins/:target` | Pins |
-| `GET /api/beads` · `PUT /api/beads/:key` · `DELETE /api/beads/:key` | My beads, one bead at a time |
-| `POST /api/import` | First sign-in upload: `{ designs, pinned, beads }` in the localStorage formats. Uses one `DB.batch()`, upserting on `(owner_id, local_id)` and `(owner_id, bead_key)`, so it's safe to run twice. |
+| `GET /api/me` | The signed-in user (or `null`) with counts of designs and beads, and which sign-in buttons to show |
+| `GET /api/sync?since=<now from the last pull>` | Everything of the user's stored since then, as `{ now, designs, pins, beads, profile }`. Without `since`, it returns all of it. |
+| `POST /api/sync` | Pushes `{ designs, pins, beads, profile }` (at most 100 rows). Each row is stored only if it's at least as new as the stored one. The reply is `{ now, rejected }`, where `rejected` holds the stored copies of the rows that were newer, for the browser to take. |
+
+The row formats are in [`src/collection/sync.ts`](../src/collection/sync.ts). A design is a `SavedDesign`; a pin is `{ target, pinned, pinnedAt }`; a bead is `{ key, bead }` where `bead` is an `OwnedBead`. Each row adds `updated`, and `deleted: true` for a deletion. First sign-in needs no import endpoint: everything in the browser is pushed as ordinary changes.
 
 ## Phases
 
@@ -182,24 +135,19 @@ For local dev, add the same four lines to `.dev.vars`, using the localhost GitHu
 
 ### Phase 2: data API
 
-1. Add `0002_app.sql`, `worker/db.ts` and the routes above, checking input with the `src/collection/*` readers.
-2. Write tests with `@cloudflare/vitest-pool-workers`. These cover each route, the owner checks (user A vs B), "newer `updated` wins", and an import run twice that leaves no copies.
-3. Make the profile row on first `/api/me`.
-
-Done when the tests pass and `npm test` runs them alongside the existing ones.
+1. ✅ Added [`0002_app.sql`](../migrations/0002_app.sql) (applied locally and on Cloudflare), `worker/db.ts` and `worker/routes/sync.ts`, with the sync format in `src/collection/sync.ts`.
+2. ✅ Tests in `worker/test/api.test.ts` run in `npm test` against a fresh local D1 through wrangler's `getPlatformProxy`. (`@cloudflare/vitest-pool-workers` needs Vitest 4, and this repo uses Vitest 5.) They cover signed-out and wrong-origin requests, keeping two accounts apart, "newer wins", pulling since a time with deletions, pins, beads and the profile, and bad or too-big pushes.
+3. ✅ Deployed. A signed-out `/api/sync` returns 401.
 
 ### Phase 3: the app uses it
 
-1. Make the store seam async. `designs-store.ts` and `my-beads-store.ts` export the same functions, now returning promises. The pages await them, and `src/collection/*` doesn't change.
-2. **Local first.** localStorage stays the working copy the pages read and write at once. When signed in, a small sync module:
-   - pushes each change (debounced about 3 s, and on `pagehide` with `fetch(…, { keepalive: true })`),
-   - keeps a queue of changes not yet sent (in localStorage) and retries when back online,
-   - pulls `?since=<last sync>` on page load and on focus, and merges by `updated`.
-3. **First sign-in on a browser that has data:** show "Upload this browser's designs and beads to your account?" and send it with `POST /api/import`. If the account already has data, merge (same rules as Restore: nothing is lost).
-4. **Signing out** clears the account's data from this browser (ask first), so a shared computer doesn't keep someone's designs.
-5. Update [my-designs.md](my-designs.md) and [my-beads-storage.md](my-beads-storage.md) from "browser only" to the new behaviour.
+The stores stay as they are, synchronous on localStorage, so no page has to change how it loads or saves. A new `web/sync.ts` runs alongside when someone is signed in:
 
-Done when a design made on a laptop appears on a phone after sign-in, editing offline syncs when back online, and signed-out use works unchanged.
+1. **Diff against the last sync.** It keeps a small record per account (`bead-model:sync:<user id>`) of what the account held after the last sync: each design's `updated`, the pins, each bead, the profile, and the server `now`. Anything in localStorage that differs from it is a change to push; anything missing from localStorage was deleted. Because changes are worked out each time, nothing is lost offline or when a tab closes mid-sync. There's no queue to keep.
+2. **Pull, merge, push.** Pull `?since=<now>`. For each row, the newer of the local change and the server's copy wins. Push what's left in batches of 100, take any `rejected` rows, save localStorage, and update the record. Pages already re-draw on the `storage` event from other tabs, and now also re-draw on a `bead-model:synced` event.
+3. **When:** on page load, when the tab comes back into view, and a few seconds after a change. The stores announce their saves.
+4. **First sign-in on a browser:** there's no record yet, so everything in the browser is pushed and everything in the account is pulled. Nothing is lost, the same rule as Restore. A notice says how many designs and beads were added.
+5. **Sign out** syncs first, then offers to remove the account's designs and beads from this browser, so a shared computer doesn't keep them.
 
 ### Phase 4: switch over
 

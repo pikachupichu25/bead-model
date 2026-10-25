@@ -57,7 +57,7 @@ export function myDesignsFromJson(text: string): MyDesigns {
   if (!isRecord(doc) || !Array.isArray(doc.designs)) throw new MyDesignsError("this isn't a My designs list (no `designs` list)");
   const out = emptyMyDesigns();
   for (const raw of doc.designs) {
-    const design = readDesign(raw);
+    const design = readSavedDesign(raw);
     if (design && !findDesign(out, design.id)) out.designs.push(design);
   }
   if (Array.isArray(doc.pinned)) out.pinned = [...new Set(doc.pinned.filter((p): p is string => typeof p === "string"))];
@@ -68,7 +68,8 @@ export function myDesignsToJson(list: MyDesigns): string {
   return JSON.stringify(list);
 }
 
-function readDesign(raw: unknown): SavedDesign | undefined {
+/** Reads one saved design, or undefined when it isn't one. */
+export function readSavedDesign(raw: unknown): SavedDesign | undefined {
   if (!isRecord(raw)) return undefined;
   const { id, kind, title, yaml, created, updated } = raw;
   if (typeof id !== "string" || !id || typeof yaml !== "string") return undefined;

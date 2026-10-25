@@ -39,7 +39,7 @@ export function myBeadsFromJson(text: string): MyBeads {
   if (!isRecord(doc) || !Array.isArray(doc.beads)) throw new MyBeadsError("this isn't a My beads backup (no `beads` list)");
   const out = emptyMyBeads();
   for (const raw of doc.beads) {
-    const bead = readBead(raw);
+    const bead = readOwnedBead(raw);
     if (bead) out.beads = addOwned(out, bead).beads;
   }
   return out;
@@ -49,7 +49,8 @@ export function myBeadsToJson(list: MyBeads): string {
   return JSON.stringify(list, null, 2);
 }
 
-function readBead(raw: unknown): OwnedBead | undefined {
+/** Reads one owned bead, or undefined when it isn't one. */
+export function readOwnedBead(raw: unknown): OwnedBead | undefined {
   if (!isRecord(raw)) return undefined;
   const extra = {
     ...(typeof raw.amount === "string" && raw.amount.trim() ? { amount: raw.amount.trim() } : {}),
