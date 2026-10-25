@@ -1,6 +1,8 @@
 # Accounts and a Database
 
-**Status: proposal.** Today My designs and My beads live only in the browser's localStorage (see [my-designs.md](my-designs.md) and [my-beads-storage.md](my-beads-storage.md)). This note covers how sign-in and a real database could take over, and where to host it for free.
+**Status: superseded.** The decision is now Cloudflare Workers + D1. See [cloudflare-plan.md](cloudflare-plan.md). This note stays for the comparison of options and the reasons behind the schema. The Supabase SQL in `supabase/` isn't used.
+
+Today My designs and My beads live only in the browser's localStorage (see [my-designs.md](my-designs.md) and [my-beads-storage.md](my-beads-storage.md)). This note covers how sign-in and a real database could take over, and where to host it for free.
 
 ## Recommendation
 
