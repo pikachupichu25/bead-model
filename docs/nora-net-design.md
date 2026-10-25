@@ -64,14 +64,13 @@ The coarse grid above is for addressing. On screen, beads are drawn where they s
 - **L** = distance between neighboring groups (center to center).
 - **Side bead**: on the line from the 8 to the 4, at **L / √2 ≈ 0.71 L** from the center of the 8 (an octagon is wider than a square, so the bead is not halfway).
 - **Diagonal bead**: exactly halfway between the two 8s.
-- **Edge length** e = L · 2 / (2 + √2) ≈ 0.59 L. One bead fills one edge, so for a bead of length w along its hole, **L ≈ w · 1.71** plus a little thread gap.
+- **Edge length** e = L · 2 / (2 + √2) ≈ 0.59 L. The spec sets e = √2 · d for a bead of diameter d, so the beads of a group of 4 just touch, which gives **L = (1 + √2) · d** ≈ 2.41 d.
 - **Bead direction**: the hole runs along its edge. Side beads above and below a 4 lie horizontally, those left and right of it lie vertically, and diagonal beads lie at 45°.
 
 ## The canvas
 
 - **Blank canvas.** A new design shows the empty lattice: every bead slot drawn as a faint outline, so the designer sees the 4s and 8s before placing anything. Like the flat designer, it has no edges until trimmed.
-- **Painting a bead** fills one slot with a bead color.
-- **Painting a group** fills all 4 or 8 slots of a group at once. This is the main tool, since Nora patterns are thought of in whole rings. Because beads are shared, painting a group recolors the borrowed beads of its neighbors too, exactly as in the real piece.
+- **Painting a bead** fills one slot with a bead color. This is the main tool: a design is painted bead by bead.
 - **Erasing** leaves a slot empty, which means no bead there.
 - **Bead size.** One bead size for the whole piece, from the catalog, as in the flat designer. Nora work is usually round seed beads (8/0 or 6/0); the reference earrings look like 8/0 or 6/0 opaque.
 
@@ -98,7 +97,7 @@ Nora pieces are almost always symmetric, so painting can be mirrored as you go. 
 - **The axis goes through a line of groups.** A vertical axis sits on a group column, at x = 2a in bead coordinates, and mirrors x → 4a − x. A horizontal axis sits on a group row the same way. Mirroring through a group keeps 8s on 8s and 4s on 4s; an axis between two group columns would swap them, so it isn't allowed.
 - **Diagonal beads flip direction**: a / bead mirrors to a \ bead, which is what the real net does.
 - **The axis is shown** as a line on the canvas and can be dragged to another group column or row. A new design puts it at column 0.
-- **Every tool follows symmetry**: painting a bead, painting a group and erasing. One mirrored stroke is one undo step.
+- **Every tool follows symmetry**: painting and erasing. One mirrored stroke is one undo step.
 - **Make symmetric** copies one half of an existing design onto the other (left onto right, or right onto left), so a design drawn without symmetry can be fixed afterwards.
 - **Check symmetry** highlights beads whose mirror partner has a different color or is empty.
 

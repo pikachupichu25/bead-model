@@ -1,0 +1,16 @@
+kind: nora-net
+title: Flower
+bead: miyuki round 8
+beads:
+  G: { color: lime green, display: { rgb: "#8cc63f" } }
+  R: { color: red, display: { rgb: "#e0241b" } }
+symmetry: { mode: left-right, column: 0, row: 0 }
+origin: [-3, -3]
+slots: |
+  ...R
+  .+R+R
+  .RGGGR
+  R+G+G+R
+  .RGGGR
+  .+R+R
+  ...R

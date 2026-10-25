@@ -1,6 +1,6 @@
 # Nora Net Designer: Requirements
 
-**Status: draft for review.** The bead structure these refer to is described in [nora-net-design.md](nora-net-design.md).
+**Status: draft for review.** The bead structure these refer to is described in [nora-net-design.md](nora-net-design.md), and the design that meets them is in [nora-net-spec.md](nora-net-spec.md).
 
 A design tool, next to the circular [editor](../README.md#usage) and the [flat peyote designer](flat-peyote-requirements.md), for **Nora beading**: the open bead net from southern Thailand made of rings of 4 and 8 beads. The designer starts from a blank net, colors beads and whole rings, and gets a pattern and a bead list to stitch from.
 
@@ -34,15 +34,15 @@ IDs are referenced from the spec. **Must** is needed for the first version, **Sh
 | N4 | Must | The canvas has no edges: the designer can pan in any direction and paint anywhere. |
 | N5 | Must | Pan (drag with the hand tool, space + drag, or two fingers) and zoom (wheel, pinch, buttons, "fit to beads") work smoothly up to at least 200 × 200 groups. |
 | N6 | Must | The tool always shows the size of the piece: width × height in groups and in cm, and the number of beads. |
-| N7 | Should | Hovering a slot highlights the two groups it belongs to; hovering a group highlights its 4 or 8 slots. |
+| N7 | Should | Hovering a slot highlights the two groups it belongs to. |
 
 ### Painting
 
 | ID | Priority | Requirement |
 |---|---|---|
-| N8 | Must | Paint one bead by clicking a slot, or many by dragging. |
-| N9 | Must | **Paint a group**: one click fills all 4 or 8 slots of a group. Dragging paints every group the pointer passes. Shared beads of neighboring groups change with it, as in the real net. |
-| N10 | Must | Erase beads or whole groups (eraser tool, or right-click). An erased slot means no bead there. |
+| N8 | Must | Paint one bead by clicking a slot, or many by dragging. This is the default way to paint. |
+| N9 | — | *Dropped:* painting a whole group at once. Designs are painted bead by bead only (N8). |
+| N10 | Must | Erase beads (eraser tool, or right-click). An erased slot means no bead there. |
 | N11 | Must | Pick a bead's color from the canvas (eyedropper, or alt-click). |
 | N12 | Should | Fill: recolor every connected bead of the same color in one click. |
 | N13 | Should | Select an area to move, copy, paste or delete. A pasted block snaps so groups of 8 land on groups of 8. |

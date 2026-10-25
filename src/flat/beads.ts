@@ -79,7 +79,7 @@ export function allBeadSizes(catalog: Catalog): { text: string; label: string }[
  * the page can show them.
  */
 export function resolveFlatBeads(
-  design: FlatDesign,
+  design: Pick<FlatDesign, "bead" | "beads">,
   catalog: Catalog,
 ): { size: FlatBeadSize; beads: Map<string, ResolvedBead>; problems: string[] } {
   const size = resolveBeadSize(catalog, design.bead);

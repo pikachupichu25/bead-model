@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nora Net Designer</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='5' r='3.5' fill='%23e15759'/%3E%3Ccircle cx='9' cy='12' r='3.5' fill='%23e15759'/%3E%3Ccircle cx='23' cy='12' r='3.5' fill='%23e15759'/%3E%3Ccircle cx='16' cy='12' r='3.5' fill='%2359a14f'/%3E%3Ccircle cx='9' cy='20' r='3.5' fill='%2359a14f'/%3E%3Ccircle cx='23' cy='20' r='3.5' fill='%2359a14f'/%3E%3Ccircle cx='16' cy='27' r='3.5' fill='%2359a14f'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      .nora-rings { max-height: 18rem; overflow: auto; margin: 0; font-size: 0.8rem; line-height: 1.5; }
+      .flat-tools select { font: inherit; }
+    </style>
+  </head>
+  <body class="flat-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Peyote Steps</span>
+        <nav class="page-nav" aria-label="Pages">
+          <a href="./index.html">Steps</a>
+          <a href="./editor.html">Editor</a>
+          <a href="./flat.html">Flat</a>
+          <a href="./nora.html" aria-current="page">Nora</a>
+          <a href="./beads.html">My beads</a>
+        </nav>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="button" id="new-design">New</button>
+        <label class="button" for="file-input">Open file…</label>
+        <input id="file-input" type="file" accept=".yaml,.yml" hidden />
+        <button type="button" class="button icon" id="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button>
+        <button type="button" class="button icon" id="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
+        <button type="button" class="button" id="download-yaml">Download .yaml</button>
+        <button type="button" class="button" id="download-chart">Download chart (SVG)</button>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <dialog class="new-dialog" id="new-dialog" aria-labelledby="new-title">
+      <form method="dialog" id="new-form">
+        <h2 id="new-title">New Nora design</h2>
+        <label class="ed-field">
+          <span>Title</span>
+          <input type="text" id="new-name" value="Untitled design" />
+        </label>
+        <label class="ed-field">
+          <span>Bead (one size for the whole piece)</span>
+          <select id="new-bead"></select>
+        </label>
+        <p class="muted ed-help">The net starts empty, with left–right symmetry on. Paint it bead by bead.</p>
+        <div class="dialog-actions">
+          <span class="spacer"></span>
+          <button type="button" class="button" id="new-cancel">Cancel</button>
+          <button type="submit" class="button primary">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <main class="app">
+      <aside class="steps flat-panel" aria-label="Design">
+        <section class="ed-section">
+          <h2>Design</h2>
+          <label class="ed-field">
+            <span>Title</span>
+            <input type="text" id="f-title" />
+          </label>
+          <p class="muted" id="bead-size"></p>
+        </section>
+
+        <section class="ed-section">
+          <div class="ed-head">
+            <h2>Beads to buy</h2>
+          </div>
+          <p class="muted ed-help">Pick a bead to paint with. Each bead is shared by two rings and counted once. Amounts include 10&nbsp;% spare.</p>
+          <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
+          <p class="flat-total muted" id="bead-total"></p>
+          <div class="only-mine-row">
+            <label><input type="checkbox" id="only-mine" /> Only my beads</label>
+            <a href="./beads.html" class="muted" id="only-mine-count"></a>
+          </div>
+          <div class="add-color">
+            <select id="add-catalog" aria-label="Add a catalog color"></select>
+            <span class="add-own">
+              <input type="color" id="add-own-color" value="#c8102e" aria-label="Own color" />
+              <button type="button" class="button small" id="add-own">+ Own color</button>
+            </span>
+          </div>
+        </section>
+
+        <section class="ed-section">
+          <div class="ed-head">
+            <h2>By ring</h2>
+          </div>
+          <p class="muted ed-help" id="ring-note"></p>
+          <pre class="nora-rings mono" id="ring-list" hidden></pre>
+        </section>
+      </aside>
+
+      <section class="flat-stage" aria-label="Canvas">
+        <div class="flat-tools">
+          <div class="view-switch" role="radiogroup" aria-label="Tool">
+            <button type="button" role="radio" data-tool="paint" aria-checked="true" title="Paint (B)">Paint</button>
+            <button type="button" role="radio" data-tool="erase" aria-checked="false" title="Erase (E, or right-click)">Erase</button>
+            <button type="button" role="radio" data-tool="fill" aria-checked="false" title="Recolor connected beads of one color (G)">Fill</button>
+            <button type="button" role="radio" data-tool="pick" aria-checked="false" title="Pick a bead (I, or alt-click)">Pick</button>
+            <button type="button" role="radio" data-tool="hand" aria-checked="false" title="Pan (H, or hold space)">Hand</button>
+          </div>
+          <label class="muted">
+            Symmetry
+            <select id="symmetry" title="Paint the mirror image too. Drag the marker in the ruler to move the axis.">
+              <option value="off">Off</option>
+              <option value="left-right">Left–right</option>
+              <option value="up-down">Up–down</option>
+              <option value="both">Both</option>
+            </select>
+          </label>
+          <select id="make-symmetric" aria-label="Make symmetric">
+            <option value="">Make symmetric…</option>
+            <option value="left">Left onto right</option>
+            <option value="right">Right onto left</option>
+            <option value="top">Top onto bottom</option>
+            <option value="bottom">Bottom onto top</option>
+          </select>
+          <button type="button" class="button small" id="check-symmetry" aria-pressed="false" title="Mark beads that don't match their mirror image">Check symmetry</button>
+          <span class="spacer"></span>
+          <div class="zoom-buttons">
+            <button type="button" class="button icon" id="zoom-out" title="Zoom out (−)" aria-label="Zoom out">−</button>
+            <button type="button" class="button icon" id="zoom-in" title="Zoom in (+)" aria-label="Zoom in">+</button>
+            <button type="button" class="button small" id="zoom-fit" title="Fit to beads (0)">Fit to beads</button>
+          </div>
+        </div>
+        <div class="flat-canvas-wrap" id="canvas-wrap">
+          <canvas id="canvas" aria-label="Bead net. Click or drag to paint."></canvas>
+        </div>
+        <div class="flat-status muted">
+          <span id="status" role="status"></span>
+          <span id="loose-status" hidden>
+            ·
+            <button type="button" class="link-button" id="open-show" aria-pressed="false" title="Show or hide them on the canvas"></button>
+            ·
+            <button type="button" class="link-button" id="remove-loose" title="Remove the beads no closed ring holds">Remove loose beads</button>
+          </span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./nora.ts"></script>
+  </body>
+</html>
