@@ -8,3 +8,7 @@ out/
 
 # Web app build
 dist/
+
+# Wrangler (Cloudflare) local state and secrets
+.wrangler/
+.dev.vars

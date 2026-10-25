@@ -1,6 +1,6 @@
 # Plan: Accounts on Cloudflare (Workers + D1)
 
-**Status: plan.** This replaces the Supabase recommendation in [accounts-and-database.md](accounts-and-database.md), which keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: chosen, Phase 0 under way.** Picked over [Vercel + Neon](neon-vercel-plan.md) for the free headroom, daily (not monthly) limits that stop only the API, and commercial use on the free plan. [accounts-and-database.md](accounts-and-database.md) keeps the comparison of the options. The goal is the same: sign in, then My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 
@@ -145,8 +145,8 @@ All JSON, all under `/api`, all need a session except `/api/auth/*` and reading 
 
 ### Phase 0: move hosting to Cloudflare (no accounts yet)
 
-1. Add `wrangler.jsonc` with assets only, then `npm run build && npx wrangler deploy`.
-2. Check every page (`index`, `profile`, `steps`, `editor`, `flat`, `nora`, `beads`) and the `#design=` / `#example=` links on `bead-model.<account>.workers.dev`.
+1. ✅ Add `wrangler.jsonc` with assets only. `npm run serve:cf` builds the site and serves it with Wrangler on port 8787. Every page and the `#example=` links work there. Old `/flat.html` links redirect to `/flat` and keep their `#…`. `npm run deploy` publishes it (after `npx wrangler login` once). It is live at https://bead-model.bead-model.workers.dev.
+2. ✅ Every page checked on workers.dev.
 3. Connect the GitHub repo in the Cloudflare dashboard (Workers Builds), so a push to `main` deploys and branches get preview URLs.
 4. Keep Vercel running until the end of Phase 4.
 

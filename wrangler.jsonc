@@ -1,0 +1,12 @@
+// Cloudflare: serves the Vite build (dist/) as static assets on Workers.
+// Phase 0 of docs/cloudflare-plan.md: no Worker code or database yet.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bead-model",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // /flat serves flat.html, and so on for every page.
+    "html_handling": "auto-trailing-slash"
+  }
+}

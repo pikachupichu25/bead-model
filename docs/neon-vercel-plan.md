@@ -1,6 +1,6 @@
 # Plan: Accounts on Vercel + Neon
 
-**Status: plan, being compared with [cloudflare-plan.md](cloudflare-plan.md).** Same goal: sign in, and My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
+**Status: not chosen.** We went with [Cloudflare Workers + D1](cloudflare-plan.md). This plan stays as the fallback and for the comparison at the end. Same goal: sign in, and My designs, pins and My beads are kept in a database and follow you to any device. Signed out, everything works as it does today.
 
 ## The stack
 

@@ -1,6 +1,6 @@
 # Accounts and a Database
 
-**Status: superseded.** Two plans are now being compared: [Cloudflare Workers + D1](cloudflare-plan.md) and [Vercel + Neon](neon-vercel-plan.md). This note stays for the comparison of options and the reasons behind the schema. The Supabase SQL in `supabase/` isn't used.
+**Status: superseded.** The decision is [Cloudflare Workers + D1](cloudflare-plan.md); [Vercel + Neon](neon-vercel-plan.md) was the other plan considered. This note stays for the comparison of options and the reasons behind the schema. The Supabase SQL in `supabase/` isn't used.
 
 Today My designs and My beads live only in the browser's localStorage (see [my-designs.md](my-designs.md) and [my-beads-storage.md](my-beads-storage.md)). This note covers how sign-in and a real database could take over, and where to host it for free.
 

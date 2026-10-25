@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "render": "tsx src/cli.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "vite build && wrangler deploy",
+    "serve:cf": "vite build && wrangler dev --port 8787"
   },
   "dependencies": {
     "three": "^0.186.1",
@@ -22,6 +24,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wrangler": "^4.152.0"
   }
 }
