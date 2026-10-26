@@ -2,7 +2,8 @@
 // symmetric. See docs/nora-net-spec.md.
 
 import { catalogFromFiles, type ResolvedBead } from "../src/catalog/catalog.js";
-import { type MyBeads, ownedColorsFor, ownedSizes, ownsProduct } from "../src/collection/my-beads.js";
+import { type ColorSource, isOwned, offeredColors } from "../src/collection/color-source.js";
+import { type MyBeads, ownedSizes } from "../src/collection/my-beads.js";
 import { allBeadSizes, catalogColors, type FlatBeadSize, resolveBeadSize, resolveFlatBeads } from "../src/flat/beads.js";
 import { nextFlatKey } from "../src/flat/format.js";
 import { defaultView, fitView, toMm, toScreen, type View, zoomAt } from "../src/flat/view.js";
@@ -38,7 +39,9 @@ import {
 import { findDesign } from "../src/collection/designs.js";
 import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
-import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
+import { markNotMine, renderColorChoices } from "./color-choices.js";
+import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
+import { presetPalettes } from "./presets.js";
 import { renderNav } from "./nav.js";
 import { drawNora, RULER_LEFT, RULER_TOP } from "./nora-canvas.js";
 
@@ -84,7 +87,8 @@ const els = {
   addCatalog: $<HTMLSelectElement>("add-catalog"),
   addOwnColor: $<HTMLInputElement>("add-own-color"),
   addOwn: $<HTMLButtonElement>("add-own"),
-  onlyMine: $<HTMLInputElement>("only-mine"),
+  colorSource: $<HTMLSelectElement>("color-source"),
+  usePalette: $<HTMLButtonElement>("use-palette"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   ringNote: $("ring-note"),
   ringList: $("ring-list"),
@@ -104,8 +108,9 @@ const els = {
 };
 const ctx = els.canvas.getContext("2d")!;
 
+/** The beads on the My beads page, and where the colors on offer come from. */
 let myBeads: MyBeads = loadMyBeads();
-let onlyMine = loadOnlyMine();
+let colorSource: ColorSource = loadColorSource();
 /** The `beads:` entries behind the "+ Add a color" options, by option value. */
 let addChoices: unknown[] = [];
 
@@ -271,28 +276,16 @@ function renderPanel(): void {
       return `<li><button type="button" role="radio" aria-checked="${on}" data-key="${esc(key)}" title="${esc(problem ?? bead?.label ?? key)}">
         <span class="swatch big" style="background:${esc(bead?.display.rgb ?? "#999")}"></span>
         <b>${esc(key)}</b>
-        <span class="flat-bead-name${problem ? " bad" : ""}">${esc(beadName(bead))}${onlyMine && !isMine(design.beads.get(key)) ? ` <span class="not-mine">not mine</span>` : ""}</span>
+        <span class="flat-bead-name${problem ? " bad" : ""}">${esc(beadName(bead))}${markNotMine(colorSource, myBeads) && !isMine(design.beads.get(key)) ? ` <span class="not-mine">not mine</span>` : ""}</span>
         <span class="flat-bead-count muted">${amount(rows.get(key)?.count ?? 0, rows.get(key)?.grams)}</span>
       </button></li>`;
     })
     .join("");
 
-  const used = new Set([...design.beads.values()].map((v) => JSON.stringify(v)));
-  const colors = (
-    onlyMine
-      ? ownedColorsFor(myBeads, resolved.size)
-      : catalogColors(resolved.size).map((c) => ({ entry: c.entry as unknown, name: c.name, code: c.entry.replace(/^\S+ /, "") }))
-  ).filter((c) => !used.has(JSON.stringify(c.entry)));
-  addChoices = colors.map((c) => c.entry);
-  const none = onlyMine ? "No more of my beads in this size" : "No more catalog colors for this bead";
-  els.addCatalog.innerHTML =
-    `<option value="">${colors.length ? (onlyMine ? "+ Add one of my beads…" : "+ Add a catalog color…") : none}</option>` +
-    colors.map((c, i) => `<option value="${i}">${esc(c.code === "own" ? "own" : c.code)} · ${esc(c.name)}</option>`).join("");
-  els.addCatalog.disabled = colors.length === 0;
-  els.addOwn.parentElement!.hidden = onlyMine;
-  els.onlyMine.checked = onlyMine;
-  const mine = ownedColorsFor(myBeads, resolved.size).length;
-  els.onlyMineCount.textContent = mine ? `${mine} in this size` : myBeads.beads.length ? "none in this size: add some" : "add your beads";
+  addChoices = renderColorChoices(
+    { colorSource: els.colorSource, addCatalog: els.addCatalog, usePalette: els.usePalette, addOwn: els.addOwn.parentElement!, count: els.onlyMineCount },
+    { source: colorSource, size: resolved.size, used: new Set([...design.beads.values()].map((v) => JSON.stringify(v))), myBeads, catalog },
+  );
 
   els.beadTotal.textContent = list.total.count ? `Total ${amount(list.total.count, list.total.grams)}` : "";
 }
@@ -353,9 +346,7 @@ function beadName(bead: ResolvedBead | undefined): string {
 }
 
 function isMine(entry: unknown): boolean {
-  if (typeof entry === "string") return ownsProduct(myBeads, entry);
-  const text = JSON.stringify(entry);
-  return ownedColorsFor(myBeads, state.resolved.size).some((c) => JSON.stringify(c.entry) === text);
+  return isOwned(myBeads, state.resolved.size, entry);
 }
 
 function amount(count: number, grams: number | undefined): string {
@@ -823,15 +814,26 @@ els.title.addEventListener("change", () => {
   if (title !== state.design.title) commit({ ...state.design, title });
 });
 
-els.onlyMine.addEventListener("change", () => {
-  onlyMine = els.onlyMine.checked;
-  saveOnlyMine(onlyMine);
+els.usePalette.addEventListener("click", () => {
+  const room = 62 - state.design.beads.size;
+  if (addChoices.length > room) showNotice(`A design can have at most 62 bead colors, so only ${room} of these were added.`);
+  const beads = new Map(state.design.beads);
+  for (const entry of addChoices.slice(0, Math.max(0, room))) {
+    const key = nextFlatKey(beads.keys());
+    if (key) beads.set(key, entry);
+  }
+  if (beads.size !== state.design.beads.size) commit({ ...state.design, beads });
+});
+
+els.colorSource.addEventListener("change", () => {
+  colorSource = els.colorSource.value as ColorSource;
+  saveColorSource(colorSource);
   renderPanel();
 });
 
 onMyBeadsChange(() => {
   myBeads = loadMyBeads();
-  onlyMine = loadOnlyMine();
+  colorSource = loadColorSource();
   renderPanel();
 });
 
@@ -842,7 +844,7 @@ function renderNewBeadOptions(): void {
   const mine = ownedSizes(myBeads, catalog);
   const isRound = (s: { text: string }) => s.text.split(" ")[1] === "round";
   const groups =
-    onlyMine && mine.size
+    colorSource === "mine" && mine.size
       ? [["Sizes I have", sizes.filter((s) => mine.has(s.text))], ["Other sizes", sizes.filter((s) => !mine.has(s.text))]]
       : [["Round beads", sizes.filter(isRound)], ["Other beads", sizes.filter((s) => !isRound(s))]];
   els.newBead.innerHTML = (groups as [string, typeof sizes][])
@@ -861,7 +863,7 @@ els.newCancel.addEventListener("click", () => els.newDialog.close());
 els.newForm.addEventListener("submit", () => {
   const size = resolveBeadSize(catalog, els.newBead.value);
   const first =
-    (onlyMine ? ownedColorsFor(myBeads, size)[0]?.entry : undefined) ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
+    offeredColors(colorSource, size, { myBeads, palettes: presetPalettes, catalog })[0]?.entry ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
   const title = els.newName.value.trim() || "Untitled design";
   state.paint = "A";
   const design: NoraDesign = { ...emptyDesign(els.newBead.value, title), beads: new Map([["A", first]]) };

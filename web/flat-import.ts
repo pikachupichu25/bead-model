@@ -3,6 +3,7 @@
 // docs/flat-peyote-spec.md §6.
 
 import type { ResolvedBead } from "../src/catalog/catalog.js";
+import type { ColorSource } from "../src/collection/color-source.js";
 import { catalogColors, type FlatBeadSize } from "../src/flat/beads.js";
 import { hexToLab } from "../src/flat/color.js";
 import type { FlatDesign } from "../src/flat/grid.js";
@@ -17,9 +18,11 @@ export interface ImportContext {
   beads: ReadonlyMap<string, ResolvedBead>;
   /** A bead's short name, without the size every bead in the piece shares. */
   nameOf(key: string): string;
-  /** My beads in this size (from the My beads page), and whether the designer offers only those. */
+  /** My beads in this size (from the My beads page). */
   mine: { entry: unknown; name: string; rgb: string; code: string }[];
-  onlyMine: boolean;
+  /** Where the designer takes its colors from, and the palette's colors in this size when that's a palette. */
+  source: ColorSource;
+  palette?: { name: string; colors: { entry: unknown; name: string; rgb: string; code: string }[] };
 }
 
 /** A color the import may use: a catalog color, or a bead already in the design. */
@@ -143,9 +146,9 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
         if (!out.has(c.entry)) out.set(c.entry, { id: c.entry, entry: c.entry, name: `${c.entry.replace(/^\S+ /, "")} · ${c.name}`, rgb: c.rgb });
       }
     }
-    if (from === "mine") {
-      for (const c of context.mine) {
-        const id = typeof c.entry === "string" ? c.entry : `mine:${JSON.stringify(c.entry)}`;
+    if (from === "mine" || from === "palette") {
+      for (const c of from === "mine" ? context.mine : (context.palette?.colors ?? [])) {
+        const id = typeof c.entry === "string" ? c.entry : `${from}:${JSON.stringify(c.entry)}`;
         out.set(id, { id, entry: c.entry, name: `${c.code} · ${c.name}`, rgb: c.rgb });
       }
     }
@@ -171,7 +174,9 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
           ? "This bead has no catalog colors yet. Choose “Only colors in this design”."
           : els.colorsFrom.value === "mine"
             ? "You have no beads in this size yet. Add them on the My beads page."
-            : "No colors left to use.";
+            : els.colorsFrom.value === "palette"
+              ? "This palette has no colors left to use."
+              : "No colors left to use.";
       els.summary.classList.add("bad");
       els.place.disabled = true;
       els.colors.innerHTML = "";
@@ -457,6 +462,19 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
     onPlace({ columns: columns(), rows: rows(), cells: [], picture: croppedPicture() });
   });
 
+  /** The designer's palette, as one more "Colors from" choice, only while one is picked there. */
+  function showPaletteOption(name: string | undefined): void {
+    let option = els.colorsFrom.querySelector<HTMLOptionElement>('option[value="palette"]');
+    if (!name) {
+      if (option?.selected) els.colorsFrom.value = "catalog";
+      option?.remove();
+      return;
+    }
+    option ??= els.colorsFrom.appendChild(document.createElement("option"));
+    option.value = "palette";
+    option.textContent = `Palette: ${name}`;
+  }
+
   /** The cropped part of the turned picture, at most BACKDROP_SIDE a side. */
   function croppedPicture(): OffscreenCanvas {
     const picture = state.picture!;
@@ -490,7 +508,9 @@ export function setupImport(getContext: () => ImportContext, onPlace: (block: Im
       resetTransform();
       applyTransform();
       clearTimeout(state.timer); // run() below starts the first conversion
-      if (state.context.onlyMine) els.colorsFrom.value = "mine";
+      showPaletteOption(state.context.palette?.name);
+      if (state.context.source === "mine") els.colorsFrom.value = "mine";
+      else if (state.context.palette) els.colorsFrom.value = "palette";
       else if (els.colorsFrom.value === "mine") els.colorsFrom.value = "catalog";
       if (els.colorsFrom.value !== "mine" && catalogColors(state.context.size).length === 0) els.colorsFrom.value = "design";
       els.place.disabled = true;

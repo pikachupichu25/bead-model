@@ -70,11 +70,12 @@
           <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
           <p class="flat-total muted" id="bead-total"></p>
           <div class="only-mine-row">
-            <label><input type="checkbox" id="only-mine" /> Only my beads</label>
+            <label>Colors from <select id="color-source"></select></label>
             <a href="./beads.html" class="muted" id="only-mine-count"></a>
           </div>
           <div class="add-color">
             <select id="add-catalog" aria-label="Add a catalog color"></select>
+            <button type="button" class="button small" id="use-palette" hidden></button>
             <span class="add-own">
               <input type="color" id="add-own-color" value="#c8102e" aria-label="Own color" />
               <button type="button" class="button small" id="add-own">+ Own color</button>

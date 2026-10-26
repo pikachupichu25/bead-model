@@ -2,7 +2,7 @@
 
 **Status: as built.** Signed out, the list is kept only in the browser, as described below. **Signed in, it also syncs with the account**, one row per bead: see [my-designs.md](my-designs.md#accounts) and [cloudflare-plan.md](cloudflare-plan.md). The last section was the proposal that led to this.
 
-"My beads" is the list of beads someone has at home (see the README). The Editor and the Flat designer use it when **Only my beads** is ticked. This note says where the list lives today, what is in it, what that means for users, and how a backend with user accounts could take over later.
+"My beads" is the list of beads someone has at home (see the README). The designers use it when **Colors from** is set to **My beads** (it can also be every catalog color or a [palette](preset-palettes.md)). This note says where the list lives today, what is in it, what that means for users, and how a backend with user accounts could take over later.
 
 ## Where it lives today
 
@@ -11,7 +11,8 @@ Everything is kept in the browser's **localStorage**, on the user's own device. 
 | Key | What it holds | Example |
 |---|---|---|
 | `bead-model:my-beads` | The list, as JSON (format below) | `{"version":1,"beads":[…]}` |
-| `bead-model:only-my-beads` | Whether the designers offer only my beads | `"true"` or `"false"` |
+| `bead-model:color-source` | Where the designers take their colors from | `"all"`, `"mine"` or `"palette:ocean"` |
+| `bead-model:only-my-beads` | Whether that's My beads. Older than the color source, and still what syncs with the account | `"true"` or `"false"` |
 | `bead-model:my-beads-size` | The bead size last picked on the My beads page (a convenience only) | `"miyuki delica DB"` |
 
 To look at it: open the site, open DevTools, then go to **Application → Local Storage →** the site's address.

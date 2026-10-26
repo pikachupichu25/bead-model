@@ -66,9 +66,17 @@
           <h2 id="mine-title">My beads</h2>
           <span class="muted" id="mine-count"></span>
         </div>
-        <p class="muted ed-help">Kept in this browser, so they're here next time you open the page. Back up to move them to another browser. In the Editor and the Flat designer, tick <b>Only my beads</b> to build from these.</p>
+        <p class="muted ed-help">Kept in this browser, so they're here next time you open the page. Back up to move them to another browser. In the designers, set <b>Colors from</b> to <b>My beads</b> to build from these.</p>
         <input type="search" id="mine-filter" class="mine-filter" placeholder="Filter my beads" aria-label="Filter my beads" />
         <div id="mine"></div>
+      </section>
+      <section class="beads-card palettes-card" aria-labelledby="palettes-title">
+        <div class="ed-head">
+          <h2 id="palettes-title">Palettes</h2>
+          <span class="muted" id="palettes-size"></span>
+        </div>
+        <p class="muted ed-help">Sets of colors that go together. In the designers, set <b>Colors from</b> to a palette to build from it. Colors are shown in the bead size picked above, matched to the nearest catalog color where the palette's own isn't sold in that size.</p>
+        <ul class="palette-list" id="palettes"></ul>
       </section>
     </main>
 

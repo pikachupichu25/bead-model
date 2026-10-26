@@ -1,0 +1,11 @@
+id: forest
+name: Forest
+description: Evergreen, moss and bark browns.
+colors:
+  - { bead: miyuki DB-2358, role: dark }
+  - { bead: miyuki DB-2404 }
+  - { bead: miyuki DB-0724 }
+  - { bead: miyuki DB-1135 }
+  - { bead: miyuki DB-0734 }
+  - { bead: miyuki DB-0735 }
+  - { bead: miyuki DB-0733, role: accent }

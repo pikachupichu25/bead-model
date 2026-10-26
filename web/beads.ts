@@ -1,6 +1,6 @@
 // "My beads": the beads someone has at home. Kept in this browser, exported as
-// readable text, and offered by the Editor and the Flat designer when "Only my
-// beads" is ticked.
+// readable text, and offered by the designers when "Colors from" is My beads.
+// Also lists the preset palettes, to add a palette's colors in one go.
 
 import { catalogFromFiles } from "../src/catalog/catalog.js";
 import {
@@ -17,9 +17,11 @@ import {
   removeOwned,
   updateOwned,
 } from "../src/collection/my-beads.js";
+import { paletteColorsFor } from "../src/collection/palettes.js";
 import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { presetPalettes } from "./presets.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -56,6 +58,8 @@ const els = {
   exportDownload: $<HTMLButtonElement>("export-download"),
   backup: $<HTMLButtonElement>("backup"),
   restore: $<HTMLInputElement>("restore-file"),
+  palettes: $<HTMLUListElement>("palettes"),
+  palettesSize: $("palettes-size"),
 };
 
 let list: MyBeads = loadMyBeads();
@@ -72,6 +76,7 @@ function render(): void {
   renderSizes();
   renderColors();
   renderMine();
+  renderPalettes();
 }
 
 function renderSizes(): void {
@@ -157,11 +162,51 @@ function renderMine(): void {
     .join("");
 }
 
+/** A palette color in the picked size, as the bead it adds to My beads. */
+function paletteBeads(index: number): { bead: OwnedBead; name: string; rgb: string; code: string }[] {
+  const size = els.size.value;
+  return paletteColorsFor(presetPalettes[index]!, resolveBeadSize(catalog, size), catalog).map((c) => ({
+    bead: typeof c.entry === "string" ? { kind: "catalog", bead: c.entry } : { kind: "own", size, name: c.name, rgb: c.rgb },
+    name: c.name,
+    rgb: c.rgb,
+    code: c.code,
+  }));
+}
+
+function renderPalettes(): void {
+  els.palettesSize.textContent = `in ${resolveBeadSize(catalog, els.size.value).label}`;
+  els.palettes.innerHTML = presetPalettes
+    .map((p, i) => {
+      const beads = paletteBeads(i);
+      const missing = beads.filter((b) => !hasOwned(list, b.bead)).length;
+      return `<li class="palette-item">
+        <div class="palette-head"><b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span></div>
+        <ul class="palette-swatches">${beads
+          .map((b) => {
+            const on = hasOwned(list, b.bead);
+            return `<li title="${esc(`${b.code} ${b.name}${on ? " · mine" : ""}`)}"><span class="swatch big${on ? " mine" : ""}" style="background:${esc(b.rgb)}"></span></li>`;
+          })
+          .join("")}</ul>
+        <button type="button" class="button small" data-palette="${i}"${missing ? "" : " disabled"}>${missing ? `Add ${missing === beads.length ? "these" : `the ${missing} I don't have`} to My beads` : "All in My beads"}</button>
+      </li>`;
+    })
+    .join("");
+}
+
 // ---- Events ----
 
 els.size.addEventListener("change", () => {
   writeSize(els.size.value);
   renderColors();
+  renderPalettes();
+});
+
+els.palettes.addEventListener("click", (event) => {
+  const index = (event.target as HTMLElement).closest<HTMLElement>("[data-palette]")?.dataset.palette;
+  if (index === undefined) return;
+  const beads = paletteBeads(Number(index)).filter((b) => !hasOwned(list, b.bead));
+  change(beads.reduce((l, b) => addOwned(l, b.bead), list));
+  showNotice(`Added ${beads.length} bead${beads.length === 1 ? "" : "s"} from ${esc(presetPalettes[Number(index)]!.name)}.`);
 });
 els.search.addEventListener("input", renderColors);
 els.mineFilter.addEventListener("input", renderMine);
@@ -200,6 +245,7 @@ els.mine.addEventListener("click", (event) => {
     writeSize(size);
     els.search.value = "";
     renderColors();
+    renderPalettes();
     return;
   }
   if (target.closest<HTMLElement>("[data-action]")?.dataset.action !== "remove") return;

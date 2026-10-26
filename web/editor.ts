@@ -25,6 +25,7 @@ import {
   startCountProblem,
   startKind,
 } from "../src/editor/draft.js";
+import { type ColorSource, offeredProducts, paletteOf } from "../src/collection/color-source.js";
 import { type MyBeads, ownedProducts } from "../src/collection/my-beads.js";
 import { type CompiledPattern, compilePattern } from "../src/pattern/compile.js";
 import { parsePattern, PatternError } from "../src/pattern/load.js";
@@ -34,8 +35,10 @@ import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
 import { findDesign } from "../src/collection/designs.js";
 import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
-import { loadMyBeads, loadOnlyMine, onMyBeadsChange, saveOnlyMine } from "./my-beads-store.js";
+import { markNotMine } from "./color-choices.js";
+import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { colorSourceOptions, presetPalettes } from "./presets.js";
 import type { BeadViewer } from "./viewer3d.js";
 
 const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
@@ -95,7 +98,7 @@ const els = {
   stepUp: $<HTMLSelectElement>("f-stepup"),
   addBead: $<HTMLButtonElement>("add-bead"),
   beadList: $<HTMLUListElement>("bead-list"),
-  onlyMine: $<HTMLInputElement>("only-mine"),
+  colorSource: $<HTMLSelectElement>("color-source"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   startKind: $<HTMLSelectElement>("f-start-kind"),
   start: $<HTMLInputElement>("f-start"),
@@ -280,9 +283,15 @@ function renderForm(): void {
 
 function renderBeadList(): void {
   els.beadList.innerHTML = state.draft.beads.map((bead, i) => beadRow(bead, i)).join("");
-  const mine = myProducts().length;
-  els.onlyMine.checked = onlyMine;
-  els.onlyMineCount.textContent = mine ? `${mine} catalog bead${mine === 1 ? "" : "s"}` : "add your beads";
+  const mine = ownedProducts(myBeads).size;
+  const palette = paletteOf(colorSource, presetPalettes);
+  const offered = offeredBeads().length;
+  els.colorSource.innerHTML = colorSourceOptions(colorSource);
+  els.onlyMineCount.textContent = palette
+    ? `${offered} bead${offered === 1 ? "" : "s"} in all sizes`
+    : mine
+      ? `${mine} catalog bead${mine === 1 ? "" : "s"}`
+      : "add your beads";
 }
 
 function beadRow(bead: DraftBead, index: number): string {
@@ -320,7 +329,7 @@ function beadRow(bead: DraftBead, index: number): string {
     <span class="bead-fields">${fields}</span>
     <span class="bead-meta muted" data-count></span>
     <button type="button" class="icon-button" data-action="delete" aria-label="Delete bead ${esc(bead.key)}" title="Delete">✕</button>
-    <span class="bead-label muted"><span data-label>${esc(resolved?.label ?? "")}</span>${onlyMine && !isMine(bead.spec) ? ` <span class="not-mine">not mine</span>` : ""}</span>
+    <span class="bead-label muted"><span data-label>${esc(resolved?.label ?? "")}</span>${markNotMine(colorSource, myBeads) && !isMine(bead.spec) ? ` <span class="not-mine">not mine</span>` : ""}</span>
   </li>`;
 }
 
@@ -334,14 +343,23 @@ function beadKind(spec: unknown): "catalog" | "generic" | "custom" {
 /** Every catalog bead with a color, by brand and line, for the bead picker. */
 const products = catalogProducts(catalog);
 
-/** The beads on the My beads page, and whether the bead picker offers only those. */
+/** The beads on the My beads page, and where the bead picker's beads come from. */
 let myBeads: MyBeads = loadMyBeads();
-let onlyMine = loadOnlyMine();
+let colorSource: ColorSource = loadColorSource();
+/** The products on offer for the color source, worked out once per source (a palette is matched in every size). */
+let offered: { source: ColorSource; myBeads: MyBeads; codes: Set<string> | undefined } | undefined;
 
-/** The catalog beads in My beads, in catalog order. Own colors aren't offered here (add them as Generic). */
-function myProducts(): string[] {
-  const owned = ownedProducts(myBeads);
-  return products.flatMap((g) => g.items.filter((i) => owned.has(i.code.toLowerCase())).map((i) => i.code));
+function offeredCodes(): Set<string> | undefined {
+  if (offered?.source !== colorSource || offered.myBeads !== myBeads) {
+    offered = { source: colorSource, myBeads, codes: offeredProducts(colorSource, { myBeads, palettes: presetPalettes, catalog }) };
+  }
+  return offered.codes;
+}
+
+/** The catalog beads on offer, in catalog order, when the source isn't every catalog color. Own colors aren't offered here (add them as Generic). */
+function offeredBeads(): string[] {
+  const codes = offeredCodes();
+  return codes ? products.flatMap((g) => g.items.filter((i) => codes.has(i.code.toLowerCase())).map((i) => i.code)) : [];
 }
 
 function isMine(spec: unknown): boolean {
@@ -349,9 +367,9 @@ function isMine(spec: unknown): boolean {
   return code !== undefined && ownedProducts(myBeads).has(code.toLowerCase());
 }
 
-/** A catalog bead for a new row: the first of my beads with only my beads on. */
+/** A catalog bead for a new row: the first on offer, with my beads or a palette. */
 function firstProduct(): string | undefined {
-  return onlyMine ? myProducts()[0] : (products[0]?.items[0]?.code ?? "miyuki DB-0010");
+  return offeredCodes() ? offeredBeads()[0] : (products[0]?.items[0]?.code ?? "miyuki DB-0010");
 }
 
 function catalogProducts(catalog: Catalog): { group: string; items: { code: string; label: string }[] }[] {
@@ -374,14 +392,15 @@ function catalogProducts(catalog: Catalog): { group: string; items: { code: stri
 }
 
 function productOptions(selected: string): string {
-  const owned = ownedProducts(myBeads);
-  const groups = onlyMine
-    ? products.map((g) => ({ ...g, items: g.items.filter((i) => owned.has(i.code.toLowerCase())) })).filter((g) => g.items.length)
+  const codes = offeredCodes();
+  const groups = codes
+    ? products.map((g) => ({ ...g, items: g.items.filter((i) => codes.has(i.code.toLowerCase())) })).filter((g) => g.items.length)
     : products;
   const known = groups.some((g) => g.items.some((i) => i.code === selected));
   const inCatalog = products.some((g) => g.items.some((i) => i.code === selected));
+  const notOffered = colorSource === "mine" ? "not in my beads" : "not in this palette";
   return [
-    known ? "" : option(selected, `${selected} (${inCatalog ? "not in my beads" : "not in the catalog"})`, true),
+    known ? "" : option(selected, `${selected} (${inCatalog ? notOffered : "not in the catalog"})`, true),
     ...groups.map(
       (g) => `<optgroup label="${esc(g.group)}">${g.items.map((i) => option(i.code, i.label, i.code === selected)).join("")}</optgroup>`,
     ),
@@ -641,9 +660,9 @@ els.addBead.addEventListener("click", () => {
   const palette = ["#4e79a7", "#e15759", "#f2b134", "#59a14f", "#b07aa1", "#76b7b2", "#ff9da7", "#9c755f"];
   const rgb = palette[state.draft.beads.length % palette.length]!;
   state.paint = key;
-  // With only my beads, a new bead is the first of mine not in the pattern yet.
+  // With my beads or a palette, a new bead is the first on offer not in the pattern yet.
   const used = new Set(state.draft.beads.map((b) => (typeof b.spec === "string" ? b.spec : "")));
-  const mine = onlyMine ? (myProducts().find((code) => !used.has(code)) ?? myProducts()[0]) : undefined;
+  const mine = offeredCodes() ? (offeredBeads().find((code) => !used.has(code)) ?? offeredBeads()[0]) : undefined;
   change({
     ...state.draft,
     beads: [...state.draft.beads, { key, spec: mine ?? { size: "11/0", shape: "cylinder", color: "", display: { rgb } } }],
@@ -704,7 +723,13 @@ els.beadList.addEventListener("change", (event) => {
     change(renameBeadKey(state.draft, bead.key, key));
   } else if (el.dataset.field === "kind") {
     const rgb = state.resolved.get(bead.key)?.display.rgb ?? "#4e79a7";
-    if (el.value === "catalog" && !firstProduct()) showNotice("You have no catalog beads in My beads yet. Add them on the My beads page, or untick Only my beads.");
+    if (el.value === "catalog" && !firstProduct()) {
+      showNotice(
+        colorSource === "mine"
+          ? "You have no catalog beads in My beads yet. Add them on the My beads page, or pick All catalog colors."
+          : "This palette has no catalog beads. Pick another palette, or All catalog colors.",
+      );
+    }
     const spec =
       el.value === "catalog" && firstProduct()
         ? firstProduct()!
@@ -723,16 +748,16 @@ els.palette.addEventListener("click", (event) => {
   renderStatuses();
 });
 
-els.onlyMine.addEventListener("change", () => {
-  onlyMine = els.onlyMine.checked;
-  saveOnlyMine(onlyMine);
+els.colorSource.addEventListener("change", () => {
+  colorSource = els.colorSource.value as ColorSource;
+  saveColorSource(colorSource);
   renderBeadList();
 });
 
 // My beads changed in another tab.
 onMyBeadsChange(() => {
   myBeads = loadMyBeads();
-  onlyMine = loadOnlyMine();
+  colorSource = loadColorSource();
   renderBeadList();
 });
 

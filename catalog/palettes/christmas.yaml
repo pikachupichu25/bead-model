@@ -1,0 +1,10 @@
+id: christmas
+name: Christmas
+description: Red, green, gold and snow white.
+colors:
+  - { bead: miyuki DB-0723 }
+  - { bead: miyuki DB-2354, role: dark }
+  - { bead: miyuki DB-0724 }
+  - { bead: miyuki DB-2358 }
+  - { bead: miyuki DB-0031, role: accent }
+  - { bead: miyuki DB-0200, role: light }

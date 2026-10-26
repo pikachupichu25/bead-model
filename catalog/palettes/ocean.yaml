@@ -1,0 +1,10 @@
+id: ocean
+name: Ocean
+description: Deep blues and sea greens, with a sandy white.
+colors:
+  - { bead: miyuki DB-0726, role: dark }
+  - { bead: miyuki DB-0149 }
+  - { bead: miyuki DB-0729 }
+  - { bead: miyuki DB-2356 }
+  - { bead: miyuki DB-2407 }
+  - { bead: miyuki DB-2364, role: light }

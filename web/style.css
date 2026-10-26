@@ -2032,6 +2032,46 @@ select:hover {
   margin: 0 0 10px;
 }
 
+/* Palettes on the My beads page: across both columns. */
+.palettes-card {
+  grid-column: 1 / -1;
+}
+
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.palette-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.palette-swatches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* A palette color that's in My beads. */
+.palette-swatches .swatch.mine {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .beads-count {
   font-size: 13px;
   margin: 0 0 10px;
