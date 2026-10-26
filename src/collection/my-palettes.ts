@@ -17,6 +17,21 @@ export interface MyPalettes {
   palettes: MyPalette[];
 }
 
+/** A public palette as anyone can read it: whose it is (an account id and the display name), and when it last changed. */
+export interface PublicPalette {
+  owner: string;
+  /** The owner's display name, or "" when they haven't set one. */
+  by: string;
+  updated: number;
+  palette: Palette;
+}
+
+/** What Browse palettes gets: a page of public palettes, newest first, and where the next page starts. */
+export interface PublicPalettePage {
+  palettes: PublicPalette[];
+  next?: number;
+}
+
 /** A design has at most 62 bead colors, so a palette never needs more. */
 export const MAX_COLORS = 62;
 export const MAX_PALETTE_NAME = 80;

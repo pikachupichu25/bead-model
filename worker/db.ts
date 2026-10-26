@@ -1,9 +1,11 @@
 // Every query on the app's tables. Each one takes the signed-in user's id (from
 // the session, never from the request) and only touches that user's rows: D1 has
 // no row level security, so this file is where one account is kept from another.
+// The one exception is reading public palettes, which anyone may do: those
+// queries only ever return rows with visibility = 'public' and deleted = 0.
 
 import type { OwnedBead } from "../src/collection/my-beads.js";
-import { readMyPalette } from "../src/collection/my-palettes.js";
+import { type PublicPalette, type PublicPalettePage, readMyPalette } from "../src/collection/my-palettes.js";
 import {
   emptyChanges,
   profileOf,
@@ -199,6 +201,40 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
   return { now, rejected };
 }
 
+/** Public palettes per page of Browse palettes. */
+export const PUBLIC_PAGE = 50;
+
+/** A page of public palettes, newest first, whose name or description has `query` in it. */
+export async function listPublicPalettes(db: D1Database, query: string, offset: number): Promise<PublicPalettePage> {
+  const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const { results } = await db
+    .prepare(
+      `select palettes.*, coalesce(profiles.display_name, '') as by from palettes
+       left join profiles on profiles.user_id = palettes.owner_id
+       where palettes.visibility = 'public' and palettes.deleted = 0
+         and (?1 = '' or palettes.name like ?2 escape '\\' or palettes.description like ?2 escape '\\')
+       order by palettes.updated_at desc, palettes.owner_id, palettes.id
+       limit ?3 offset ?4`,
+    )
+    .bind(query, like, PUBLIC_PAGE + 1, offset)
+    .all<PaletteRow & { by: string }>();
+  const palettes = results.slice(0, PUBLIC_PAGE).flatMap(publicOf);
+  return results.length > PUBLIC_PAGE ? { palettes, next: offset + PUBLIC_PAGE } : { palettes };
+}
+
+/** One public palette, or undefined when it's private, deleted or missing: the caller can't tell which. */
+export async function getPublicPalette(db: D1Database, owner: string, id: string): Promise<PublicPalette | undefined> {
+  const row = await db
+    .prepare(
+      `select palettes.*, coalesce(profiles.display_name, '') as by from palettes
+       left join profiles on profiles.user_id = palettes.owner_id
+       where palettes.owner_id = ? and palettes.id = ? and palettes.visibility = 'public' and palettes.deleted = 0`,
+    )
+    .bind(owner, id)
+    .first<PaletteRow & { by: string }>();
+  return row ? publicOf(row)[0] : undefined;
+}
+
 /** How many live designs and beads the user has, for the profile. */
 export async function countRows(db: D1Database, userId: string): Promise<{ designs: number; beads: number }> {
   const row = await db
@@ -292,6 +328,13 @@ function readStoredPalette(r: PaletteRow) {
     return undefined;
   }
   return readMyPalette({ id: r.id, name: r.name, ...(r.description ? { description: r.description } : {}), colors, visibility: r.visibility });
+}
+
+function publicOf(r: PaletteRow & { by: string }): PublicPalette[] {
+  const palette = readStoredPalette(r);
+  if (!palette) return [];
+  const shown = { id: palette.id, name: palette.name, ...(palette.description ? { description: palette.description } : {}), colors: palette.colors };
+  return [{ owner: r.owner_id, by: r.by, updated: r.updated_at, palette: shown }];
 }
 
 function profileFrom(r: ProfileRow): SyncProfile {

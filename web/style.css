@@ -2104,6 +2104,16 @@ select:hover {
   gap: 6px;
 }
 
+.browse-more {
+  margin-top: 10px;
+}
+
+/* The page for one public palette (palette.html). */
+.palette-page {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
+}
+
 /* A palette color that's in My beads. */
 .palette-swatches .swatch.mine {
   box-shadow: 0 0 0 2px var(--accent);

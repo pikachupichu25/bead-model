@@ -36,6 +36,7 @@ worker/
   env.ts            the bindings, vars and secrets
   db.ts             every SQL query, each one filtered by the signed-in user's id
   routes/sync.ts    GET and POST /api/sync
+  routes/palettes.ts GET /api/palettes/public (public palettes, for anyone)
   test/api.test.ts  the API against a real local D1 (wrangler's getPlatformProxy)
 migrations/
   0001_auth.sql     Better Auth's tables (from its getMigrations())

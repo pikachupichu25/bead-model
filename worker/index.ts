@@ -6,6 +6,7 @@ import { createMiddleware } from "hono/factory";
 import { enabledProviders, makeAuth } from "./auth.js";
 import { countRows } from "./db.js";
 import type { AppEnv } from "./env.js";
+import { palettes } from "./routes/palettes.js";
 import { sync } from "./routes/sync.js";
 
 /** Requests bigger than this are refused (a design is at most 1 MB). */
@@ -45,6 +46,9 @@ app.get("/api/me", async (c) => {
 app.use("/api/sync", sameSite, signedIn);
 app.use("/api/sync/*", sameSite, signedIn);
 app.route("/api/sync", sync);
+
+// Public palettes: read-only, for anyone. Only sync can make a palette public, and only its owner's.
+app.route("/api/palettes", palettes);
 
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

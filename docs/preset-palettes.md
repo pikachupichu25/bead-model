@@ -1,6 +1,6 @@
 # Palettes
 
-**Status: phases 1 (preset palettes) and 2 (my own palettes) are built**, as described below. Phase 3 (public palettes) is still the plan.
+**Status: built**: preset palettes (phase 1), my own palettes (phase 2) and public palettes (phase 3), as described below, with the changes from the plan noted where they happen. What's left is under [Later](#later).
 
 A **palette** is a short, named set of bead colors that go well together, such as "Ocean", "Pastel" or "Christmas". Picking one in a designer narrows the colors on offer to that set, the way **My beads** narrows them to [the beads I have](my-beads-storage.md). It answers "which 6 of these 200 colors should I use?" for someone who doesn't own many beads yet, or wants a starting point.
 
@@ -28,7 +28,7 @@ Every palette has a `visibility`: **private** or **public**.
 | | Private | Public |
 |---|---|---|
 | Who sees it | Only its owner | Anyone, signed in or not |
-| Where it shows | The owner's **Colors from** menu and My beads page | Also in **Browse palettes**, and at its own link (`palette.html?id=<owner palette id>`) |
+| Where it shows | The owner's **Colors from** menu and My beads page | Also in **Browse palettes**, and at its own link (`palette.html?owner=<account id>&id=<palette id>`) |
 | Who can change it | The owner | The owner. Others can only **Save a copy**, which makes a new private palette of their own |
 | Default | Yes: every new palette starts private | Only when the owner picks it |
 
@@ -116,18 +116,22 @@ Keeping `offeredColors` the single place that decides "which colors can I add" m
 4. **Privacy control.** A **Private / Public** select on each of my palettes on the My beads page, turned off with "Sign in to share" when signed out. Public palettes get a **Copy link** button (the link works once phase 3's palette page is built).
 5. **Color source on the account.** [`migrations/0005_color_source.sql`](../migrations/0005_color_source.sql) adds `profiles.color_source` (1 → `"mine"`, 0 → `"all"`). `only_my_beads` stays, kept equal to `color_source = 'mine'`, and the profile still carries `onlyMyBeads` for pages from before the color source; a push with only `onlyMyBeads` sets the source from it. In the browser the color source now syncs itself, and `bead-model:only-my-beads` is only still written for the moved-site import.
 
-### Phase 3: public palettes
+### Phase 3: public palettes (built)
 
-1. **Worker routes** (`worker/routes/`):
-   - `GET /api/palettes/public?q=&cursor=`: public, not deleted palettes, newest first, with the owner's display name. Works signed out. Paged (e.g. 50 at a time).
+1. **Worker routes** ([`worker/routes/palettes.ts`](../worker/routes/palettes.ts), queries in [`worker/db.ts`](../worker/db.ts)):
+   - `GET /api/palettes/public?q=&cursor=`: public, not deleted palettes, newest first, with the owner's display name (`by`, empty when they haven't set one). Works signed out. 50 at a time; `next` is the `cursor` for the page after. `q` finds words in the name or description, with `%` and `_` taken as plain characters.
    - `GET /api/palettes/public/:owner/:id`: one public palette, or 404 when it's private, deleted or missing. Private and missing give the same 404, so a link doesn't reveal that a private palette exists.
    - Both serve only rows with `visibility = 'public'` and `deleted = 0`.
    - Only the owner's sync route can change `visibility`. The public routes are read-only.
-2. **Index.** `create index "palettes_public" on "palettes" ("visibility", "deleted", "updated_at")` for the Browse list.
-3. **Browse palettes** on the My beads page and in the **Colors from** menu ("Browse palettes…"): search by name, swatches in the current bead size, **Use in this design** (without saving) and **Save a copy**.
-4. **Palette page** `web/palette.html` for shared links: the swatches, the matching beads per size, and **Save a copy** (asks to sign in, or saves to the browser when signed out).
-5. **Tests.** Worker tests in `worker/test/` that a private palette never appears in either public route, for a signed-out request or another user's, and that another user can't change `visibility` on someone else's palette.
-6. **Reporting.** A **Report** link on public palettes is worth having before the list gets large; names and descriptions are the only free text shown.
+2. **Index.** `create index "palettes_public" on "palettes" ("visibility", "deleted", "updated_at")` for the Browse list, in `0004_palettes.sql` with the table.
+3. **Browse palettes** on the My beads page (`beads.html#browse`), which **Colors from**'s "Browse palettes…" opens from any designer: search by name, swatches in the picked bead size, **Add these to My beads** and **Save a copy**. Changed from the plan: there's no **Use in this design** without saving, since a color source has to name a palette this browser keeps; saving a copy is one click and keeps working if the owner makes theirs private.
+4. **Palette page** [`web/palette.html`](../web/palette.html) for shared links: the colors matched in any bead size (with which ones are in My beads), and **Save a copy**. Signed out, the copy is kept in the browser like any of my palettes, and syncs once they sign in.
+5. **Tests.** [`worker/test/api.test.ts`](../worker/test/api.test.ts): a private palette never appears in either public route, signed out or as another account; private, deleted and missing give the same 404; making a palette private again or deleting it hides it at once; no email is ever in a response; and another account pushing the same palette id makes its own palette, leaving the owner's as it was.
+
+## Later
+
+- **Reporting.** A **Report** link on public palettes is worth having before the list gets large; names and descriptions are the only free text shown.
+- **Use without saving**, if it turns out people want it (see phase 3, step 3).
 
 ## Open questions
 
@@ -137,4 +141,4 @@ Keeping `offeredColors` the single place that decides "which colors can I add" m
 - Do we want palettes from a picture (extract 6 colors from a photo) later? The import's color reduction could produce one.
 - Is a third setting, **unlisted** (anyone with the link, but not in Browse), worth adding? It's the usual middle ground: one more value in `visibility` and its check, with no new column.
 - Should a public palette show how many people saved a copy? It would need a count kept on the original, since copies aren't tied to it.
-- When a design uses a public palette by "Use in this design" (without a copy), and the owner later makes it private, the design keeps its colors (they're in the design file), but the palette's name should no longer show. Worth confirming that's the behavior we want.
+- A design never depends on a palette: its colors are in the design file, so deleting a palette, or the owner of a public one making it private, changes nothing in designs made with it.

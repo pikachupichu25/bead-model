@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Palette</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='9' width='10' height='14' rx='4' fill='%234e79a7'/%3E%3Crect x='18' y='9' width='10' height='14' rx='4' fill='%23e15759'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="beads-page">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+        <span>Bead Bench</span>
+        <nav class="page-nav" id="page-nav" aria-label="Pages"></nav>
+      </div>
+    </header>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <main class="beads-app palette-page">
+      <section class="beads-card" aria-labelledby="palette-title">
+        <div class="ed-head">
+          <h2 id="palette-title">Palette</h2>
+          <span class="muted" id="palette-by"></span>
+        </div>
+        <p class="muted ed-help" id="palette-about">Loading…</p>
+        <div id="palette-body" hidden>
+          <div class="ed-row">
+            <label class="ed-field grow">
+              <span>Bead size</span>
+              <select id="size"></select>
+            </label>
+          </div>
+          <p class="muted beads-count" id="size-count"></p>
+          <ul class="color-grid" id="colors" aria-label="The palette's colors in this size"></ul>
+          <div class="palette-tools">
+            <button type="button" class="button primary" id="save-copy">Save a copy to my palettes</button>
+            <a class="button" href="./beads.html#browse">Browse more palettes</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./palette.ts"></script>
+  </body>
+</html>

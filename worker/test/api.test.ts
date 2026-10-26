@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
+import type { PublicPalette, PublicPalettePage } from "../../src/collection/my-palettes.js";
 import type { SyncPull, SyncPushResult } from "../../src/collection/sync.js";
 import type { Env } from "../env.js";
 import app from "../index.js";
@@ -149,6 +150,57 @@ describe("the API", () => {
     await push(alice, { palettes: [{ id: "my-sea", deleted: true, updated: 500 }] });
     all = await pull(alice);
     expect(all.palettes).toEqual([{ id: "my-sea", updated: 500, deleted: true }]);
+  });
+
+  it("shows public palettes to anyone, and never a private one", async () => {
+    const colors = [{ bead: "miyuki DB-0010" }];
+    await push(alice, {
+      palettes: [
+        { palette: { id: "my-open", name: "Open sea", description: "blue 100%", colors, visibility: "public" }, updated: 600 },
+        { palette: { id: "my-shut", name: "Shut sea", colors, visibility: "private" }, updated: 610 },
+      ],
+      profile: { name: "Alice", colorSource: "all", updated: 600 },
+    });
+    await push(bob, { palettes: [{ palette: { id: "my-open", name: "Bob's open", colors, visibility: "public" }, updated: 620 }] });
+
+    const list = async (query = "", cookie?: string) =>
+      (await (await call(`/api/palettes/public?q=${encodeURIComponent(query)}`, cookie ? { cookie } : {})).json()) as PublicPalettePage;
+    // Signed out, and as someone else: the same public list, newest first, with display names (Bob has none).
+    for (const cookie of [undefined, bob]) {
+      const page = await list("", cookie);
+      expect(page.palettes.map((p) => [p.palette.name, p.by])).toEqual([["Bob's open", ""], ["Open sea", "Alice"]]);
+      expect(JSON.stringify(page)).not.toContain("Shut sea");
+      expect(JSON.stringify(page)).not.toContain("alice@example.test");
+    }
+    expect((await list("SEA")).palettes.map((p) => p.palette.id)).toEqual(["my-open"]);
+    expect((await list("100%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
+    // "%" and "_" are plain characters, not wildcards.
+    expect((await list("%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
+    expect((await list("_")).palettes).toEqual([]);
+
+    const aliceId = (await list("Open sea")).palettes[0]!.owner;
+    const one = await call(`/api/palettes/public/${aliceId}/my-open`);
+    expect(((await one.json()) as PublicPalette).palette).toEqual({ id: "my-open", name: "Open sea", description: "blue 100%", colors });
+    // Private and missing look the same.
+    for (const path of [`${aliceId}/my-shut`, `${aliceId}/my-gone`, `nobody/my-open`]) {
+      expect((await call(`/api/palettes/public/${path}`, { cookie: bob })).status).toBe(404);
+    }
+
+    // Made private again, or deleted: gone at once.
+    await push(alice, { palettes: [{ palette: { id: "my-open", name: "Open sea", colors, visibility: "private" }, updated: 700 }] });
+    expect((await call(`/api/palettes/public/${aliceId}/my-open`)).status).toBe(404);
+    await push(bob, { palettes: [{ id: "my-open", deleted: true, updated: 710 }] });
+    expect((await list()).palettes).toEqual([]);
+  });
+
+  it("only lets the owner change a palette", async () => {
+    const colors = [{ bead: "miyuki DB-0010" }];
+    await push(alice, { palettes: [{ palette: { id: "my-mine", name: "Mine", colors, visibility: "private" }, updated: 800 }] });
+    // Bob pushing the same id makes his own palette; Alice's stays private.
+    await push(bob, { palettes: [{ palette: { id: "my-mine", name: "Taken?", colors, visibility: "public" }, updated: 900 }] });
+    const alicePalettes = (await pull(alice)).palettes.filter((p) => p.id === "my-mine");
+    expect(alicePalettes.map((p) => [p.palette?.name, p.palette?.visibility])).toEqual([["Mine", "private"]]);
+    expect((await call("/api/palettes/public", { method: "POST", cookie: bob, body: "{}" })).status).toBe(404);
   });
 
   it("drops rows it can't read, and refuses too many at once", async () => {
