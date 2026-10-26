@@ -35,7 +35,7 @@ import {
   trim,
 } from "../src/flat/grid.js";
 import { boundsRect, cellsAlong, defaultView, fitView, type Rect, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
-import { markNotMine, paletteForImport, renderColorChoices, beadKeys, renderPaletteBar, saveColorsAsPalette } from "./color-choices.js";
+import { markNotMine, paletteForImport, renderColorChoices, beadKeys, paintBead, type PaintColor, pickPaint, renderPaletteBar, saveColorsAsPalette } from "./color-choices.js";
 import { pickColorSource } from "./palette-picker.js";
 import { clearBackdrop, loadBackdrop, saveBackdrop } from "./flat-backdrop.js";
 import { drawScene } from "./flat-canvas.js";
@@ -84,7 +84,8 @@ const els = {
   title: $<HTMLInputElement>("f-title"),
   beadSize: $("bead-size"),
   beadList: $<HTMLUListElement>("bead-list"),
-  addCatalog: $<HTMLSelectElement>("add-catalog"),
+  addColors: $("add-colors"),
+  addFilter: $<HTMLInputElement>("add-filter"),
   addOwnColor: $<HTMLInputElement>("add-own-color"),
   addOwn: $<HTMLButtonElement>("add-own"),
   colorSource: $<HTMLButtonElement>("color-source"),
@@ -135,9 +136,9 @@ const ctx = els.canvas.getContext("2d")!;
 let myBeads: MyBeads = loadMyBeads();
 let colorSource: ColorSource = loadColorSource();
 /** The `beads:` entries behind the "+ Add a color" options, by option value. */
-let addChoices: unknown[] = [];
+let addChoices: PaintColor[] = [];
 /** The `beads:` entries behind the palette bar's swatches, by data-color. */
-let barColors: unknown[] = [];
+let barColors: PaintColor[] = [];
 
 type Tool = "paint" | "erase" | "fill" | "pick" | "select" | "hand";
 
@@ -169,6 +170,9 @@ interface Backdrop {
 /** A paint or erase stroke in progress. It works on a copy of the cells and is one undo step. */
 interface Stroke {
   mode: "paint" | "erase";
+  /** The bead painted with, and the design it's one of the beads of (with a picked color added). */
+  key?: string;
+  base: FlatDesign;
   cells: Map<string, string>;
   last: { x: number; y: number };
   changed: boolean;
@@ -184,6 +188,8 @@ const state: {
   size: { width: number; height: number };
   tool: Tool;
   paint: string;
+  /** A color picked to paint with that isn't one of the design's beads yet: it joins them when a stroke or fill uses it. */
+  picked?: PaintColor;
   hover?: Cell;
   stroke?: Stroke;
   pan?: { x: number; y: number; panX: number; panY: number };
@@ -257,6 +263,12 @@ function commit(next: FlatDesign): void {
 function setDesign(next: FlatDesign): void {
   state.design = next;
   state.resolved = resolve(next);
+  // A picked color that's now one of the beads (a stroke used it, or it was added): paint with that bead.
+  const pickedKey = state.picked && beadKeys(next.beads).get(JSON.stringify(state.picked.entry));
+  if (pickedKey) {
+    state.paint = pickedKey;
+    state.picked = undefined;
+  }
   if (!next.beads.has(state.paint)) state.paint = next.beads.keys().next().value ?? "";
   state.empty = emptyCells(next);
   if (state.empty.length === 0) state.showEmpty = false;
@@ -328,7 +340,7 @@ function renderPanel(): void {
     .map((key) => {
       const bead = resolved.beads.get(key);
       const problem = problemFor.get(key);
-      const on = key === state.paint;
+      const on = !state.picked && key === state.paint;
       return `<li><button type="button" role="radio" aria-checked="${on}" data-key="${esc(key)}" title="${esc(problem ?? bead?.label ?? key)}">
         <span class="swatch big" style="background:${esc(bead?.display.rgb ?? "#999")}"></span>
         <b>${esc(key)}</b>
@@ -338,11 +350,12 @@ function renderPanel(): void {
     })
     .join("");
 
+  const paint = { beads: design.beads, paint: state.paint, picked: state.picked };
   addChoices = renderColorChoices(
-    { colorSource: els.colorSource, addCatalog: els.addCatalog, usePalette: els.usePalette, addOwn: els.addOwn.parentElement!, count: els.onlyMineCount },
-    { source: colorSource, size: resolved.size, used: new Set([...design.beads.values()].map((v) => JSON.stringify(v))), myBeads, catalog },
+    { colorSource: els.colorSource, addColors: els.addColors, addFilter: els.addFilter, usePalette: els.usePalette, addOwn: els.addOwn.parentElement!, count: els.onlyMineCount },
+    { source: colorSource, size: resolved.size, myBeads, catalog, ...paint },
   );
-  barColors = renderPaletteBar(els.paletteBar, { source: colorSource, size: resolved.size, beads: design.beads, paint: state.paint, myBeads, catalog });
+  barColors = renderPaletteBar(els.paletteBar, { source: colorSource, size: resolved.size, myBeads, catalog, ...paint });
 
   els.beadTotal.textContent = list.total.count ? `Total ${amount(list.total.count, list.total.grams)}` : "";
 }
@@ -403,18 +416,9 @@ function isMine(entry: unknown): boolean {
   return isOwned(myBeads, state.resolved.size, entry);
 }
 
-function addBead(entry: unknown): void {
-  const key = nextFlatKey(state.design.beads.keys());
-  if (!key) {
-    showNotice("A design can have at most 62 bead colors.");
-    return;
-  }
-  state.paint = key;
-  commit({ ...state.design, beads: new Map([...state.design.beads, [key, entry]]) });
-}
-
 function selectBead(key: string): void {
   state.paint = key;
+  state.picked = undefined;
   if (state.tool !== "fill") setTool("paint");
   renderPanel();
 }
@@ -457,6 +461,8 @@ function draw(): void {
     frame = 0;
     const { design, resolved } = state;
     const colors = new Map([...resolved.beads].map(([k, b]) => [k, b.display.rgb]));
+    // A stroke with a picked color draws it under the key it's getting.
+    if (state.stroke?.key && state.picked && !colors.has(state.stroke.key)) colors.set(state.stroke.key, state.picked.rgb);
     drawScene(
       ctx,
       {
@@ -654,25 +660,23 @@ function closestToBackdrop(cell: Cell): string | undefined {
 
 /** Fills the area of one color under a point (§5). On an unlimited canvas it stays inside the painted area. */
 function fillAt(at: { x: number; y: number }): void {
-  if (!state.design.beads.has(state.paint)) {
-    showNotice("Add a bead color first.");
-    return;
-  }
+  const bead = paintWith(state.design);
+  if (!bead) return;
   const cell = cellAt(at.x, at.y, box());
   const area = state.design.bounds ?? paintedBounds(state.design);
   if (!area || !inBounds(area, cell)) {
     showNotice("Fill works inside the painted area. Outside it the canvas has no edges to stop at.");
     return;
   }
-  commit(floodFill(state.design, cell, state.paint));
+  const next = floodFill(bead.design, cell, bead.key);
+  // A picked color joins the beads only if the fill used it.
+  if (next.cells !== bead.design.cells && [...next.cells.values()].includes(bead.key)) commit(next);
 }
 
 function startStroke(mode: Stroke["mode"], at: { x: number; y: number }): void {
-  if (mode === "paint" && !state.design.beads.has(state.paint)) {
-    showNotice("Add a bead color first.");
-    return;
-  }
-  state.stroke = { mode, cells: new Map(state.design.cells), last: at, changed: false };
+  const bead = mode === "paint" ? paintWith(state.design) : undefined;
+  if (mode === "paint" && !bead) return;
+  state.stroke = { mode, key: bead?.key, base: bead?.design ?? state.design, cells: new Map(state.design.cells), last: at, changed: false };
   extendStroke(at);
 }
 
@@ -682,8 +686,8 @@ function extendStroke(at: { x: number; y: number }): void {
     const key = cellKey(cell.c, cell.h);
     if (stroke.mode === "erase") {
       stroke.changed = stroke.cells.delete(key) || stroke.changed;
-    } else if (canPaint(state.design, cell) && stroke.cells.get(key) !== state.paint) {
-      stroke.cells.set(key, state.paint);
+    } else if (stroke.key && canPaint(state.design, cell) && stroke.cells.get(key) !== stroke.key) {
+      stroke.cells.set(key, stroke.key);
       stroke.changed = true;
     }
   }
@@ -694,7 +698,8 @@ function extendStroke(at: { x: number; y: number }): void {
 function endStroke(): void {
   const stroke = state.stroke;
   state.stroke = undefined;
-  if (stroke?.changed) commit({ ...state.design, cells: stroke.cells });
+  // The stroke's design has the picked color among its beads, so it joins them only when the stroke painted.
+  if (stroke?.changed) commit({ ...stroke.base, cells: stroke.cells });
   else draw();
 }
 
@@ -954,14 +959,38 @@ els.beadList.addEventListener("click", (event) => {
   if (button) selectBead(button.dataset.key!);
 });
 
-els.addCatalog.addEventListener("change", () => {
-  const entry = els.addCatalog.value ? addChoices[Number(els.addCatalog.value)] : undefined;
-  if (entry !== undefined) addBead(entry);
+/**
+ * Paints with a color: one of the design's beads, or a color that isn't yet,
+ * which is only picked until a stroke or fill uses it. Fill stays fill.
+ */
+function pickColor(color: PaintColor): void {
+  const pick = pickPaint(color, state.design.beads);
+  if ("key" in pick) {
+    selectBead(pick.key);
+    return;
+  }
+  state.picked = pick.picked;
+  if (state.tool !== "fill") setTool("paint");
+  renderPanel();
+}
+
+/** The design with the color being painted with as one of its beads, and its key; a notice when there's none. */
+function paintWith<D extends { beads: Map<string, unknown> }>(design: D): { design: D; key: string } | undefined {
+  const bead = paintBead(design, { beads: design.beads, paint: state.paint, picked: state.picked }, nextFlatKey);
+  if (!bead) showNotice(state.picked ? "A design can have at most 62 bead colors." : "Pick a color to paint with first.");
+  return bead;
+}
+
+els.addColors.addEventListener("click", (event) => {
+  const index = (event.target as HTMLElement).closest<HTMLElement>("[data-color]")?.dataset.color;
+  const color = index === undefined ? undefined : addChoices[Number(index)];
+  if (color) pickColor(color);
 });
+els.addFilter.addEventListener("input", () => renderPanel());
 
 els.addOwn.addEventListener("click", () => {
   const rgb = els.addOwnColor.value;
-  addBead({ color: rgb, display: { rgb } });
+  pickColor({ entry: { color: rgb, display: { rgb } }, rgb, name: `own color ${rgb}` });
 });
 
 els.title.addEventListener("change", () => {
@@ -969,25 +998,20 @@ els.title.addEventListener("change", () => {
   if (title !== state.design.title) commit({ ...state.design, title });
 });
 
-// A palette color: paint with its bead, adding it to the design first if it isn't there yet. Fill stays fill.
+// A palette color: paint with it. It joins the beads when it's used.
 els.paletteBar.addEventListener("click", (event) => {
   const index = (event.target as HTMLElement).closest<HTMLElement>("[data-color]")?.dataset.color;
-  const entry = index === undefined ? undefined : barColors[Number(index)];
-  if (entry === undefined) return;
-  const key = beadKeys(state.design.beads).get(JSON.stringify(entry));
-  if (key) {
-    selectBead(key);
-    return;
-  }
-  addBead(entry);
-  if (state.tool !== "fill") setTool("paint");
+  const color = index === undefined ? undefined : barColors[Number(index)];
+  if (color) pickColor(color);
 });
 
 els.usePalette.addEventListener("click", () => {
+  const known = beadKeys(state.design.beads);
+  const unused = addChoices.filter((c) => !known.has(JSON.stringify(c.entry))).map((c) => c.entry);
   const room = 62 - state.design.beads.size;
-  if (addChoices.length > room) showNotice(`A design can have at most 62 bead colors, so only ${room} of these were added.`);
+  if (unused.length > room) showNotice(`A design can have at most 62 bead colors, so only ${room} of these were added.`);
   const beads = new Map(state.design.beads);
-  for (const entry of addChoices.slice(0, Math.max(0, room))) {
+  for (const entry of unused.slice(0, Math.max(0, room))) {
     const key = nextFlatKey(beads.keys());
     if (key) beads.set(key, entry);
   }

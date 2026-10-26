@@ -2233,7 +2233,7 @@ select:hover {
 }
 
 .swatch-strip .swatch,
-.palette-bar-color .swatch {
+.paint-color .swatch {
   display: inline-block;
 }
 
@@ -2322,13 +2322,31 @@ select:hover {
   white-space: nowrap;
 }
 
-.palette-bar-colors {
+/* Colors to paint with: under the beads, and in the palette bar. */
+.paint-colors {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.palette-bar-color {
+.add-colors .paint-colors {
+  max-height: 168px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.paint-note {
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.add-filter {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+}
+
+.paint-color {
   position: relative;
   display: inline-flex;
   padding: 2px;
@@ -2338,21 +2356,21 @@ select:hover {
   cursor: pointer;
 }
 
-.palette-bar-color:hover {
+.paint-color:hover {
   border-color: var(--line);
 }
 
-.palette-bar-color[aria-pressed="true"] {
+.paint-color[aria-pressed="true"] {
   border-color: var(--accent);
 }
 
-.palette-bar-color .swatch.big {
+.paint-color .swatch.big {
   width: 26px;
   height: 26px;
 }
 
 /* The bead's key, when the color is already in the design. */
-.palette-bar-key {
+.paint-color-key {
   position: absolute;
   right: -2px;
   bottom: -2px;
