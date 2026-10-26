@@ -93,10 +93,6 @@ function change(next: MyBeads): void {
   list = next;
   if (!saveMyBeads(list)) showNotice("This browser won't keep your beads (storage is off, as in a private window). Back up before you close the page.");
   render();
-void loadAccount().then((account) => {
-  userId = account?.user?.id;
-  if (userId) renderPalettes();
-});
 }
 
 // ---- Rendering ----
@@ -408,10 +404,6 @@ onMyBeadsChange(() => {
   list = loadMyBeads();
   palettes = loadMyPalettes();
   if (!els.mine.contains(document.activeElement) && !els.myPalettes.contains(document.activeElement)) render();
-void loadAccount().then((account) => {
-  userId = account?.user?.id;
-  if (userId) renderPalettes();
-});
 });
 
 // ---- Helpers ----
