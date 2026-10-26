@@ -20,8 +20,8 @@ export default defineConfig({
   // only loaded when the 3D view is opened.
   // The pages: Home (index.html), My profile (profile.html), the step viewer
   // (steps.html), the pattern editor (editor.html), the flat peyote designer
-  // (flat.html), the Nora net designer (nora.html), My beads (beads.html) and
-  // one public palette (palette.html).
+  // (flat.html), the Nora net designer (nora.html), My beads (beads.html),
+  // Palettes (palettes.html) and one public palette (palette.html).
   build: {
     chunkSizeWarningLimit: 700,
   },
@@ -41,6 +41,7 @@ export default defineConfig({
             flat: page("flat.html"),
             nora: page("nora.html"),
             beads: page("beads.html"),
+            palettes: page("palettes.html"),
             palette: page("palette.html"),
           },
         },

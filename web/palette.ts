@@ -20,7 +20,7 @@ const catalog = catalogFromFiles(
   Object.entries(catalogFiles).map(([path, text]) => ({ name: path.split("/").pop()!, text })),
 );
 
-renderNav("profile");
+renderNav("palettes");
 
 /** The bead size last picked on the My beads page, shared with it. */
 const SIZE_KEY = "bead-model:my-beads-size";
@@ -99,7 +99,7 @@ els.saveCopy.addEventListener("click", () => {
   const saved = saveMyPalettes(putMyPalette(list, copyPalette(shown.palette, id)));
   showNotice(
     saved
-      ? `Saved a copy to <a href="./beads.html#my-palettes">my palettes</a>. Pick it in <b>Colors from</b> in any design.`
+      ? `Saved a copy to <a href="./profile.html#palettes">my palettes</a>. Pick it in <b>Colors from</b> in any design.`
       : "This browser won't keep the palette (storage is off, as in a private window).",
   );
 });

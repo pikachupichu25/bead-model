@@ -96,7 +96,7 @@ function askName(suggested: string): Promise<string | undefined> {
   dialog.innerHTML = `<form method="dialog">
     <h2>Save as a palette</h2>
     <label class="ed-field"><span>Name</span><input type="text" name="name" maxlength="80" required /></label>
-    <p class="muted ed-help">The design's colors are kept as one of <a href="./beads.html#my-palettes">my palettes</a>, to pick in <b>Colors from</b> in any design. Only you see it unless you make it public.</p>
+    <p class="muted ed-help">The design's colors are kept as one of <a href="./profile.html#palettes">my palettes</a>, to pick in <b>Colors from</b> in any design. Only you see it unless you make it public.</p>
     <div class="dialog-actions"><span class="spacer"></span><button type="button" class="button" value="cancel">Cancel</button><button type="submit" class="button primary" value="save">Save</button></div>
   </form>`;
   document.body.append(dialog);

@@ -1,6 +1,6 @@
-// My profile: my designs (in every technique) and my beads, kept in this
-// browser. Designs can be opened, pinned and deleted here; beads are changed
-// on the My beads page.
+// My profile: my designs (in every technique), my beads and my palettes, kept
+// in this browser. Designs can be opened, pinned and deleted here, and palettes
+// renamed, shared and deleted; beads are changed on the My beads page.
 
 import { catalogFromFiles } from "../src/catalog/catalog.js";
 import {
@@ -16,11 +16,15 @@ import {
   setPinned,
 } from "../src/collection/designs.js";
 import { groupMyBeads } from "../src/collection/my-beads.js";
+import { findMyPalette, putMyPalette, removeMyPalette } from "../src/collection/my-palettes.js";
+import { loadAccount } from "./account.js";
 import { designCard, esc } from "./design-card.js";
 import { loadMyDesigns, onMyDesignsChange, saveMyDesigns } from "./designs-store.js";
 import { newDesignUrl } from "./examples.js";
 import { loadMyBeads, onMyBeadsChange } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { addPaletteToMyBeads, myPaletteHead, paletteItem, publicLink, readSize, sizeOptions, writeSize } from "./palette-list.js";
+import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
 import { loadProfileName, saveProfileName } from "./profile-store.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
@@ -44,8 +48,12 @@ const els = {
   stats: $("stats"),
   tabDesigns: $<HTMLButtonElement>("tab-designs"),
   tabBeads: $<HTMLButtonElement>("tab-beads"),
+  tabPalettes: $<HTMLButtonElement>("tab-palettes"),
   panelDesigns: $("panel-designs"),
   panelBeads: $("panel-beads"),
+  panelPalettes: $("panel-palettes"),
+  paletteSize: $<HTMLSelectElement>("palette-size"),
+  paletteList: $<HTMLUListElement>("palette-list"),
   kindFilter: $("kind-filter"),
   filter: $<HTMLInputElement>("filter"),
   designList: $("design-list"),
@@ -55,12 +63,16 @@ const els = {
 
 let designs = loadMyDesigns();
 let beads = loadMyBeads();
+let palettes = loadMyPalettes();
 let kind: DesignKind | "all" = "all";
+/** Who is signed in: only they can make a palette public. */
+let userId: string | undefined;
 
 function render(): void {
   renderHead();
   renderDesigns();
   renderBeads();
+  renderPalettes();
 }
 
 function renderHead(): void {
@@ -71,6 +83,7 @@ function renderHead(): void {
   els.stats.textContent = `${n} design${n === 1 ? "" : "s"} · ${b} bead${b === 1 ? "" : "s"} · ${designs.pinned.length} pinned`;
   els.tabDesigns.textContent = `My designs (${n})`;
   els.tabBeads.textContent = `My beads (${b})`;
+  els.tabPalettes.textContent = `My palettes (${palettes.palettes.length})`;
 }
 
 function renderDesigns(): void {
@@ -115,18 +128,36 @@ function renderBeads(): void {
     : `<p class="muted feed-empty">No beads yet. <a href="./beads.html">Add the beads you have</a>, and the designers can build from only those.</p>`;
 }
 
+function renderPalettes(): void {
+  const context = { size: els.paletteSize.value, catalog, myBeads: beads };
+  els.paletteList.innerHTML = palettes.palettes.length
+    ? palettes.palettes.map((p) => paletteItem(p, { ...context, head: myPaletteHead(p, userId !== undefined) })).join("")
+    : `<li class="muted feed-empty">No palettes yet. Save one from a design, or <a href="./palettes.html">save a copy</a> of a preset or a public one.</li>`;
+}
+
+function changePalettes(next: typeof palettes): void {
+  palettes = next;
+  if (!saveMyPalettes(palettes)) showNotice("This browser won't keep your palettes (storage is off, as in a private window).");
+  render();
+}
+
 // ---- Tabs ----
 
-function setTab(tab: "designs" | "beads"): void {
+type Tab = "designs" | "beads" | "palettes";
+
+function setTab(tab: Tab): void {
   els.tabDesigns.setAttribute("aria-selected", String(tab === "designs"));
   els.tabBeads.setAttribute("aria-selected", String(tab === "beads"));
+  els.tabPalettes.setAttribute("aria-selected", String(tab === "palettes"));
   els.panelDesigns.hidden = tab !== "designs";
   els.panelBeads.hidden = tab !== "beads";
-  history.replaceState(null, "", tab === "beads" ? "#beads" : location.pathname);
+  els.panelPalettes.hidden = tab !== "palettes";
+  history.replaceState(null, "", tab === "designs" ? location.pathname : `#${tab}`);
 }
 
 els.tabDesigns.addEventListener("click", () => setTab("designs"));
 els.tabBeads.addEventListener("click", () => setTab("beads"));
+els.tabPalettes.addEventListener("click", () => setTab("palettes"));
 
 // ---- Events ----
 
@@ -160,14 +191,59 @@ els.designList.addEventListener("click", (event) => {
   render();
 });
 
+els.paletteSize.addEventListener("change", () => {
+  writeSize(els.paletteSize.value);
+  renderPalettes();
+});
+
+els.paletteList.addEventListener("click", async (event) => {
+  const target = event.target as HTMLElement;
+  const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+  const palette = findMyPalette(palettes, target.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
+  if (!action || !palette) return;
+  if (action === "add") {
+    const added = addPaletteToMyBeads(palette, els.paletteSize.value, catalog);
+    beads = loadMyBeads();
+    showNotice(added === undefined ? "This browser won't keep your beads (storage is off, as in a private window)." : `Added ${added} bead${added === 1 ? "" : "s"} from ${esc(palette.name)} to my beads.`);
+    render();
+  } else if (action === "delete") {
+    if (confirm(`Delete the palette “${palette.name}”?${palette.visibility === "public" ? " It stops being public too." : ""}`)) changePalettes(removeMyPalette(palettes, palette.id));
+  } else if (action === "link") {
+    const link = publicLink(userId ?? "", palette.id);
+    try {
+      await navigator.clipboard.writeText(link);
+      showNotice(`Copied the link to “${esc(palette.name)}”. Anyone with it can see the palette and save a copy.`);
+    } catch {
+      showNotice(`The link: ${esc(link)}`);
+    }
+  }
+});
+
+els.paletteList.addEventListener("change", (event) => {
+  const el = event.target as HTMLInputElement | HTMLSelectElement;
+  const palette = findMyPalette(palettes, el.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
+  if (!palette) return;
+  if (el.dataset.field === "name") {
+    const name = el.value.trim();
+    if (name) changePalettes(putMyPalette(palettes, { ...palette, name }));
+    else el.value = palette.name;
+  } else if (el.dataset.field === "visibility" && userId) {
+    const visibility = el.value === "public" ? "public" : "private";
+    changePalettes(putMyPalette(palettes, { ...palette, visibility }));
+    if (visibility === "public") showNotice(`“${esc(palette.name)}” is public: anyone can find it on the <a href="./palettes.html">Palettes</a> page, with your display name. Copy its link to share it.`);
+  }
+});
+
 onMyDesignsChange(() => {
   designs = loadMyDesigns();
   if (document.activeElement !== els.name) els.name.value = loadProfileName();
   render();
 });
+// My beads, my palettes or the color source changed in another tab or a sync. Not while a palette's name is being typed.
 onMyBeadsChange(() => {
   beads = loadMyBeads();
-  render();
+  palettes = loadMyPalettes();
+  if (!els.paletteList.contains(document.activeElement)) render();
 });
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted) return;
@@ -187,5 +263,11 @@ function showNotice(html: string): void {
 // ---- Start ----
 
 els.name.value = loadProfileName();
+els.paletteSize.innerHTML = sizeOptions(catalog, readSize());
+if (!els.paletteSize.value) els.paletteSize.selectedIndex = 0;
 render();
-if (location.hash === "#beads") setTab("beads");
+if (location.hash === "#beads" || location.hash === "#palettes") setTab(location.hash.slice(1) as Tab);
+void loadAccount().then((account) => {
+  userId = account?.user?.id;
+  if (userId) renderPalettes();
+});

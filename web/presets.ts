@@ -12,7 +12,7 @@ const files = import.meta.glob<string>("../catalog/palettes/*.yaml", {
 export const presetPalettes = palettesFromFiles(Object.entries(files).map(([path, text]) => ({ name: path.split("/").pop()!, text })));
 
 /** What the "Colors from" select's "Browse palettes…" option sends people to. */
-export const BROWSE_PALETTES = "./beads.html#browse";
+export const BROWSE_PALETTES = "./palettes.html";
 
 /** The options of a "Colors from" select: the presets, then my own palettes, then a way to find more. */
 export function colorSourceOptions(selected: ColorSource, mine: Palette[] = []): string {

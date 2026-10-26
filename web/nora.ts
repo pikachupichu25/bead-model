@@ -839,7 +839,7 @@ els.savePalette.addEventListener("click", async () => {
   if (!saved) return;
   showNotice(
     saved.saved
-      ? `Saved “${esc(saved.name)}” to <a href="./beads.html#my-palettes">my palettes</a>. Pick it in Colors from in any design.`
+      ? `Saved “${esc(saved.name)}” to <a href="./profile.html#palettes">my palettes</a>. Pick it in Colors from in any design.`
       : "This browser won't keep the palette (storage is off, as in a private window).",
   );
   renderPanel();

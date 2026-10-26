@@ -1,6 +1,6 @@
 // "My beads": the beads someone has at home. Kept in this browser, exported as
 // readable text, and offered by the designers when "Colors from" is My beads.
-// Also lists the preset palettes, to add a palette's colors in one go.
+// My beads in a size can be saved as a palette; palettes are on the Palettes page and My profile.
 
 import { catalogFromFiles } from "../src/catalog/catalog.js";
 import {
@@ -19,26 +19,19 @@ import {
   updateOwned,
 } from "../src/collection/my-beads.js";
 import {
-  copyPalette,
   findMyPalette,
   mergeMyPalettes,
-  type MyPalette,
   type MyPalettes,
   myPalettesFromJson,
   newPaletteId,
   paletteFromEntries,
-  type PublicPalette,
-  type PublicPalettePage,
   putMyPalette,
-  removeMyPalette,
 } from "../src/collection/my-palettes.js";
-import { type Palette, paletteColorsFor } from "../src/collection/palettes.js";
 import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.js";
-import { loadAccount } from "./account.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
 import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
-import { presetPalettes } from "./presets.js";
+import { MY_PALETTES } from "./palette-list.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -75,27 +68,15 @@ const els = {
   exportDownload: $<HTMLButtonElement>("export-download"),
   backup: $<HTMLButtonElement>("backup"),
   restore: $<HTMLInputElement>("restore-file"),
-  palettes: $<HTMLUListElement>("palettes"),
-  palettesSize: $("palettes-size"),
-  myPalettes: $<HTMLUListElement>("my-palette-list"),
   paletteFromMine: $<HTMLButtonElement>("palette-from-mine"),
-  browseSearch: $<HTMLInputElement>("browse-search"),
-  browseNote: $("browse-note"),
-  browseList: $<HTMLUListElement>("browse-list"),
-  browseMore: $<HTMLButtonElement>("browse-more"),
 };
 
 let list: MyBeads = loadMyBeads();
 let palettes: MyPalettes = loadMyPalettes();
-/** Who is signed in: only they can make a palette public. */
-let userId: string | undefined;
-/** Browse palettes: what's shown, and where the next page starts. */
-const browse: { palettes: PublicPalette[]; next?: number; request: number } = { palettes: [], request: 0 };
 
 function changePalettes(next: MyPalettes): void {
   palettes = next;
   if (!saveMyPalettes(palettes)) showNotice("This browser won't keep your palettes (storage is off, as in a private window).");
-  renderPalettes();
 }
 
 function change(next: MyBeads): void {
@@ -110,7 +91,6 @@ function render(): void {
   renderSizes();
   renderColors();
   renderMine();
-  renderPalettes();
 }
 
 function renderSizes(): void {
@@ -138,6 +118,7 @@ function renderSizes(): void {
 
 function renderColors(): void {
   const size = resolveBeadSize(catalog, els.size.value);
+  els.paletteFromMine.disabled = ownedColorsFor(list, size).length === 0;
   const query = els.search.value.trim().toLowerCase();
   const all = catalogColors(size);
   const shown = all.filter((c) => !query || c.entry.toLowerCase().includes(query) || c.name.toLowerCase().includes(query));
@@ -196,170 +177,12 @@ function renderMine(): void {
     .join("");
 }
 
-/** A preset, one of my palettes, or a browsed one ("public:<index>"), by the id its item carries. */
-function paletteById(id: string): Palette | undefined {
-  if (id.startsWith("public:")) return browse.palettes[Number(id.slice(7))]?.palette;
-  return presetPalettes.find((p) => p.id === id) ?? findMyPalette(palettes, id);
-}
-
-/** A palette's colors in the picked size, as the beads they add to My beads. */
-function paletteBeads(palette: Palette): { bead: OwnedBead; name: string; rgb: string; code: string }[] {
-  const size = els.size.value;
-  return paletteColorsFor(palette, resolveBeadSize(catalog, size), catalog).map((c) => ({
-    bead: typeof c.entry === "string" ? { kind: "catalog", bead: c.entry } : { kind: "own", size, name: c.name, rgb: c.rgb },
-    name: c.name,
-    rgb: c.rgb,
-    code: c.code,
-  }));
-}
-
-function renderPalettes(): void {
-  els.palettesSize.textContent = `in ${resolveBeadSize(catalog, els.size.value).label}`;
-  els.paletteFromMine.disabled = ownedColorsFor(list, resolveBeadSize(catalog, els.size.value)).length === 0;
-  els.myPalettes.innerHTML = palettes.palettes.length
-    ? palettes.palettes.map((p) => paletteItem(p, myPaletteTools(p))).join("")
-    : `<li class="muted mine-empty">None yet. Save one from a design (<b>Save these colors as a palette…</b> under its beads), or from my beads above.</li>`;
-  els.palettes.innerHTML = presetPalettes.map((p) => paletteItem(p, `<b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span>`)).join("");
-  renderBrowse();
-}
-
-function renderBrowse(): void {
-  els.browseList.innerHTML = browse.palettes
-    .map((p, i) =>
-      paletteItem(
-        p.palette,
-        `<a href="${esc(publicLink(p.owner, p.palette.id))}"><b>${esc(p.palette.name)}</b></a> <span class="muted">by ${esc(p.by || "a beader")}${p.palette.description ? ` · ${esc(p.palette.description)}` : ""}</span>`,
-        `public:${i}`,
-        `<button type="button" class="button small" data-action="copy">Save a copy</button>`,
-      ),
-    )
-    .join("");
-  els.browseMore.hidden = browse.next === undefined;
-}
-
-/** Fetches a page of public palettes: the first for a new search, or the next one. */
-async function loadBrowse(more = false): Promise<void> {
-  const query = els.browseSearch.value.trim();
-  const request = ++browse.request;
-  const cursor = more && browse.next !== undefined ? `&cursor=${browse.next}` : "";
-  const page = await fetch(`/api/palettes/public?q=${encodeURIComponent(query)}${cursor}`, { credentials: "same-origin" })
-    .then(async (res) => (res.ok && res.headers.get("content-type")?.includes("json") ? ((await res.json()) as PublicPalettePage) : undefined))
-    .catch(() => undefined);
-  if (request !== browse.request) return; // a newer search is on its way
-  if (!page) {
-    els.browseNote.textContent = "Public palettes can't be reached from here (the site's server isn't running).";
-    return;
-  }
-  browse.palettes = more ? [...browse.palettes, ...page.palettes] : page.palettes;
-  browse.next = page.next;
-  els.browseNote.innerHTML = browse.palettes.length
-    ? "Palettes other people made public. Save a copy to use one in <b>Colors from</b>."
-    : query
-      ? `No public palette matches “${esc(query)}”.`
-      : "No public palettes yet. Make one of yours public to be the first.";
-  renderBrowse();
-}
-
-/** One palette: its head, its swatches in the picked size, "Add these to My beads", and any more buttons. */
-function paletteItem(p: Palette, head: string, key = p.id, more = ""): string {
-  const beads = paletteBeads(p);
-  const missing = beads.filter((b) => !hasOwned(list, b.bead)).length;
-  return `<li class="palette-item" data-id="${esc(key)}">
-    <div class="palette-head">${head}</div>
-    <ul class="palette-swatches">${beads
-      .map((b) => {
-        const on = hasOwned(list, b.bead);
-        return `<li title="${esc(`${b.code} ${b.name}${on ? " · mine" : ""}`)}"><span class="swatch big${on ? " mine" : ""}" style="background:${esc(b.rgb)}"></span></li>`;
-      })
-      .join("")}</ul>
-    <span class="palette-tools">
-      <button type="button" class="button small" data-action="add"${missing ? "" : " disabled"}>${missing ? `Add ${missing === beads.length ? "these" : `the ${missing} I don't have`} to My beads` : "All in My beads"}</button>
-      ${more}
-    </span>
-  </li>`;
-}
-
-/** My palette's name, who may see it, its link when public, and delete. */
-function myPaletteTools(p: MyPalette): string {
-  const shareable = userId !== undefined;
-  return `<input type="text" class="palette-name" data-field="name" value="${esc(p.name)}" maxlength="80" aria-label="Palette name" />
-    <span class="palette-tools">
-      <select data-field="visibility" aria-label="Who can see ${esc(p.name)}"${shareable ? "" : ' disabled title="Sign in to share"'}>
-        <option value="private"${p.visibility === "private" ? " selected" : ""}>Private</option>
-        <option value="public"${p.visibility === "public" ? " selected" : ""}>Public</option>
-      </select>
-      ${shareable ? "" : `<span class="muted">Sign in to share</span>`}
-      ${shareable && p.visibility === "public" ? `<button type="button" class="button small" data-action="link">Copy link</button>` : ""}
-      <button type="button" class="icon-button" data-action="delete" aria-label="Delete ${esc(p.name)}" title="Delete">✕</button>
-    </span>`;
-}
-
-/** The link that shows a public palette to anyone. */
-function publicLink(owner: string, id: string): string {
-  return new URL(`./palette.html?owner=${encodeURIComponent(owner)}&id=${encodeURIComponent(id)}`, location.href).href;
-}
-
-function paletteLink(id: string): string {
-  return publicLink(userId ?? "", id);
-}
-
 // ---- Events ----
 
 els.size.addEventListener("change", () => {
   writeSize(els.size.value);
   renderColors();
-  renderPalettes();
 });
-
-for (const container of [els.palettes, els.myPalettes, els.browseList]) {
-  container.addEventListener("click", async (event) => {
-    const target = event.target as HTMLElement;
-    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
-    const palette = paletteById(target.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
-    if (!action || !palette) return;
-    if (action === "add") {
-      const beads = paletteBeads(palette).filter((b) => !hasOwned(list, b.bead));
-      change(beads.reduce((l, b) => addOwned(l, b.bead), list));
-      showNotice(`Added ${beads.length} bead${beads.length === 1 ? "" : "s"} from ${esc(palette.name)}.`);
-    } else if (action === "copy") {
-      let id = newPaletteId();
-      while (findMyPalette(palettes, id)) id = newPaletteId();
-      changePalettes(putMyPalette(palettes, copyPalette(palette, id)));
-      showNotice(`Saved a copy of “${esc(palette.name)}” to <a href="#my-palettes">my palettes</a>. Pick it in Colors from in any design.`);
-    } else if (action === "delete") {
-      if (confirm(`Delete the palette “${palette.name}”?`)) changePalettes(removeMyPalette(palettes, palette.id));
-    } else if (action === "link") {
-      try {
-        await navigator.clipboard.writeText(paletteLink(palette.id));
-        showNotice(`Copied the link to “${esc(palette.name)}”. Anyone with it can see the palette and save a copy.`);
-      } catch {
-        showNotice(`The link: ${esc(paletteLink(palette.id))}`);
-      }
-    }
-  });
-}
-
-els.myPalettes.addEventListener("change", (event) => {
-  const el = event.target as HTMLInputElement | HTMLSelectElement;
-  const palette = findMyPalette(palettes, el.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
-  if (!palette) return;
-  if (el.dataset.field === "name") {
-    const name = el.value.trim();
-    if (name) changePalettes(putMyPalette(palettes, { ...palette, name }));
-    else el.value = palette.name;
-  } else if (el.dataset.field === "visibility" && userId) {
-    const visibility = el.value === "public" ? "public" : "private";
-    changePalettes(putMyPalette(palettes, { ...palette, visibility }));
-    if (visibility === "public") showNotice(`“${esc(palette.name)}” is public: anyone can find it in Browse palettes, with your display name. Copy its link to share it.`);
-  }
-});
-
-let browseTimer = 0;
-els.browseSearch.addEventListener("input", () => {
-  clearTimeout(browseTimer);
-  browseTimer = window.setTimeout(() => void loadBrowse(), 250);
-});
-els.browseMore.addEventListener("click", () => void loadBrowse(true));
 
 els.paletteFromMine.addEventListener("click", () => {
   const size = resolveBeadSize(catalog, els.size.value);
@@ -368,7 +191,9 @@ els.paletteFromMine.addEventListener("click", () => {
   let id = newPaletteId();
   while (findMyPalette(palettes, id)) id = newPaletteId();
   const palette = paletteFromEntries(name, ownedColorsFor(list, size).map((c) => c.entry), id);
-  if (palette) changePalettes(putMyPalette(palettes, palette));
+  if (!palette) return;
+  changePalettes(putMyPalette(palettes, palette));
+  showNotice(`Saved “${esc(palette.name)}” to <a href="${MY_PALETTES}">my palettes</a>. Pick it in Colors from in any design.`);
 });
 els.search.addEventListener("input", renderColors);
 els.mineFilter.addEventListener("input", renderMine);
@@ -407,7 +232,6 @@ els.mine.addEventListener("click", (event) => {
     writeSize(size);
     els.search.value = "";
     renderColors();
-    renderPalettes();
     return;
   }
   if (target.closest<HTMLElement>("[data-action]")?.dataset.action !== "remove") return;
@@ -470,7 +294,7 @@ els.restore.addEventListener("change", async () => {
 onMyBeadsChange(() => {
   list = loadMyBeads();
   palettes = loadMyPalettes();
-  if (!els.mine.contains(document.activeElement) && !els.myPalettes.contains(document.activeElement)) render();
+  if (!els.mine.contains(document.activeElement)) render();
 });
 
 // ---- Helpers ----
@@ -517,8 +341,3 @@ function esc(s: string): string {
 }
 
 render();
-void loadBrowse();
-void loadAccount().then((account) => {
-  userId = account?.user?.id;
-  if (userId) renderPalettes();
-});

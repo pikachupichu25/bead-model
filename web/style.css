@@ -2108,6 +2108,11 @@ select:hover {
   margin-top: 10px;
 }
 
+/* The Palettes page: one card across the page. */
+.palettes-app {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* The page for one public palette (palette.html). */
 .palette-page {
   grid-template-columns: minmax(0, 760px);

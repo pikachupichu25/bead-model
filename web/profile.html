@@ -34,6 +34,7 @@
       <div class="profile-tabs" role="tablist" aria-label="Profile">
         <button type="button" role="tab" id="tab-designs" aria-selected="true" aria-controls="panel-designs">My designs</button>
         <button type="button" role="tab" id="tab-beads" aria-selected="false" aria-controls="panel-beads">My beads</button>
+        <button type="button" role="tab" id="tab-palettes" aria-selected="false" aria-controls="panel-palettes">My palettes</button>
       </div>
 
       <section class="feed-section" id="panel-designs" role="tabpanel" aria-labelledby="tab-designs">
@@ -52,6 +53,19 @@
           <a class="button small primary" href="./beads.html">Add or change beads</a>
         </div>
         <div id="bead-groups"></div>
+      </section>
+
+      <section class="feed-section palettes-card" id="panel-palettes" role="tabpanel" aria-labelledby="tab-palettes" hidden>
+        <div class="feed-head">
+          <label class="ed-field">
+            <span>Shown in</span>
+            <select id="palette-size"></select>
+          </label>
+          <span class="spacer"></span>
+          <a class="button small" href="./palettes.html">Find public palettes</a>
+        </div>
+        <p class="muted ed-help">Palettes I saved: from a design (<b>Save these colors as a palette…</b> under its beads), from <a href="./beads.html">my beads</a>, or as a copy of someone's. Pick one in <b>Colors from</b> in any design. They're private unless I make them public, which needs me to be signed in; then anyone can find them on the <a href="./palettes.html">Palettes</a> page, with my name.</p>
+        <ul class="palette-list" id="palette-list"></ul>
       </section>
     </main>
 

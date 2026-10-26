@@ -13,7 +13,10 @@ A **palette** is a short, named set of bead colors that go well together, such a
 - With a palette picked, the **+ Add a color** list shows only that palette's colors in the design's bead size, and **+ Use all N … colors** adds all of them at once (up to a design's 62 colors).
 - The picture import (`web/flat-import.ts`) gets **Palette: …** as another **Colors from** option while a palette is picked in the designer, and starts on it.
 - In the add list, a palette color that's also in My beads is marked **mine**. Once My beads has anything in it, beads in the piece that aren't in it are marked **not mine**, so users see what to buy.
-- On the My beads page, the **Palettes** card shows every palette in the bead size picked at the top, with the colors I have ringed, and **Add these to My beads** (or "Add the N I don't have").
+- Palettes have pages of their own (moved there from the My beads page, where they first were):
+  - **Palettes** in the top bar ([`web/palettes.html`](../web/palettes.html)): public palettes to search, then the presets, each shown in a bead size picked at the top, with the colors I have ringed, **Add these to My beads** (or "Add the N I don't have") and **Save a copy**.
+  - **My profile → My palettes** (`profile.html#palettes`): my own palettes, to rename, share, copy the link to, delete, or add to My beads.
+  - The shared list code is [`web/palette-list.ts`](../web/palette-list.ts).
 
 ## Where palettes come from
 
@@ -28,7 +31,7 @@ Every palette has a `visibility`: **private** or **public**.
 | | Private | Public |
 |---|---|---|
 | Who sees it | Only its owner | Anyone, signed in or not |
-| Where it shows | The owner's **Colors from** menu and My beads page | Also in **Browse palettes**, and at its own link (`palette.html?owner=<account id>&id=<palette id>`) |
+| Where it shows | The owner's **Colors from** menu and **My profile → My palettes** | Also on the **Palettes** page, and at its own link (`palette.html?owner=<account id>&id=<palette id>`) |
 | Who can change it | The owner | The owner. Others can only **Save a copy**, which makes a new private palette of their own |
 | Default | Yes: every new palette starts private | Only when the owner picks it |
 
@@ -90,7 +93,7 @@ Follows the My beads split: plain data and logic in `src/`, browser code in `web
 | [`web/color-choices.ts`](../web/color-choices.ts) | The **Colors from** select, the add list and **Use all**, shared by the Flat and Nora designers. |
 | `web/flat.ts`, `web/nora.ts`, `web/editor.ts` | Use the above. The Circular editor filters its product picker by `offeredProducts`. |
 | `web/flat-import.ts` | A `palette` option in `allowedColors`. |
-| `web/beads.ts`, `web/beads.html` | The **Palettes** card. |
+| `web/palettes.ts`, `web/profile.ts`, `web/palette-list.ts` | The Palettes page and My profile's My palettes tab, with the list code they share. |
 | [`test/palettes.test.ts`](../test/palettes.test.ts) | Reading, the shipped presets (`checkPalettes` finds nothing), size matching, the ΔE limit, own colors, duplicates, and the color source. |
 
 Keeping `offeredColors` the single place that decides "which colors can I add" means the designers and the import stay in step.
@@ -105,15 +108,15 @@ Keeping `offeredColors` the single place that decides "which colors can I add" m
 4. **Flat designer.** The **Colors from** select, the filtered add list, **Use whole palette**, and the mine / not-mine marks. This is the page that benefits most, so do it first and check it in the browser.
 5. **Picture import.** Add the palette option to `allowedColors`, defaulting to the designer's color source when the dialog opens (as it does for My beads today).
 6. **Nora and Circular designers.** Same select. Circular's `productOptions` filters by a set of product codes, so it gets the palette's codes for its size.
-7. **My beads page.** The Palettes card with **Add these to My beads**.
+7. **Palettes in the app.** First a card on the My beads page; now the Palettes page and My profile's My palettes tab (see [What users get](#what-users-get)).
 8. **Docs.** Update this note to "as built", and point to it from `my-beads-storage.md` and the README.
 
 ### Phase 2: my own palettes (built)
 
-1. **Save a palette.** "Save these colors as a palette…" under the beads in the Flat and Nora designers keeps the design's beads (products stay products, own colors keep their color). On the My beads page, **+ New palette from my beads in this size** does the same with my beads in the picked size. This replaced "build one by picking swatches": the bead grid already is the way to pick colors, so a palette is made from what's picked there. My palettes appear in **Colors from** under "My palettes", in every designer. Their ids start with `my-`, which presets may not use.
-2. **Storage.** `bead-model:my-palettes` in localStorage, `{ "version": 1, "palettes": [...] }`, same format as the preset YAML, with `visibility` on each palette ([`src/collection/my-palettes.ts`](../src/collection/my-palettes.ts), [`web/palettes-store.ts`](../web/palettes-store.ts)). The My beads **Back up (.json)** file holds them next to the beads, and **Restore…** adds the ones this browser doesn't have. Restoring always brings palettes in as `private`: making one public is a choice made on this account, not something a file can do. The My beads page lists them under **My palettes**, to rename, delete or make public.
+1. **Save a palette.** "Save these colors as a palette…" under the beads in the Flat and Nora designers keeps the design's beads (products stay products, own colors keep their color). On the My beads page, **Save my beads in this size as a palette** does the same with my beads in the picked size. This replaced "build one by picking swatches": the bead grid already is the way to pick colors, so a palette is made from what's picked there. My palettes appear in **Colors from** under "My palettes", in every designer. Their ids start with `my-`, which presets may not use.
+2. **Storage.** `bead-model:my-palettes` in localStorage, `{ "version": 1, "palettes": [...] }`, same format as the preset YAML, with `visibility` on each palette ([`src/collection/my-palettes.ts`](../src/collection/my-palettes.ts), [`web/palettes-store.ts`](../web/palettes-store.ts)). The My beads **Back up (.json)** file holds them next to the beads, and **Restore…** adds the ones this browser doesn't have. Restoring always brings palettes in as `private`: making one public is a choice made on this account, not something a file can do. **My profile → My palettes** lists them, to rename, delete or make public.
 3. **Sync.** A `palettes` table ([`migrations/0004_palettes.sql`](../migrations/0004_palettes.sql)), one row per palette keyed by owner + id, with `updated_at`, `synced_at` and `deleted` like `owned_beads`, the colors as JSON, plus `"visibility" text not null default 'private' check ("visibility" in ('private', 'public'))`. The column has the same name and values as the browser format, so sync copies it as it is, with no translation. A deleted palette is stored as private. `visibility` syncs like any other field (the newer change wins). `designs` already uses the same `visibility` column ([`0003_designs_visibility.sql`](../migrations/0003_designs_visibility.sql) replaced its `is_public` flag), so both use the same word.
-4. **Privacy control.** A **Private / Public** select on each of my palettes on the My beads page, turned off with "Sign in to share" when signed out. Public palettes get a **Copy link** button (the link works once phase 3's palette page is built).
+4. **Privacy control.** A **Private / Public** select on each of my palettes in My profile → My palettes, turned off with "Sign in to share" when signed out. Public palettes get a **Copy link** button (the link works once phase 3's palette page is built).
 5. **Color source on the account.** [`migrations/0005_color_source.sql`](../migrations/0005_color_source.sql) adds `profiles.color_source` (1 → `"mine"`, 0 → `"all"`). `only_my_beads` stays, kept equal to `color_source = 'mine'`, and the profile still carries `onlyMyBeads` for pages from before the color source; a push with only `onlyMyBeads` sets the source from it. In the browser the color source now syncs itself, and `bead-model:only-my-beads` is only still written for the moved-site import.
 
 ### Phase 3: public palettes (built)
@@ -124,7 +127,7 @@ Keeping `offeredColors` the single place that decides "which colors can I add" m
    - Both serve only rows with `visibility = 'public'` and `deleted = 0`.
    - Only the owner's sync route can change `visibility`. The public routes are read-only.
 2. **Index.** `create index "palettes_public" on "palettes" ("visibility", "deleted", "updated_at")` for the Browse list, in `0004_palettes.sql` with the table.
-3. **Browse palettes** on the My beads page (`beads.html#browse`), which **Colors from**'s "Browse palettes…" opens from any designer: search by name, swatches in the picked bead size, **Add these to My beads** and **Save a copy**. Changed from the plan: there's no **Use in this design** without saving, since a color source has to name a palette this browser keeps; saving a copy is one click and keeps working if the owner makes theirs private.
+3. **Public palettes** on the Palettes page (`palettes.html`), which **Colors from**'s "Browse palettes…" opens from any designer: search by name, swatches in the picked bead size, **Add these to My beads** and **Save a copy**. Changed from the plan: there's no **Use in this design** without saving, since a color source has to name a palette this browser keeps; saving a copy is one click and keeps working if the owner makes theirs private.
 4. **Palette page** [`web/palette.html`](../web/palette.html) for shared links: the colors matched in any bead size (with which ones are in My beads), and **Save a copy**. Signed out, the copy is kept in the browser like any of my palettes, and syncs once they sign in.
 5. **Tests.** [`worker/test/api.test.ts`](../worker/test/api.test.ts): a private palette never appears in either public route, signed out or as another account; private, deleted and missing give the same 404; making a palette private again or deleting it hides it at once; no email is ever in a response; and another account pushing the same palette id makes its own palette, leaving the owner's as it was.
 
