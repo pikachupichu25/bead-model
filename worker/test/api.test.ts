@@ -156,7 +156,7 @@ describe("the API", () => {
     const colors = [{ bead: "miyuki DB-0010" }];
     await push(alice, {
       palettes: [
-        { palette: { id: "my-open", name: "Open sea", description: "blue 100%", colors, visibility: "public" }, updated: 600 },
+        { palette: { id: "my-open", name: "Open sea", description: "blue 100%", tags: ["summer", "cool"], colors, visibility: "public" }, updated: 600 },
         { palette: { id: "my-shut", name: "Shut sea", colors, visibility: "private" }, updated: 610 },
       ],
       profile: { name: "Alice", colorSource: "all", updated: 600 },
@@ -173,6 +173,7 @@ describe("the API", () => {
       expect(JSON.stringify(page)).not.toContain("alice@example.test");
     }
     expect((await list("SEA")).palettes.map((p) => p.palette.id)).toEqual(["my-open"]);
+    expect((await list("summer")).palettes.map((p) => [p.palette.name, p.palette.tags])).toEqual([["Open sea", ["summer", "cool"]]]);
     expect((await list("100%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
     // "%" and "_" are plain characters, not wildcards.
     expect((await list("%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
@@ -180,7 +181,7 @@ describe("the API", () => {
 
     const aliceId = (await list("Open sea")).palettes[0]!.owner;
     const one = await call(`/api/palettes/public/${aliceId}/my-open`);
-    expect(((await one.json()) as PublicPalette).palette).toEqual({ id: "my-open", name: "Open sea", description: "blue 100%", colors });
+    expect(((await one.json()) as PublicPalette).palette).toEqual({ id: "my-open", name: "Open sea", description: "blue 100%", tags: ["summer", "cool"], colors });
     // Private and missing look the same.
     for (const path of [`${aliceId}/my-shut`, `${aliceId}/my-gone`, `nobody/my-open`]) {
       expect((await call(`/api/palettes/public/${path}`, { cookie: bob })).status).toBe(404);

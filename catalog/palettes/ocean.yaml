@@ -1,6 +1,7 @@
 id: ocean
 name: Ocean
 description: Deep blues and sea greens, with a sandy white.
+tags: [blue, sea, turquoise, cool, summer, water]
 colors:
   - { bead: miyuki DB-0726, role: dark }
   - { bead: miyuki DB-0149 }

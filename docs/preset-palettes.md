@@ -6,10 +6,13 @@ A **palette** is a short, named set of bead colors that go well together, such a
 
 ## What users get
 
-- In the Flat, Nora and Circular designers, a **Colors from** choice replaces the **Only my beads** checkbox:
-  - **All catalog colors** (what's offered today with the box unticked)
-  - **My beads** (what's offered today with the box ticked)
-  - **Palette: Ocean**, **Palette: Pastel**, … (new)
+- In the Flat, Nora and Circular designers, a **Colors from** button replaces the **Only my beads** checkbox. It shows the source's name and colors, and opens the **palette menu** ([`web/palette-picker.ts`](../web/palette-picker.ts)), made for hundreds of palettes:
+  - **All catalog colors** and **My beads** at the top.
+  - Every palette (ones I picked before, mine, the presets, and the newest 200 public ones, plus older ones a search finds on the server), each with its name, owner or kind, tags and colors.
+  - A search by words in the name, description, tags, owner or colors' names; by a color word ("blue", "pink": any color like it); or by `#rrggbb`. **Has a color like** filters by a picked color, closest first. Buttons for the most used tags narrow it further. The search is [`src/collection/palette-search.ts`](../src/collection/palette-search.ts).
+  - Enter picks the first palette; the arrow keys move through the list.
+  - A public palette picked here is kept in this browser (`bead-model:used-palettes`, the last 20, not synced), so Colors from can name it without saving a copy.
+- With a palette picked, the Flat and Nora designers show a **palette bar** above the canvas: the palette's colors in the design's bead size. Clicking one paints with it, adding it to the design first if it isn't there yet (its bead key shows on the swatch once it is). The Fill tool stays Fill.
 - With a palette picked, the **+ Add a color** list shows only that palette's colors in the design's bead size, and **+ Use all N … colors** adds all of them at once (up to a design's 62 colors).
 - The picture import (`web/flat-import.ts`) gets **Palette: …** as another **Colors from** option while a palette is picked in the designer, and starts on it.
 - In the add list, a palette color that's also in My beads is marked **mine**. Once My beads has anything in it, beads in the piece that aren't in it are marked **not mine**, so users see what to buy.
@@ -62,6 +65,7 @@ colors:
 |---|---|
 | `id`, `name` | Stable id (used in storage and URLs) and the name shown |
 | `description` | Optional, one line |
+| `tags` | Optional words to find it by, e.g. `[blue, sea, cool]`: kept lower case, at most 12 of 24 characters. Saved palettes get them in My profile → My palettes, and they sync (`palettes.tags`, [`0006_palette_tags.sql`](../migrations/0006_palette_tags.sql)) and are searched on the server. |
 | `visibility` | `private` or `public`. Only for my palettes: presets leave it out and are always public. Reading treats anything else as `private`, so a damaged file never makes a palette public. |
 | `colors[].bead` | A catalog product code, as patterns write it: `"<brand> <code>"` |
 | `colors[].rgb`, `colors[].name` | A color by display value only, for when no single product fits every size |

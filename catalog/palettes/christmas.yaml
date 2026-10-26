@@ -1,6 +1,7 @@
 id: christmas
 name: Christmas
 description: Red, green, gold and snow white.
+tags: [holiday, winter, red, green, gold, festive]
 colors:
   - { bead: miyuki DB-0723 }
   - { bead: miyuki DB-2354, role: dark }

@@ -17,6 +17,7 @@ import {
 } from "../src/collection/designs.js";
 import { groupMyBeads } from "../src/collection/my-beads.js";
 import { findMyPalette, putMyPalette, removeMyPalette } from "../src/collection/my-palettes.js";
+import { readTags } from "../src/collection/palettes.js";
 import { loadAccount } from "./account.js";
 import { designCard, esc } from "./design-card.js";
 import { loadMyDesigns, onMyDesignsChange, saveMyDesigns } from "./designs-store.js";
@@ -227,6 +228,8 @@ els.paletteList.addEventListener("change", (event) => {
     const name = el.value.trim();
     if (name) changePalettes(putMyPalette(palettes, { ...palette, name }));
     else el.value = palette.name;
+  } else if (el.dataset.field === "tags") {
+    changePalettes(putMyPalette(palettes, { ...palette, tags: readTags(el.value) }));
   } else if (el.dataset.field === "visibility" && userId) {
     const visibility = el.value === "public" ? "public" : "private";
     changePalettes(putMyPalette(palettes, { ...palette, visibility }));

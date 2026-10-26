@@ -135,7 +135,8 @@ export function paletteFromEntries(name: string, entries: unknown[], id = newPal
 /** A copy of someone's palette, to keep as my own: a new id, private. */
 export function copyPalette(palette: Palette, id = newPaletteId()): MyPalette {
   const description = palette.description ? { description: palette.description } : {};
-  return { id, name: palette.name, ...description, colors: palette.colors.slice(0, MAX_COLORS), visibility: "private" };
+  const tags = palette.tags?.length ? { tags: [...palette.tags] } : {};
+  return { id, name: palette.name, ...description, ...tags, colors: palette.colors.slice(0, MAX_COLORS), visibility: "private" };
 }
 
 function colorOf(entry: unknown): PaletteColor | undefined {

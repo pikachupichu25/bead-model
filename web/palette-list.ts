@@ -50,12 +50,18 @@ export function paletteItem(
 
 /** A preset's head: its name and what it is. */
 export function presetHead(p: Palette): string {
-  return `<b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span>`;
+  return `<b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span>${tagList(p)}`;
+}
+
+/** A palette's tags, as small labels. */
+export function tagList(p: Palette): string {
+  return p.tags?.length ? `<span class="palette-tag-list">${p.tags.map((t) => `<span class="palette-tag">${esc(t)}</span>`).join("")}</span>` : "";
 }
 
 /** My palette's head: its name to change, who may see it, its link when public, and delete. */
 export function myPaletteHead(p: MyPalette, signedIn: boolean): string {
   return `<input type="text" class="palette-name" data-field="name" value="${esc(p.name)}" maxlength="80" aria-label="Palette name" />
+    <input type="text" class="palette-tags" data-field="tags" value="${esc((p.tags ?? []).join(", "))}" placeholder="tags, e.g. ocean, cool" aria-label="Tags for ${esc(p.name)}, comma separated" />
     <span class="palette-tools">
       <select data-field="visibility" aria-label="Who can see ${esc(p.name)}"${signedIn ? "" : ' disabled title="Sign in to share"'}>
         <option value="private"${p.visibility === "private" ? " selected" : ""}>Private</option>

@@ -35,7 +35,8 @@ import {
   trim,
 } from "../src/flat/grid.js";
 import { boundsRect, cellsAlong, defaultView, fitView, type Rect, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
-import { markNotMine, paletteForImport, renderColorChoices, pickedColorSource, saveColorsAsPalette } from "./color-choices.js";
+import { markNotMine, paletteForImport, renderColorChoices, beadKeys, renderPaletteBar, saveColorsAsPalette } from "./color-choices.js";
+import { pickColorSource } from "./palette-picker.js";
 import { clearBackdrop, loadBackdrop, saveBackdrop } from "./flat-backdrop.js";
 import { drawScene } from "./flat-canvas.js";
 import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
@@ -86,8 +87,9 @@ const els = {
   addCatalog: $<HTMLSelectElement>("add-catalog"),
   addOwnColor: $<HTMLInputElement>("add-own-color"),
   addOwn: $<HTMLButtonElement>("add-own"),
-  colorSource: $<HTMLSelectElement>("color-source"),
+  colorSource: $<HTMLButtonElement>("color-source"),
   usePalette: $<HTMLButtonElement>("use-palette"),
+  paletteBar: $("palette-bar"),
   savePalette: $<HTMLButtonElement>("save-palette"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   tools: [...document.querySelectorAll<HTMLButtonElement>("[data-tool]")],
@@ -134,6 +136,8 @@ let myBeads: MyBeads = loadMyBeads();
 let colorSource: ColorSource = loadColorSource();
 /** The `beads:` entries behind the "+ Add a color" options, by option value. */
 let addChoices: unknown[] = [];
+/** The `beads:` entries behind the palette bar's swatches, by data-color. */
+let barColors: unknown[] = [];
 
 type Tool = "paint" | "erase" | "fill" | "pick" | "select" | "hand";
 
@@ -338,6 +342,7 @@ function renderPanel(): void {
     { colorSource: els.colorSource, addCatalog: els.addCatalog, usePalette: els.usePalette, addOwn: els.addOwn.parentElement!, count: els.onlyMineCount },
     { source: colorSource, size: resolved.size, used: new Set([...design.beads.values()].map((v) => JSON.stringify(v))), myBeads, catalog },
   );
+  barColors = renderPaletteBar(els.paletteBar, { source: colorSource, size: resolved.size, beads: design.beads, paint: state.paint, myBeads, catalog });
 
   els.beadTotal.textContent = list.total.count ? `Total ${amount(list.total.count, list.total.grams)}` : "";
 }
@@ -410,7 +415,7 @@ function addBead(entry: unknown): void {
 
 function selectBead(key: string): void {
   state.paint = key;
-  setTool("paint");
+  if (state.tool !== "fill") setTool("paint");
   renderPanel();
 }
 
@@ -964,6 +969,20 @@ els.title.addEventListener("change", () => {
   if (title !== state.design.title) commit({ ...state.design, title });
 });
 
+// A palette color: paint with its bead, adding it to the design first if it isn't there yet. Fill stays fill.
+els.paletteBar.addEventListener("click", (event) => {
+  const index = (event.target as HTMLElement).closest<HTMLElement>("[data-color]")?.dataset.color;
+  const entry = index === undefined ? undefined : barColors[Number(index)];
+  if (entry === undefined) return;
+  const key = beadKeys(state.design.beads).get(JSON.stringify(entry));
+  if (key) {
+    selectBead(key);
+    return;
+  }
+  addBead(entry);
+  if (state.tool !== "fill") setTool("paint");
+});
+
 els.usePalette.addEventListener("click", () => {
   const room = 62 - state.design.beads.size;
   if (addChoices.length > room) showNotice(`A design can have at most 62 bead colors, so only ${room} of these were added.`);
@@ -975,8 +994,8 @@ els.usePalette.addEventListener("click", () => {
   if (beads.size !== state.design.beads.size) commit({ ...state.design, beads });
 });
 
-els.colorSource.addEventListener("change", () => {
-  const picked = pickedColorSource(els.colorSource);
+els.colorSource.addEventListener("click", async () => {
+  const picked = await pickColorSource(colorSource, catalog);
   if (!picked) return;
   colorSource = picked;
   saveColorSource(colorSource);

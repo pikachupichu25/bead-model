@@ -116,10 +116,10 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
       key: p.id,
       statement: db
         .prepare(
-          `insert into palettes (owner_id, id, name, description, colors, visibility, deleted, updated_at, synced_at)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `insert into palettes (owner_id, id, name, description, tags, colors, visibility, deleted, updated_at, synced_at)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            on conflict (owner_id, id) do update set
-             name = excluded.name, description = excluded.description, colors = excluded.colors,
+             name = excluded.name, description = excluded.description, tags = excluded.tags, colors = excluded.colors,
              visibility = excluded.visibility, deleted = excluded.deleted,
              updated_at = excluded.updated_at, synced_at = excluded.synced_at
            where excluded.updated_at >= palettes.updated_at`,
@@ -129,6 +129,7 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
           p.id,
           palette?.name ?? "",
           palette?.description ?? "",
+          palette?.tags?.join(",") ?? "",
           palette ? JSON.stringify(palette.colors) : "[]",
           // A deleted palette is never public, so it can't be served.
           palette && !p.deleted ? palette.visibility : "private",
@@ -204,7 +205,7 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
 /** Public palettes per page of Browse palettes. */
 export const PUBLIC_PAGE = 50;
 
-/** A page of public palettes, newest first, whose name or description has `query` in it. */
+/** A page of public palettes, newest first, whose name, description or tags have `query` in them. */
 export async function listPublicPalettes(db: D1Database, query: string, offset: number): Promise<PublicPalettePage> {
   const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const { results } = await db
@@ -212,7 +213,7 @@ export async function listPublicPalettes(db: D1Database, query: string, offset: 
       `select palettes.*, coalesce(profiles.display_name, '') as by from palettes
        left join profiles on profiles.user_id = palettes.owner_id
        where palettes.visibility = 'public' and palettes.deleted = 0
-         and (?1 = '' or palettes.name like ?2 escape '\\' or palettes.description like ?2 escape '\\')
+         and (?1 = '' or palettes.name like ?2 escape '\\' or palettes.description like ?2 escape '\\' or palettes.tags like ?2 escape '\\')
        order by palettes.updated_at desc, palettes.owner_id, palettes.id
        limit ?3 offset ?4`,
     )
@@ -284,6 +285,8 @@ interface PaletteRow {
   id: string;
   name: string;
   description: string;
+  /** Comma-separated. */
+  tags: string;
   colors: string;
   visibility: string;
   deleted: number;
@@ -327,13 +330,19 @@ function readStoredPalette(r: PaletteRow) {
   } catch {
     return undefined;
   }
-  return readMyPalette({ id: r.id, name: r.name, ...(r.description ? { description: r.description } : {}), colors, visibility: r.visibility });
+  return readMyPalette({ id: r.id, name: r.name, ...(r.description ? { description: r.description } : {}), tags: r.tags, colors, visibility: r.visibility });
 }
 
 function publicOf(r: PaletteRow & { by: string }): PublicPalette[] {
   const palette = readStoredPalette(r);
   if (!palette) return [];
-  const shown = { id: palette.id, name: palette.name, ...(palette.description ? { description: palette.description } : {}), colors: palette.colors };
+  const shown = {
+    id: palette.id,
+    name: palette.name,
+    ...(palette.description ? { description: palette.description } : {}),
+    ...(palette.tags?.length ? { tags: palette.tags } : {}),
+    colors: palette.colors,
+  };
   return [{ owner: r.owner_id, by: r.by, updated: r.updated_at, palette: shown }];
 }
 

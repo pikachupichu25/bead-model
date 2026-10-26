@@ -8,10 +8,11 @@ import { type MyBeads, ownedColorsFor } from "../src/collection/my-beads.js";
 import type { FlatBeadSize } from "../src/flat/beads.js";
 import { findMyPalette, newPaletteId, paletteFromEntries, putMyPalette } from "../src/collection/my-palettes.js";
 import { allPalettes, loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
-import { BROWSE_PALETTES, colorSourceOptions } from "./presets.js";
+import { sourceButtonHtml } from "./palette-picker.js";
 
 export interface ColorChoiceElements {
-  colorSource: HTMLSelectElement;
+  /** The "Colors from" button, which opens the palette menu. */
+  colorSource: HTMLButtonElement;
   /** The "+ Add a color" select. */
   addCatalog: HTMLSelectElement;
   usePalette: HTMLButtonElement;
@@ -40,7 +41,7 @@ export function renderColorChoices(
   els.usePalette.textContent = palette ? `+ Use all ${colors.length} ${palette.name} colors` : "";
   // Only my beads: no new colors of my own here, they're added on the My beads page.
   els.addOwn.hidden = source === "mine";
-  els.colorSource.innerHTML = colorSourceOptions(source, loadMyPalettes().palettes);
+  els.colorSource.innerHTML = sourceButtonHtml(source, catalog);
   const mine = ownedColorsFor(myBeads, size).length;
   els.count.textContent = palette
     ? `${offered.length} in this size${myBeads.beads.length ? ` · ${offered.filter((c) => c.mine).length} mine` : ""}`
@@ -50,6 +51,47 @@ export function renderColorChoices(
         ? "none in this size: add some"
         : "add your beads";
   return colors.map((c) => c.entry);
+}
+
+/**
+ * The palette bar above the canvas: the picked palette's colors in this size,
+ * to click and paint with. Hidden unless the source is a palette. Gives the
+ * `beads:` entry behind each swatch, by its data-color.
+ */
+export function renderPaletteBar(
+  bar: HTMLElement,
+  { source, size, beads, paint, myBeads, catalog }: { source: ColorSource; size: FlatBeadSize; beads: ReadonlyMap<string, unknown>; paint: string; myBeads: MyBeads; catalog: Catalog },
+): unknown[] {
+  const palettes = allPalettes();
+  const palette = paletteOf(source, palettes);
+  bar.hidden = !palette;
+  if (!palette) {
+    bar.innerHTML = "";
+    return [];
+  }
+  const colors = offeredColors(source, size, { myBeads, palettes, catalog });
+  const keyOf = beadKeys(beads);
+  bar.innerHTML =
+    `<span class="palette-bar-name" title="${esc(palette.name)}">${esc(palette.name)}</span>` +
+    `<span class="palette-bar-colors" role="group" aria-label="Paint with a color from ${esc(palette.name)}">${colors
+      .map((c, i) => {
+        const key = keyOf.get(JSON.stringify(c.entry));
+        const near = c.nearest && c.nearest.name !== c.name ? ` (for ${c.nearest.name})` : "";
+        const title = `${c.code} · ${c.name}${near}${key ? ` · bead ${key} in the design` : " · click to add it and paint"}${c.mine ? " · mine" : ""}`;
+        return `<button type="button" class="palette-bar-color" data-color="${i}" aria-pressed="${key !== undefined && key === paint}" title="${esc(title)}" aria-label="${esc(title)}">
+          <span class="swatch big" style="background:${esc(c.rgb)}"></span>${key ? `<span class="palette-bar-key">${esc(key)}</span>` : ""}
+        </button>`;
+      })
+      .join("")}</span>` +
+    `<span class="muted palette-bar-help">Click a color to paint or fill with it</span>`;
+  return colors.map((c) => c.entry);
+}
+
+/** The key of each `beads:` entry in a design, by the entry as JSON. */
+export function beadKeys(beads: ReadonlyMap<string, unknown>): Map<string, string> {
+  const keys = new Map<string, string>();
+  for (const [key, entry] of beads) if (!keys.has(JSON.stringify(entry))) keys.set(JSON.stringify(entry), key);
+  return keys;
 }
 
 /** Beads not in My beads are marked with only my beads on, or with a palette once there are beads to compare with. */
@@ -62,16 +104,6 @@ export function paletteForImport(source: ColorSource, size: FlatBeadSize, myBead
   const palettes = allPalettes();
   const palette = paletteOf(source, palettes);
   return palette && { name: palette.name, colors: offeredColors(source, size, { myBeads, palettes, catalog }) };
-}
-
-/**
- * The "Colors from" select changed: the new source, or undefined after
- * "Browse palettes…", which goes to the My beads page instead.
- */
-export function pickedColorSource(select: HTMLSelectElement): ColorSource | undefined {
-  if (select.value !== "browse") return select.value as ColorSource;
-  location.href = BROWSE_PALETTES;
-  return undefined;
 }
 
 /**

@@ -1,6 +1,7 @@
 id: rainbow
 name: Rainbow
 description: One bright opaque color for each band of the rainbow.
+tags: [bright, colorful, pride, kids]
 colors:
   - { bead: miyuki DB-0723 }
   - { bead: miyuki DB-0722 }

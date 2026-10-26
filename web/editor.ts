@@ -35,11 +35,11 @@ import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
 import { findDesign } from "../src/collection/designs.js";
 import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
-import { markNotMine, pickedColorSource } from "./color-choices.js";
+import { markNotMine } from "./color-choices.js";
 import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
-import { allPalettes, loadMyPalettes } from "./palettes-store.js";
-import { colorSourceOptions } from "./presets.js";
+import { pickColorSource, sourceButtonHtml } from "./palette-picker.js";
+import { allPalettes } from "./palettes-store.js";
 import type { BeadViewer } from "./viewer3d.js";
 
 const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
@@ -99,7 +99,7 @@ const els = {
   stepUp: $<HTMLSelectElement>("f-stepup"),
   addBead: $<HTMLButtonElement>("add-bead"),
   beadList: $<HTMLUListElement>("bead-list"),
-  colorSource: $<HTMLSelectElement>("color-source"),
+  colorSource: $<HTMLButtonElement>("color-source"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   startKind: $<HTMLSelectElement>("f-start-kind"),
   start: $<HTMLInputElement>("f-start"),
@@ -287,7 +287,7 @@ function renderBeadList(): void {
   const mine = ownedProducts(myBeads).size;
   const palette = paletteOf(colorSource, allPalettes());
   const offered = offeredBeads().length;
-  els.colorSource.innerHTML = colorSourceOptions(colorSource, loadMyPalettes().palettes);
+  els.colorSource.innerHTML = sourceButtonHtml(colorSource, catalog);
   els.onlyMineCount.textContent = palette
     ? `${offered} bead${offered === 1 ? "" : "s"} in all sizes`
     : mine
@@ -752,8 +752,8 @@ els.palette.addEventListener("click", (event) => {
   renderStatuses();
 });
 
-els.colorSource.addEventListener("change", () => {
-  const picked = pickedColorSource(els.colorSource);
+els.colorSource.addEventListener("click", async () => {
+  const picked = await pickColorSource(colorSource, catalog);
   if (!picked) return;
   colorSource = picked;
   saveColorSource(colorSource);

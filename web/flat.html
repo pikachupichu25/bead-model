@@ -201,7 +201,8 @@
           <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
           <p class="flat-total muted" id="bead-total"></p>
           <div class="only-mine-row">
-            <label>Colors from <select id="color-source"></select></label>
+            <span>Colors from</span>
+            <button type="button" class="button small source-button" id="color-source" aria-haspopup="dialog" title="Pick where the colors come from: every catalog color, my beads, or a palette"></button>
             <a href="./beads.html" class="muted" id="only-mine-count"></a>
           </div>
           <div class="add-color">
@@ -249,6 +250,7 @@
             <button type="button" class="button small" id="turn-view" title="Turn the view a quarter turn (R). The design doesn't change." aria-pressed="false">Turn ⟳</button>
           </div>
         </div>
+        <div class="palette-bar" id="palette-bar" hidden></div>
         <div class="flat-banner" id="empty-banner" role="alert" hidden>
           <span id="empty-text"></span>
           <span class="spacer"></span>

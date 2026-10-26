@@ -16,10 +16,26 @@ export interface Palette {
   id: string;
   name: string;
   description?: string;
+  /** Words to find it by ("ocean", "cool", "christmas"): lower case, at most MAX_TAGS. */
+  tags?: string[];
   colors: PaletteColor[];
 }
 
 export class PaletteError extends Error {}
+
+export const MAX_TAGS = 12;
+export const MAX_TAG = 24;
+
+/** Tags as kept: trimmed, lower case, at most MAX_TAG characters, no repeats, at most MAX_TAGS. Never fails: what isn't a tag is dropped. */
+export function readTags(raw: unknown): string[] {
+  const list = typeof raw === "string" ? raw.split(",") : Array.isArray(raw) ? raw : [];
+  const tags: string[] = [];
+  for (const t of list) {
+    const tag = typeof t === "string" ? t.trim().toLowerCase().replace(/\s+/g, " ").slice(0, MAX_TAG) : "";
+    if (tag && !tags.includes(tag) && !tag.includes(",")) tags.push(tag);
+  }
+  return tags.slice(0, MAX_TAGS);
+}
 
 /** How different a catalog color may look and still stand in for a palette color (CIEDE2000). */
 export const MAX_DELTA_E = 12;
@@ -59,7 +75,8 @@ export function parsePalette(doc: unknown, where: string): Palette {
     return fail(`${at}: expected { bead: "<brand> <code>" } or { rgb: "#rrggbb", name }`);
   });
   const description = typeof doc.description === "string" && doc.description.trim() ? { description: doc.description.trim() } : {};
-  return { id, name, ...description, colors };
+  const tags = readTags(doc.tags);
+  return { id, name, ...description, ...(tags.length ? { tags } : {}), colors };
 }
 
 /** Warnings about the presets that don't stop them loading: products the catalog doesn't have. */

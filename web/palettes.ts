@@ -16,6 +16,7 @@ import {
   readSize,
   savePaletteCopy,
   sizeOptions,
+  tagList,
   writeSize,
 } from "./palette-list.js";
 import { presetPalettes } from "./presets.js";
@@ -53,7 +54,7 @@ function render(): void {
       paletteItem(p.palette, {
         ...context,
         key: `public:${i}`,
-        head: `<a href="${esc(publicLink(p.owner, p.palette.id))}"><b>${esc(p.palette.name)}</b></a> <span class="muted">by ${esc(p.by || "a beader")}${p.palette.description ? ` · ${esc(p.palette.description)}` : ""}</span>`,
+        head: `<a href="${esc(publicLink(p.owner, p.palette.id))}"><b>${esc(p.palette.name)}</b></a> <span class="muted">by ${esc(p.by || "a beader")}${p.palette.description ? ` · ${esc(p.palette.description)}` : ""}</span>${tagList(p.palette)}`,
         more: `<button type="button" class="button small" data-action="copy">Save a copy</button>`,
       }),
     )
