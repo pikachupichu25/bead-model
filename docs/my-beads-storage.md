@@ -14,6 +14,7 @@ Everything is kept in the browser's **localStorage**, on the user's own device. 
 | `bead-model:color-source` | Where the designers take their colors from | `"all"`, `"mine"` or `"palette:ocean"` |
 | `bead-model:only-my-beads` | Whether that's My beads. Older than the color source, and kept for the moved-site import | `"true"` or `"false"` |
 | `bead-model:my-palettes` | Palettes I saved ([format](preset-palettes.md#phase-2-my-own-palettes-built)) | `{"version":1,"palettes":[…]}` |
+| `bead-model:used-palettes` | Public palettes picked in a designer's palette menu, the last 20, so Colors from can name them. Not synced | `[{"owner":"…","by":"Kim","palette":{…}}]` |
 | `bead-model:my-beads-size` | The bead size last picked on the My beads page (a convenience only) | `"miyuki delica DB"` |
 
 To look at it: open the site, open DevTools, then go to **Application → Local Storage →** the site's address.
@@ -95,7 +96,7 @@ A possible Firestore layout: `users/{uid}/beads/{ownedId}` holding the bead fiel
 
 ### Open questions
 
-- Should "Only my beads" be saved to the account, or stay per device?
+- ~~Should "Only my beads" be saved to the account, or stay per device?~~ Saved to the account: it became the color source (`profiles.color_source`), which syncs.
 - Do users want to share a list (a link, or a list shared by a group)?
 - Should `amount` become structured (grams or a count), so designs can warn when a piece needs more beads than you have?
 - How long to keep the data of a deleted account, and how users export or delete their data.

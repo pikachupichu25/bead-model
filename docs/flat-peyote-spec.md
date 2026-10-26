@@ -171,7 +171,7 @@ Left: the picture. Dragging on it draws a crop box (R30), and **Reset crop** cle
 |---|---|
 | Width in beads | 60 (max 300) |
 | Height in beads | follows the picture (§6.3), or unlinked to set both |
-| Colors from | the bead's catalog colors / only the design's colors / both (R24). A piece has one bead size, so its catalog colors already come from one brand and line |
+| Colors from | the bead's catalog colors / only the design's colors / both (R24); also my beads in this size, and the palette picked in the designer's **Colors from** ([palettes](preset-palettes.md)). A piece has one bead size, so its catalog colors already come from one brand and line |
 | At most N colors | 12, range 2–62 (R25) |
 | Merge colors with fewer than N beads | 0 = off (R29) |
 | Dithering | off (R28) |
