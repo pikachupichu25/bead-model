@@ -8,6 +8,7 @@ import { loadMyBeads, onMyBeadsChange } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
 import {
   addPaletteToMyBeads,
+  COPY_TEXT,
   fetchPublicPalettes,
   MY_PALETTES,
   paletteItem,
@@ -19,6 +20,7 @@ import {
   tagList,
   writeSize,
 } from "./palette-list.js";
+import { openPaletteExport } from "./palette-text-dialog.js";
 import { presetPalettes } from "./presets.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
@@ -55,12 +57,12 @@ function render(): void {
         ...context,
         key: `public:${i}`,
         head: `<a href="${esc(publicLink(p.owner, p.palette.id))}"><b>${esc(p.palette.name)}</b></a> <span class="muted">by ${esc(p.by || "a beader")}${p.palette.description ? ` · ${esc(p.palette.description)}` : ""}</span>${tagList(p.palette)}`,
-        more: `<button type="button" class="button small" data-action="copy">Save a copy</button>`,
+        more: `<button type="button" class="button small" data-action="copy">Save a copy</button>${COPY_TEXT}`,
       }),
     )
     .join("");
   els.more.hidden = shown.next === undefined;
-  const copy = `<button type="button" class="button small" data-action="copy">Save a copy</button>`;
+  const copy = `<button type="button" class="button small" data-action="copy">Save a copy</button>${COPY_TEXT}`;
   els.presetList.innerHTML = presetPalettes.map((p) => paletteItem(p, { ...context, head: presetHead(p), more: copy })).join("");
 }
 
@@ -113,6 +115,8 @@ for (const list of [els.publicList, els.presetList]) {
       const added = addPaletteToMyBeads(palette, els.size.value, catalog);
       showNotice(added === undefined ? "This browser won't keep your beads (storage is off, as in a private window)." : `Added ${added} bead${added === 1 ? "" : "s"} from ${esc(palette.name)} to <a href="./beads.html">My beads</a>.`);
       render();
+    } else if (action === "text") {
+      openPaletteExport(palette, catalog);
     } else if (action === "copy") {
       showNotice(
         savePaletteCopy(palette)

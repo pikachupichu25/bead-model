@@ -20,6 +20,7 @@ A **palette** is a short, named set of bead colors that go well together, such a
   - **Palettes** in the top bar ([`web/palettes.html`](../web/palettes.html)): public palettes to search, then the presets, each shown in a bead size picked at the top, with the colors I have ringed, **Add these to My beads** (or "Add the N I don't have") and **Save a copy**.
   - **My profile → My palettes** (`profile.html#palettes`): my own palettes, to rename, share, copy the link to, delete, or add to My beads.
   - The shared list code is [`web/palette-list.ts`](../web/palette-list.ts).
+- Palettes go in and out as [plain text](#as-text): **Copy as text** on every palette (My palettes, the Palettes page and a shared palette's page) shows it in the text format, to copy or download as `.txt`. **Import from text…** in My profile → My palettes reads one back, with a preview and a list of the lines it couldn't use, and saves it as a new private palette.
 
 ## Where palettes come from
 
@@ -82,6 +83,34 @@ Catalog colors belong to a bead size (many Delica colors are listed for `DB` onl
 
 This way one palette works for Delica 11/0, Toho round 15/0 and the rest without listing each size by hand.
 
+### As text
+
+To share a palette where the app isn't (a forum post, a chat), and to bring in the lists people already write. **Copy as text** writes it like this:
+
+```text
+Palette: Ocean
+Description: Deep blues and sea greens, with a sandy white.
+Tags: blue, sea, turquoise, cool
+
+miyuki DB-0726 [dark]   # opaque cobalt
+miyuki DB-0149          # silver-lined capri blue
+#2a6f97 sea blue
+```
+
+- **Header:** `Palette:`, `Description:` and `Tags:` lines, each optional (case doesn't matter). Other `Key: value` lines before the first color are ignored.
+- **Colors:** one per line, `<brand> <code>` for a catalog bead or `#rrggbb <name>` for a color of its own, with an optional `[dark]`, `[light]` or `[accent]` at the end.
+- **Comments:** `#` then a space starts one, on its own line or after a color. `#` then hex digits is always a color. Export puts each bead's catalog name in a comment, so the text reads well where the app isn't.
+
+**Import from text…** also takes:
+
+1. A code without its brand (`DB-0010`) when exactly one brand has it. When several do, the line asks for the brand.
+2. Lists on one line, split at `,` or `;` when every piece is a color: `DB-0010, DB-0201, #2a6f97`.
+3. Words after a code, as a label (`DB-0010 black`), and `(dark)` as well as `[dark]`.
+4. A hex color with no name, or a 3-digit `#abc`: it's named after the nearest catalog color within `MAX_DELTA_E`, or by its hex.
+5. The [preset YAML](#the-format), or JSON in the same shape, when the text starts with `{` or has a `colors:` line. The `id` can be left out.
+
+What it can't read (a code the catalog doesn't have, a word that isn't a color) is listed by line, and the rest is kept. Without a `Palette:` line the name is "Imported palette". The limits of my palettes apply (62 colors, the name and description lengths, the tag rules), repeated colors count once, and the palette is always saved with a new `my-` id as **private**: as with Restore, text can't make a palette public. Exporting and importing again gives the same palette, apart from its id and visibility.
+
 ## The code
 
 Follows the My beads split: plain data and logic in `src/`, browser code in `web/`.
@@ -89,6 +118,7 @@ Follows the My beads split: plain data and logic in `src/`, browser code in `web
 | File | Job |
 |---|---|
 | [`src/collection/palettes.ts`](../src/collection/palettes.ts) | Types, `palettesFromFiles` / `parsePalette`, `checkPalettes` (products the catalog doesn't have), `paletteSwatches`, and `paletteColorsFor(palette, size, catalog)`, which returns the same `{ entry, name, rgb, code }` shape as `ownedColorsFor`, plus `nearest: { name, deltaE }` when matched. |
+| [`src/collection/palette-text.ts`](../src/collection/palette-text.ts) | [Palettes as text](#as-text): `paletteToText(palette, catalog)` and `paletteFromText(text, catalog)`, which gives `{ palette?, problems: { line, message }[] }`, the palette without an id. |
 | [`src/collection/color-source.ts`](../src/collection/color-source.ts) | The setting (`"all"`, `"mine"` or `"palette:<id>"`), `offeredColors(source, size, …)` for the designers that use one bead size, `offeredProducts(source, …)` for the Circular editor, which mixes sizes (a palette's products in every size), and `isOwned`. |
 | [`catalog/palettes/*.yaml`](../catalog/palettes) | The preset palettes. |
 | [`src/catalog/load-files.ts`](../src/catalog/load-files.ts) | `loadPalettes`, next to `loadCatalog`. |
@@ -98,7 +128,9 @@ Follows the My beads split: plain data and logic in `src/`, browser code in `web
 | `web/flat.ts`, `web/nora.ts`, `web/editor.ts` | Use the above. The Circular editor filters its product picker by `offeredProducts`. |
 | `web/flat-import.ts` | A `palette` option in `allowedColors`. |
 | `web/palettes.ts`, `web/profile.ts`, `web/palette-list.ts` | The Palettes page and My profile's My palettes tab, with the list code they share. |
+| [`web/palette-text-dialog.ts`](../web/palette-text-dialog.ts) | The **Copy as text** and **Import from text…** dialogs. |
 | [`test/palettes.test.ts`](../test/palettes.test.ts) | Reading, the shipped presets (`checkPalettes` finds nothing), size matching, the ΔE limit, own colors, duplicates, and the color source. |
+| [`test/palette-text.test.ts`](../test/palette-text.test.ts) | The text format: every preset round-trips, the forgiving forms, problems by line, codes two brands share, the 62-color limit, and YAML and JSON. |
 
 Keeping `offeredColors` the single place that decides "which colors can I add" means the designers and the import stay in step.
 

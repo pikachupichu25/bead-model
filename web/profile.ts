@@ -24,7 +24,8 @@ import { loadMyDesigns, onMyDesignsChange, saveMyDesigns } from "./designs-store
 import { newDesignUrl } from "./examples.js";
 import { loadMyBeads, onMyBeadsChange } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
-import { addPaletteToMyBeads, myPaletteHead, paletteItem, publicLink, readSize, sizeOptions, writeSize } from "./palette-list.js";
+import { addPaletteToMyBeads, COPY_TEXT, myPaletteHead, paletteItem, publicLink, readSize, sizeOptions, writeSize } from "./palette-list.js";
+import { openPaletteExport, openPaletteImport } from "./palette-text-dialog.js";
 import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
 import { loadProfileName, saveProfileName } from "./profile-store.js";
 
@@ -55,6 +56,7 @@ const els = {
   panelPalettes: $("panel-palettes"),
   paletteSize: $<HTMLSelectElement>("palette-size"),
   paletteList: $<HTMLUListElement>("palette-list"),
+  paletteImport: $<HTMLButtonElement>("palette-import"),
   kindFilter: $("kind-filter"),
   filter: $<HTMLInputElement>("filter"),
   designList: $("design-list"),
@@ -132,7 +134,7 @@ function renderBeads(): void {
 function renderPalettes(): void {
   const context = { size: els.paletteSize.value, catalog, myBeads: beads };
   els.paletteList.innerHTML = palettes.palettes.length
-    ? palettes.palettes.map((p) => paletteItem(p, { ...context, head: myPaletteHead(p, userId !== undefined) })).join("")
+    ? palettes.palettes.map((p) => paletteItem(p, { ...context, head: myPaletteHead(p, userId !== undefined), more: COPY_TEXT })).join("")
     : `<li class="muted feed-empty">No palettes yet. Save one from a design, or <a href="./palettes.html">save a copy</a> of a preset or a public one.</li>`;
 }
 
@@ -209,6 +211,8 @@ els.paletteList.addEventListener("click", async (event) => {
     render();
   } else if (action === "delete") {
     if (confirm(`Delete the palette “${palette.name}”?${palette.visibility === "public" ? " It stops being public too." : ""}`)) changePalettes(removeMyPalette(palettes, palette.id));
+  } else if (action === "text") {
+    openPaletteExport(palette, catalog);
   } else if (action === "link") {
     const link = publicLink(userId ?? "", palette.id);
     try {
@@ -219,6 +223,14 @@ els.paletteList.addEventListener("click", async (event) => {
     }
   }
 });
+
+els.paletteImport.addEventListener("click", () =>
+  openPaletteImport(catalog, els.paletteSize.value, (name) => {
+    palettes = loadMyPalettes();
+    showNotice(name === undefined ? "This browser won't keep your palettes (storage is off, as in a private window)." : `Added “${esc(name)}” to my palettes.`);
+    render();
+  }),
+);
 
 els.paletteList.addEventListener("change", (event) => {
   const el = event.target as HTMLInputElement | HTMLSelectElement;

@@ -16,6 +16,9 @@ const SIZE_KEY = "bead-model:my-beads-size";
 /** Where my palettes are kept and changed. */
 export const MY_PALETTES = "./profile.html#palettes";
 
+/** The button that shows a palette as text, for `paletteItem`'s `more`. */
+export const COPY_TEXT = `<button type="button" class="button small" data-action="text">Copy as text</button>`;
+
 /** A palette's colors in a bead size ("<brand> <line> <size>"), as the beads they add to My beads. */
 export function paletteBeads(palette: Palette, size: string, catalog: Catalog): { bead: OwnedBead; name: string; rgb: string; code: string }[] {
   return paletteColorsFor(palette, resolveBeadSize(catalog, size), catalog).map((c) => ({

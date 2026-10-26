@@ -8,6 +8,7 @@ import { paletteColorsFor } from "../src/collection/palettes.js";
 import { allBeadSizes, resolveBeadSize } from "../src/flat/beads.js";
 import { loadMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { openPaletteExport } from "./palette-text-dialog.js";
 import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
@@ -36,6 +37,7 @@ const els = {
   sizeCount: $("size-count"),
   colors: $<HTMLUListElement>("colors"),
   saveCopy: $<HTMLButtonElement>("save-copy"),
+  copyText: $<HTMLButtonElement>("copy-text"),
 };
 
 let shown: PublicPalette | undefined;
@@ -102,6 +104,10 @@ els.saveCopy.addEventListener("click", () => {
       ? `Saved a copy to <a href="./profile.html#palettes">my palettes</a>. Pick it in <b>Colors from</b> in any design.`
       : "This browser won't keep the palette (storage is off, as in a private window).",
   );
+});
+
+els.copyText.addEventListener("click", () => {
+  if (shown) openPaletteExport(shown.palette, catalog);
 });
 
 let noticeTimer = 0;
