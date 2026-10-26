@@ -50,7 +50,7 @@ Rules:
 
 ## The format
 
-Presets live in `catalog/palettes/*.yaml`: Black & white, Christmas, Forest, Neutrals, Ocean, Pastel, Rainbow and Sunset. The web pages bundle them (`web/presets.ts`); Node code reads them with `loadPalettes` in `src/catalog/load-files.ts`. A preset that can't be read is an error, not skipped, since presets ship with the app.
+Presets live in `catalog/palettes/*.yaml`: Black & white, Christmas, Forest, Neutrals, Ocean, Pastel, Rainbow, Sunset and Traditional Nora. The web pages bundle them (`web/presets.ts`); Node code reads them with `loadPalettes` in `src/catalog/load-files.ts`. A preset that can't be read is an error, not skipped, since presets ship with the app.
 
 ```yaml
 id: ocean

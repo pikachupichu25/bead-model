@@ -1,0 +1,16 @@
+id: traditional-nora
+name: Traditional Nora
+description: The bright opaque seed bead colors of traditional Nora beadwork.
+tags: [nora, thai, traditional, opaque, bright, colorful]
+colors:
+  - { rgb: "#161419", name: black, role: dark }
+  - { rgb: "#eef2ee", name: white, role: light }
+  - { rgb: "#1438a8", name: dark blue }
+  - { rgb: "#3cb4e0", name: light blue }
+  - { rgb: "#1f8a3c", name: green }
+  - { rgb: "#8fc31f", name: lime green }
+  - { rgb: "#d71920", name: red }
+  - { rgb: "#f06ea0", name: pink }
+  - { rgb: "#6b3a1f", name: brown }
+  - { rgb: "#e06a1c", name: orange }
+  - { rgb: "#f0c818", name: yellow }
