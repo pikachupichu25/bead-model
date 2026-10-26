@@ -35,10 +35,11 @@ import { renderGrowthChart, VERDICT_COLORS } from "./growth-chart.js";
 import { findDesign } from "../src/collection/designs.js";
 import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
-import { markNotMine } from "./color-choices.js";
+import { markNotMine, pickedColorSource } from "./color-choices.js";
 import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
-import { colorSourceOptions, presetPalettes } from "./presets.js";
+import { allPalettes, loadMyPalettes } from "./palettes-store.js";
+import { colorSourceOptions } from "./presets.js";
 import type { BeadViewer } from "./viewer3d.js";
 
 const patternFiles = import.meta.glob<string>(["../patterns/*.peyote.yaml", "!../patterns/04-christmas-mug-trinket-box.peyote.yaml"], {
@@ -284,9 +285,9 @@ function renderForm(): void {
 function renderBeadList(): void {
   els.beadList.innerHTML = state.draft.beads.map((bead, i) => beadRow(bead, i)).join("");
   const mine = ownedProducts(myBeads).size;
-  const palette = paletteOf(colorSource, presetPalettes);
+  const palette = paletteOf(colorSource, allPalettes());
   const offered = offeredBeads().length;
-  els.colorSource.innerHTML = colorSourceOptions(colorSource);
+  els.colorSource.innerHTML = colorSourceOptions(colorSource, loadMyPalettes().palettes);
   els.onlyMineCount.textContent = palette
     ? `${offered} bead${offered === 1 ? "" : "s"} in all sizes`
     : mine
@@ -347,11 +348,14 @@ const products = catalogProducts(catalog);
 let myBeads: MyBeads = loadMyBeads();
 let colorSource: ColorSource = loadColorSource();
 /** The products on offer for the color source, worked out once per source (a palette is matched in every size). */
-let offered: { source: ColorSource; myBeads: MyBeads; codes: Set<string> | undefined } | undefined;
+let offered: { key: string; myBeads: MyBeads; codes: Set<string> | undefined } | undefined;
 
 function offeredCodes(): Set<string> | undefined {
-  if (offered?.source !== colorSource || offered.myBeads !== myBeads) {
-    offered = { source: colorSource, myBeads, codes: offeredProducts(colorSource, { myBeads, palettes: presetPalettes, catalog }) };
+  const palettes = allPalettes();
+  // One of my palettes can change in another tab: it's part of the key.
+  const key = `${colorSource}:${JSON.stringify(paletteOf(colorSource, palettes) ?? null)}`;
+  if (offered?.key !== key || offered.myBeads !== myBeads) {
+    offered = { key, myBeads, codes: offeredProducts(colorSource, { myBeads, palettes, catalog }) };
   }
   return offered.codes;
 }
@@ -749,7 +753,9 @@ els.palette.addEventListener("click", (event) => {
 });
 
 els.colorSource.addEventListener("change", () => {
-  colorSource = els.colorSource.value as ColorSource;
+  const picked = pickedColorSource(els.colorSource);
+  if (!picked) return;
+  colorSource = picked;
   saveColorSource(colorSource);
   renderBeadList();
 });

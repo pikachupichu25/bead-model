@@ -35,7 +35,7 @@ import {
   trim,
 } from "../src/flat/grid.js";
 import { boundsRect, cellsAlong, defaultView, fitView, type Rect, toMm, toScreen, turnView, type View, zoomAt } from "../src/flat/view.js";
-import { markNotMine, paletteForImport, renderColorChoices } from "./color-choices.js";
+import { markNotMine, paletteForImport, renderColorChoices, pickedColorSource, saveColorsAsPalette } from "./color-choices.js";
 import { clearBackdrop, loadBackdrop, saveBackdrop } from "./flat-backdrop.js";
 import { drawScene } from "./flat-canvas.js";
 import { type ImportBlock, type ImportColor, setupImport } from "./flat-import.js";
@@ -44,7 +44,7 @@ import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
 import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
-import { presetPalettes } from "./presets.js";
+import { allPalettes } from "./palettes-store.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -88,6 +88,7 @@ const els = {
   addOwn: $<HTMLButtonElement>("add-own"),
   colorSource: $<HTMLSelectElement>("color-source"),
   usePalette: $<HTMLButtonElement>("use-palette"),
+  savePalette: $<HTMLButtonElement>("save-palette"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   tools: [...document.querySelectorAll<HTMLButtonElement>("[data-tool]")],
   zoomIn: $<HTMLButtonElement>("zoom-in"),
@@ -975,8 +976,21 @@ els.usePalette.addEventListener("click", () => {
 });
 
 els.colorSource.addEventListener("change", () => {
-  colorSource = els.colorSource.value as ColorSource;
+  const picked = pickedColorSource(els.colorSource);
+  if (!picked) return;
+  colorSource = picked;
   saveColorSource(colorSource);
+  renderPanel();
+});
+
+els.savePalette.addEventListener("click", async () => {
+  const saved = await saveColorsAsPalette([...state.design.beads.values()], state.design.title);
+  if (!saved) return;
+  showNotice(
+    saved.saved
+      ? `Saved “${esc(saved.name)}” to <a href="./beads.html#my-palettes">my palettes</a>. Pick it in Colors from in any design.`
+      : "This browser won't keep the palette (storage is off, as in a private window).",
+  );
   renderPanel();
 });
 
@@ -1010,7 +1024,7 @@ els.newCancel.addEventListener("click", () => els.newDialog.close());
 els.newForm.addEventListener("submit", () => {
   const size = resolveBeadSize(catalog, els.newBead.value);
   const first =
-    offeredColors(colorSource, size, { myBeads, palettes: presetPalettes, catalog })[0]?.entry ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
+    offeredColors(colorSource, size, { myBeads, palettes: allPalettes(), catalog })[0]?.entry ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
   const title = els.newName.value.trim() || "Untitled design";
   state.paint = "A";
   const design: FlatDesign = { title, bead: els.newBead.value, beads: new Map([["A", first]]), cells: new Map() };

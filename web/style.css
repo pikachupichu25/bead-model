@@ -2067,6 +2067,43 @@ select:hover {
   gap: 4px;
 }
 
+.palettes-card h3 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+
+.palettes-head h3 {
+  margin: 0;
+}
+
+.palettes-head {
+  margin: 14px 0 8px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.palette-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.palette-name {
+  font: inherit;
+  font-weight: 600;
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.palette-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 /* A palette color that's in My beads. */
 .palette-swatches .swatch.mine {
   box-shadow: 0 0 0 2px var(--accent);

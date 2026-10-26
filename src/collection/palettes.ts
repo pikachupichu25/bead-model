@@ -32,6 +32,7 @@ export function palettesFromFiles(files: { name: string; text: string }[]): Pale
   for (const file of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
     const palette = parsePalette(parseYaml(file.text), file.name);
     if (palettes.some((p) => p.id === palette.id)) throw new PaletteError(`${file.name}: palette "${palette.id}" is defined twice`);
+    if (palette.id.startsWith("my-")) throw new PaletteError(`${file.name}: "my-" ids are for palettes people save themselves`);
     palettes.push(palette);
   }
   return palettes;

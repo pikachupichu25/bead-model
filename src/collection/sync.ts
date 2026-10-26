@@ -1,4 +1,4 @@
-// Keeping My designs, pins, My beads and the profile in step between a browser
+// Keeping My designs, pins, My beads, my palettes and the profile in step between a browser
 // and the account: the changes each side sends, and how they're read. The browser
 // (web/sync.ts) and the Worker (worker/db.ts) both use this, so they check data
 // the same way.
@@ -10,7 +10,9 @@
 // from the previous pull, so devices with wrong clocks don't miss changes.
 
 import { DESIGN_KINDS, type DesignKind, findDesign, type MyDesigns, putDesign, readSavedDesign } from "./designs.js";
+import { type ColorSource, isColorSourceText } from "./color-source.js";
 import { addOwned, type MyBeads, type OwnedBead, ownedId, readOwnedBead, removeOwned } from "./my-beads.js";
+import { isMyPaletteId, type MyPalette, type MyPalettes, putMyPalette, readMyPalette, removeMyPalette } from "./my-palettes.js";
 
 export interface SyncDesign {
   id: string;
@@ -40,8 +42,19 @@ export interface SyncBead {
   deleted?: true;
 }
 
+/** One of my palettes, by id. A deleted palette leaves out `palette`. */
+export interface SyncPalette {
+  id: string;
+  palette?: MyPalette;
+  updated: number;
+  deleted?: true;
+}
+
 export interface SyncProfile {
   name: string;
+  /** Where the designers take their colors from ("all", "mine" or "palette:<id>"). */
+  colorSource: ColorSource;
+  /** `colorSource === "mine"`, for pages from before the color source, which only know this. */
   onlyMyBeads: boolean;
   updated: number;
 }
@@ -50,6 +63,7 @@ export interface SyncChanges {
   designs: SyncDesign[];
   pins: SyncPin[];
   beads: SyncBead[];
+  palettes: SyncPalette[];
   profile?: SyncProfile;
 }
 
@@ -74,11 +88,11 @@ export const MAX_NAME = 80;
 export class SyncError extends Error {}
 
 export function emptyChanges(): SyncChanges {
-  return { designs: [], pins: [], beads: [] };
+  return { designs: [], pins: [], beads: [], palettes: [] };
 }
 
 export function changeCount(changes: SyncChanges): number {
-  return changes.designs.length + changes.pins.length + changes.beads.length + (changes.profile ? 1 : 0);
+  return changes.designs.length + changes.pins.length + changes.beads.length + changes.palettes.length + (changes.profile ? 1 : 0);
 }
 
 /** Reads a push. Rows it can't read are dropped; too many rows is an error. */
@@ -96,6 +110,10 @@ export function readSyncChanges(raw: unknown): SyncChanges {
   for (const b of list(raw.beads)) {
     const bead = readSyncBead(b);
     if (bead) out.beads.push(bead);
+  }
+  for (const p of list(raw.palettes)) {
+    const palette = readSyncPalette(p);
+    if (palette) out.palettes.push(palette);
   }
   const profile = readSyncProfile(raw.profile);
   if (profile) out.profile = profile;
@@ -134,10 +152,25 @@ export function readSyncBead(raw: unknown): SyncBead | undefined {
   return undefined;
 }
 
+export function readSyncPalette(raw: unknown): SyncPalette | undefined {
+  if (!isRecord(raw) || !isTime(raw.updated)) return undefined;
+  if (raw.deleted === true) {
+    return typeof raw.id === "string" && isMyPaletteId(raw.id) ? { id: raw.id, updated: raw.updated, deleted: true } : undefined;
+  }
+  const palette = readMyPalette(raw.palette);
+  return palette ? { id: palette.id, palette, updated: raw.updated } : undefined;
+}
+
+/** A profile. One from a page that only knows "only my beads" gets its color source from that. */
 export function readSyncProfile(raw: unknown): SyncProfile | undefined {
   if (!isRecord(raw) || !isTime(raw.updated)) return undefined;
   const name = typeof raw.name === "string" ? raw.name.trim().slice(0, MAX_NAME) : "";
-  return { name, onlyMyBeads: raw.onlyMyBeads === true, updated: raw.updated };
+  const colorSource: ColorSource = isColorSourceText(raw.colorSource) ? raw.colorSource : raw.onlyMyBeads === true ? "mine" : "all";
+  return profileOf(name, colorSource, raw.updated);
+}
+
+export function profileOf(name: string, colorSource: ColorSource, updated: number): SyncProfile {
+  return { name, colorSource, onlyMyBeads: colorSource === "mine", updated };
 }
 
 // ---- The browser's side: what changed locally, and taking in the server's rows ----
@@ -146,8 +179,9 @@ export function readSyncProfile(raw: unknown): SyncProfile | undefined {
 export interface LocalState {
   designs: MyDesigns;
   beads: MyBeads;
+  palettes: MyPalettes;
   name: string;
-  onlyMyBeads: boolean;
+  colorSource: ColorSource;
 }
 
 /**
@@ -163,11 +197,14 @@ export interface SyncRecord {
   pins: Record<string, number>;
   /** Bead key → the bead, as JSON. */
   beads: Record<string, string>;
-  profile?: { name: string; onlyMyBeads: boolean };
+  /** Palette id → the palette, as JSON. Missing in records from before palettes. */
+  palettes?: Record<string, string>;
+  /** Records from before the color source have only `onlyMyBeads`. */
+  profile?: { name: string; colorSource?: ColorSource; onlyMyBeads?: boolean };
 }
 
 export function emptyRecord(): SyncRecord {
-  return { since: 0, designs: {}, pins: {}, beads: {} };
+  return { since: 0, designs: {}, pins: {}, beads: {}, palettes: {} };
 }
 
 export function readSyncRecord(text: string | null | undefined): SyncRecord | undefined {
@@ -208,10 +245,18 @@ export function localChanges(state: LocalState, record: SyncRecord, now: number)
   for (const key of Object.keys(record.beads)) {
     if (!beadKeys.has(key)) out.beads.push({ key, updated: now, deleted: true });
   }
-  const profile = { name: state.name, onlyMyBeads: state.onlyMyBeads };
-  if (!record.profile ? state.name !== "" || state.onlyMyBeads : record.profile.name !== profile.name || record.profile.onlyMyBeads !== profile.onlyMyBeads) {
-    out.profile = { ...profile, updated: now };
+  const recorded = record.palettes ?? {};
+  for (const palette of state.palettes.palettes) {
+    if (recorded[palette.id] !== JSON.stringify(palette)) out.palettes.push({ id: palette.id, palette, updated: now });
   }
+  const paletteIds = new Set(state.palettes.palettes.map((p) => p.id));
+  for (const id of Object.keys(recorded)) {
+    if (!paletteIds.has(id)) out.palettes.push({ id, updated: now, deleted: true });
+  }
+  const changed = !record.profile
+    ? state.name !== "" || state.colorSource !== "all"
+    : record.profile.name !== state.name || recordedSource(record.profile) !== state.colorSource;
+  if (changed) out.profile = profileOf(state.name, state.colorSource, now);
   return out;
 }
 
@@ -228,8 +273,9 @@ export function applyRemote(
 ): { state: LocalState; local: SyncChanges } {
   let designs = state.designs;
   let beads = state.beads;
-  let { name, onlyMyBeads } = state;
-  const left = { ...local, designs: [...local.designs], pins: [...local.pins], beads: [...local.beads] };
+  let palettes = state.palettes;
+  let { name, colorSource } = state;
+  const left = { ...local, designs: [...local.designs], pins: [...local.pins], beads: [...local.beads], palettes: [...local.palettes] };
   const wins = <T extends { updated: number }>(rows: T[], match: (row: T) => boolean, theirs: number): boolean => {
     const i = rows.findIndex(match);
     if (i >= 0 && rows[i]!.updated > theirs) return false;
@@ -254,9 +300,13 @@ export function applyRemote(
     beads = removeOwned(beads, r.key);
     if (!r.deleted && r.bead) beads = addOwned(beads, r.bead);
   }
+  for (const r of remote.palettes) {
+    if (!wins(left.palettes, (p) => p.id === r.id, r.updated)) continue;
+    palettes = r.deleted || !r.palette ? removeMyPalette(palettes, r.id) : putMyPalette(palettes, r.palette);
+  }
   if (remote.profile && !(left.profile && left.profile.updated > remote.profile.updated)) {
     delete left.profile;
-    ({ name, onlyMyBeads } = remote.profile);
+    ({ name, colorSource } = remote.profile);
   }
   // Unsent pins and unpins still count here; then the newest pin first.
   for (const p of left.pins) {
@@ -264,7 +314,7 @@ export function applyRemote(
     else pinTimes.delete(p.target);
   }
   const pinned = [...pinTimes.entries()].sort((a, b) => b[1] - a[1]).map(([target]) => target);
-  return { state: { designs: { ...designs, pinned }, beads, name, onlyMyBeads }, local: left };
+  return { state: { designs: { ...designs, pinned }, beads, palettes, name, colorSource }, local: left };
 }
 
 /** The pin times this browser knows: from the record, then for pins made since. */
@@ -284,8 +334,13 @@ export function recordOf(state: LocalState, since: number, pinTimes: Map<string,
     designs: Object.fromEntries(state.designs.designs.map((d) => [d.id, d.updated])),
     pins: Object.fromEntries(state.designs.pinned.map((t) => [t, pinTimes.get(t) ?? 0])),
     beads: Object.fromEntries(state.beads.beads.map((b) => [ownedId(b), JSON.stringify(b)])),
-    profile: { name: state.name, onlyMyBeads: state.onlyMyBeads },
+    palettes: Object.fromEntries(state.palettes.palettes.map((p) => [p.id, JSON.stringify(p)])),
+    profile: { name: state.name, colorSource: state.colorSource },
   };
+}
+
+function recordedSource(profile: NonNullable<SyncRecord["profile"]>): ColorSource {
+  return profile.colorSource ?? (profile.onlyMyBeads ? "mine" : "all");
 }
 
 /** Splits changes into pushes of at most SYNC_BATCH rows and about `maxBytes` of design files each. */
@@ -314,6 +369,11 @@ export function batches(changes: SyncChanges, maxBytes = 1_000_000): SyncChanges
   for (const b of changes.beads) {
     if (rows + 1 > SYNC_BATCH) next();
     current.beads.push(b);
+    rows++;
+  }
+  for (const p of changes.palettes) {
+    if (rows + 1 > SYNC_BATCH) next();
+    current.palettes.push(p);
     rows++;
   }
   if (changes.profile) current.profile = changes.profile;

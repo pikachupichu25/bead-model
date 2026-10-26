@@ -1,6 +1,6 @@
 # Palettes
 
-**Status: phase 1 (preset palettes) is built**, as described below. Phases 2 (my own palettes) and 3 (public palettes) are still the plan.
+**Status: phases 1 (preset palettes) and 2 (my own palettes) are built**, as described below. Phase 3 (public palettes) is still the plan.
 
 A **palette** is a short, named set of bead colors that go well together, such as "Ocean", "Pastel" or "Christmas". Picking one in a designer narrows the colors on offer to that set, the way **My beads** narrows them to [the beads I have](my-beads-storage.md). It answers "which 6 of these 200 colors should I use?" for someone who doesn't own many beads yet, or wants a starting point.
 
@@ -86,7 +86,7 @@ Follows the My beads split: plain data and logic in `src/`, browser code in `web
 | [`catalog/palettes/*.yaml`](../catalog/palettes) | The preset palettes. |
 | [`src/catalog/load-files.ts`](../src/catalog/load-files.ts) | `loadPalettes`, next to `loadCatalog`. |
 | [`web/presets.ts`](../web/presets.ts) | The bundled presets and the **Colors from** options. |
-| [`web/my-beads-store.ts`](../web/my-beads-store.ts) | `loadColorSource` / `saveColorSource`, kept in `bead-model:color-source`. A browser with only the old `bead-model:only-my-beads` key gets "mine" or "all" from it. That key is still written (`"true"` when the source is My beads), because it's what syncs with the account (`profiles.only_my_beads`) until phase 2; `loadOnlyMine` / `saveOnlyMine` stay for sync and the moved-site import, and turning only-mine off from the account leaves a palette as it is. |
+| [`web/my-beads-store.ts`](../web/my-beads-store.ts) | `loadColorSource` / `saveColorSource`, kept in `bead-model:color-source`. A browser with only the old `bead-model:only-my-beads` key gets "mine" or "all" from it. That key is still written (`"true"` when the source is My beads); `loadOnlyMine` / `saveOnlyMine` stay for the moved-site import. Since phase 2 the color source itself syncs with the account. |
 | [`web/color-choices.ts`](../web/color-choices.ts) | The **Colors from** select, the add list and **Use all**, shared by the Flat and Nora designers. |
 | `web/flat.ts`, `web/nora.ts`, `web/editor.ts` | Use the above. The Circular editor filters its product picker by `offeredProducts`. |
 | `web/flat-import.ts` | A `palette` option in `allowedColors`. |
@@ -108,13 +108,13 @@ Keeping `offeredColors` the single place that decides "which colors can I add" m
 7. **My beads page.** The Palettes card with **Add these to My beads**.
 8. **Docs.** Update this note to "as built", and point to it from `my-beads-storage.md` and the README.
 
-### Phase 2: my own palettes
+### Phase 2: my own palettes (built)
 
-1. **Save a palette** from the current design's colors ("Save these colors as a palette…"), or build one on the My beads page by picking swatches.
-2. **Storage.** `bead-model:my-palettes` in localStorage, `{ "version": 1, "palettes": [...] }`, same format as the preset YAML, with `visibility` on each palette. Back up and restore alongside My beads. Restoring a backup always brings palettes in as `private`: making one public is a choice made on this account, not something a file can do.
-3. **Sync.** A `palettes` table in a new D1 migration (`migrations/0004_palettes.sql`), one row per palette keyed by owner + id, with `updated_at`, `synced_at` and `deleted` like `owned_beads`, plus `"visibility" text not null default 'private' check ("visibility" in ('private', 'public'))`. The column has the same name and values as the browser format, so sync copies it as it is, with no translation. Add the table to `src/collection/sync.ts`, `web/sync.ts` and the worker's sync route. `visibility` syncs like any other field (the newer change wins). `designs` already uses the same `visibility` column ([`0003_designs_visibility.sql`](../migrations/0003_designs_visibility.sql) replaced its `is_public` flag), so both use the same word.
-4. **Privacy control.** A **Private / Public** switch on each palette on the My beads page, with "Sign in to share" when signed out. Public palettes get a **Copy link** button.
-5. **Color source on the account.** `profiles.only_my_beads` becomes a `color_source` text column (migrate 1 → `"mine"`, 0 → `"all"`).
+1. **Save a palette.** "Save these colors as a palette…" under the beads in the Flat and Nora designers keeps the design's beads (products stay products, own colors keep their color). On the My beads page, **+ New palette from my beads in this size** does the same with my beads in the picked size. This replaced "build one by picking swatches": the bead grid already is the way to pick colors, so a palette is made from what's picked there. My palettes appear in **Colors from** under "My palettes", in every designer. Their ids start with `my-`, which presets may not use.
+2. **Storage.** `bead-model:my-palettes` in localStorage, `{ "version": 1, "palettes": [...] }`, same format as the preset YAML, with `visibility` on each palette ([`src/collection/my-palettes.ts`](../src/collection/my-palettes.ts), [`web/palettes-store.ts`](../web/palettes-store.ts)). The My beads **Back up (.json)** file holds them next to the beads, and **Restore…** adds the ones this browser doesn't have. Restoring always brings palettes in as `private`: making one public is a choice made on this account, not something a file can do. The My beads page lists them under **My palettes**, to rename, delete or make public.
+3. **Sync.** A `palettes` table ([`migrations/0004_palettes.sql`](../migrations/0004_palettes.sql)), one row per palette keyed by owner + id, with `updated_at`, `synced_at` and `deleted` like `owned_beads`, the colors as JSON, plus `"visibility" text not null default 'private' check ("visibility" in ('private', 'public'))`. The column has the same name and values as the browser format, so sync copies it as it is, with no translation. A deleted palette is stored as private. `visibility` syncs like any other field (the newer change wins). `designs` already uses the same `visibility` column ([`0003_designs_visibility.sql`](../migrations/0003_designs_visibility.sql) replaced its `is_public` flag), so both use the same word.
+4. **Privacy control.** A **Private / Public** select on each of my palettes on the My beads page, turned off with "Sign in to share" when signed out. Public palettes get a **Copy link** button (the link works once phase 3's palette page is built).
+5. **Color source on the account.** [`migrations/0005_color_source.sql`](../migrations/0005_color_source.sql) adds `profiles.color_source` (1 → `"mine"`, 0 → `"all"`). `only_my_beads` stays, kept equal to `color_source = 'mine'`, and the profile still carries `onlyMyBeads` for pages from before the color source; a push with only `onlyMyBeads` sets the source from it. In the browser the color source now syncs itself, and `bead-model:only-my-beads` is only still written for the moved-site import.
 
 ### Phase 3: public palettes
 

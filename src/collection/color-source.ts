@@ -15,6 +15,11 @@ export function readColorSource(text: string | null | undefined, palettes: Palet
   return "all";
 }
 
+/** Whether text is a color source at all (the account stores it before the palette it names may have synced). */
+export function isColorSourceText(text: unknown): text is ColorSource {
+  return typeof text === "string" && /^(all|mine|palette:[a-z0-9][a-z0-9-]{0,63})$/.test(text);
+}
+
 export function paletteOf(source: ColorSource, palettes: Palette[]): Palette | undefined {
   return source.startsWith("palette:") ? palettes.find((p) => `palette:${p.id}` === source) : undefined;
 }

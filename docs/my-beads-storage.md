@@ -12,7 +12,8 @@ Everything is kept in the browser's **localStorage**, on the user's own device. 
 |---|---|---|
 | `bead-model:my-beads` | The list, as JSON (format below) | `{"version":1,"beads":[…]}` |
 | `bead-model:color-source` | Where the designers take their colors from | `"all"`, `"mine"` or `"palette:ocean"` |
-| `bead-model:only-my-beads` | Whether that's My beads. Older than the color source, and still what syncs with the account | `"true"` or `"false"` |
+| `bead-model:only-my-beads` | Whether that's My beads. Older than the color source, and kept for the moved-site import | `"true"` or `"false"` |
+| `bead-model:my-palettes` | Palettes I saved ([format](preset-palettes.md#phase-2-my-own-palettes-built)) | `{"version":1,"palettes":[…]}` |
 | `bead-model:my-beads-size` | The bead size last picked on the My beads page (a convenience only) | `"miyuki delica DB"` |
 
 To look at it: open the site, open DevTools, then go to **Application → Local Storage →** the site's address.
@@ -56,7 +57,7 @@ Rules:
 - **Reading is forgiving.** `myBeadsFromJson` drops entries it can't read instead of failing, so a damaged or newer file still loads what it can.
 - **`version`** is there for a future change of format. Today it is always `1`.
 
-The **Back up (.json)** file uses this same format. **Restore…** merges a backup in: beads you don't have are added, and beads you already have stay as they are.
+The **Back up (.json)** file uses this same format, with my palettes in a `palettes` list next to `beads`. **Restore…** merges a backup in: beads you don't have are added, and beads you already have stay as they are.
 
 The **Export as text…** output is for people to read. It is not read back in; the JSON backup is the file to restore from.
 

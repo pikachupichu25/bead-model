@@ -13,14 +13,28 @@ import {
   myBeadsText,
   myBeadsToJson,
   type OwnedBead,
+  ownedColorsFor,
   ownedId,
   removeOwned,
   updateOwned,
 } from "../src/collection/my-beads.js";
-import { paletteColorsFor } from "../src/collection/palettes.js";
+import {
+  findMyPalette,
+  mergeMyPalettes,
+  type MyPalette,
+  type MyPalettes,
+  myPalettesFromJson,
+  newPaletteId,
+  paletteFromEntries,
+  putMyPalette,
+  removeMyPalette,
+} from "../src/collection/my-palettes.js";
+import { type Palette, paletteColorsFor } from "../src/collection/palettes.js";
 import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.js";
+import { loadAccount } from "./account.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
 import { presetPalettes } from "./presets.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
@@ -60,14 +74,29 @@ const els = {
   restore: $<HTMLInputElement>("restore-file"),
   palettes: $<HTMLUListElement>("palettes"),
   palettesSize: $("palettes-size"),
+  myPalettes: $<HTMLUListElement>("my-palette-list"),
+  paletteFromMine: $<HTMLButtonElement>("palette-from-mine"),
 };
 
 let list: MyBeads = loadMyBeads();
+let palettes: MyPalettes = loadMyPalettes();
+/** Who is signed in: only they can make a palette public. */
+let userId: string | undefined;
+
+function changePalettes(next: MyPalettes): void {
+  palettes = next;
+  if (!saveMyPalettes(palettes)) showNotice("This browser won't keep your palettes (storage is off, as in a private window).");
+  renderPalettes();
+}
 
 function change(next: MyBeads): void {
   list = next;
   if (!saveMyBeads(list)) showNotice("This browser won't keep your beads (storage is off, as in a private window). Back up before you close the page.");
   render();
+void loadAccount().then((account) => {
+  userId = account?.user?.id;
+  if (userId) renderPalettes();
+});
 }
 
 // ---- Rendering ----
@@ -162,10 +191,15 @@ function renderMine(): void {
     .join("");
 }
 
-/** A palette color in the picked size, as the bead it adds to My beads. */
-function paletteBeads(index: number): { bead: OwnedBead; name: string; rgb: string; code: string }[] {
+/** The preset or one of my palettes, by id. */
+function paletteById(id: string): Palette | undefined {
+  return presetPalettes.find((p) => p.id === id) ?? findMyPalette(palettes, id);
+}
+
+/** A palette's colors in the picked size, as the beads they add to My beads. */
+function paletteBeads(palette: Palette): { bead: OwnedBead; name: string; rgb: string; code: string }[] {
   const size = els.size.value;
-  return paletteColorsFor(presetPalettes[index]!, resolveBeadSize(catalog, size), catalog).map((c) => ({
+  return paletteColorsFor(palette, resolveBeadSize(catalog, size), catalog).map((c) => ({
     bead: typeof c.entry === "string" ? { kind: "catalog", bead: c.entry } : { kind: "own", size, name: c.name, rgb: c.rgb },
     name: c.name,
     rgb: c.rgb,
@@ -175,22 +209,47 @@ function paletteBeads(index: number): { bead: OwnedBead; name: string; rgb: stri
 
 function renderPalettes(): void {
   els.palettesSize.textContent = `in ${resolveBeadSize(catalog, els.size.value).label}`;
-  els.palettes.innerHTML = presetPalettes
-    .map((p, i) => {
-      const beads = paletteBeads(i);
-      const missing = beads.filter((b) => !hasOwned(list, b.bead)).length;
-      return `<li class="palette-item">
-        <div class="palette-head"><b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span></div>
-        <ul class="palette-swatches">${beads
-          .map((b) => {
-            const on = hasOwned(list, b.bead);
-            return `<li title="${esc(`${b.code} ${b.name}${on ? " · mine" : ""}`)}"><span class="swatch big${on ? " mine" : ""}" style="background:${esc(b.rgb)}"></span></li>`;
-          })
-          .join("")}</ul>
-        <button type="button" class="button small" data-palette="${i}"${missing ? "" : " disabled"}>${missing ? `Add ${missing === beads.length ? "these" : `the ${missing} I don't have`} to My beads` : "All in My beads"}</button>
-      </li>`;
-    })
-    .join("");
+  els.paletteFromMine.disabled = ownedColorsFor(list, resolveBeadSize(catalog, els.size.value)).length === 0;
+  els.myPalettes.innerHTML = palettes.palettes.length
+    ? palettes.palettes.map((p) => paletteItem(p, myPaletteTools(p))).join("")
+    : `<li class="muted mine-empty">None yet. Save one from a design (<b>Save these colors as a palette…</b> under its beads), or from my beads above.</li>`;
+  els.palettes.innerHTML = presetPalettes.map((p) => paletteItem(p, `<b>${esc(p.name)}</b> <span class="muted">${esc(p.description ?? "")}</span>`)).join("");
+}
+
+/** One palette: its head, its swatches in the picked size, and "Add these to My beads". */
+function paletteItem(p: Palette, head: string): string {
+  const beads = paletteBeads(p);
+  const missing = beads.filter((b) => !hasOwned(list, b.bead)).length;
+  return `<li class="palette-item" data-id="${esc(p.id)}">
+    <div class="palette-head">${head}</div>
+    <ul class="palette-swatches">${beads
+      .map((b) => {
+        const on = hasOwned(list, b.bead);
+        return `<li title="${esc(`${b.code} ${b.name}${on ? " · mine" : ""}`)}"><span class="swatch big${on ? " mine" : ""}" style="background:${esc(b.rgb)}"></span></li>`;
+      })
+      .join("")}</ul>
+    <button type="button" class="button small" data-action="add"${missing ? "" : " disabled"}>${missing ? `Add ${missing === beads.length ? "these" : `the ${missing} I don't have`} to My beads` : "All in My beads"}</button>
+  </li>`;
+}
+
+/** My palette's name, who may see it, its link when public, and delete. */
+function myPaletteTools(p: MyPalette): string {
+  const shareable = userId !== undefined;
+  return `<input type="text" class="palette-name" data-field="name" value="${esc(p.name)}" maxlength="80" aria-label="Palette name" />
+    <span class="palette-tools">
+      <select data-field="visibility" aria-label="Who can see ${esc(p.name)}"${shareable ? "" : ' disabled title="Sign in to share"'}>
+        <option value="private"${p.visibility === "private" ? " selected" : ""}>Private</option>
+        <option value="public"${p.visibility === "public" ? " selected" : ""}>Public</option>
+      </select>
+      ${shareable ? "" : `<span class="muted">Sign in to share</span>`}
+      ${shareable && p.visibility === "public" ? `<button type="button" class="button small" data-action="link">Copy link</button>` : ""}
+      <button type="button" class="icon-button" data-action="delete" aria-label="Delete ${esc(p.name)}" title="Delete">✕</button>
+    </span>`;
+}
+
+/** The link that shows a public palette to anyone. */
+function paletteLink(id: string): string {
+  return new URL(`./palette.html?owner=${encodeURIComponent(userId ?? "")}&id=${encodeURIComponent(id)}`, location.href).href;
 }
 
 // ---- Events ----
@@ -201,12 +260,52 @@ els.size.addEventListener("change", () => {
   renderPalettes();
 });
 
-els.palettes.addEventListener("click", (event) => {
-  const index = (event.target as HTMLElement).closest<HTMLElement>("[data-palette]")?.dataset.palette;
-  if (index === undefined) return;
-  const beads = paletteBeads(Number(index)).filter((b) => !hasOwned(list, b.bead));
-  change(beads.reduce((l, b) => addOwned(l, b.bead), list));
-  showNotice(`Added ${beads.length} bead${beads.length === 1 ? "" : "s"} from ${esc(presetPalettes[Number(index)]!.name)}.`);
+for (const container of [els.palettes, els.myPalettes]) {
+  container.addEventListener("click", async (event) => {
+    const target = event.target as HTMLElement;
+    const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+    const palette = paletteById(target.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
+    if (!action || !palette) return;
+    if (action === "add") {
+      const beads = paletteBeads(palette).filter((b) => !hasOwned(list, b.bead));
+      change(beads.reduce((l, b) => addOwned(l, b.bead), list));
+      showNotice(`Added ${beads.length} bead${beads.length === 1 ? "" : "s"} from ${esc(palette.name)}.`);
+    } else if (action === "delete") {
+      if (confirm(`Delete the palette “${palette.name}”?`)) changePalettes(removeMyPalette(palettes, palette.id));
+    } else if (action === "link") {
+      try {
+        await navigator.clipboard.writeText(paletteLink(palette.id));
+        showNotice(`Copied the link to “${esc(palette.name)}”. Anyone with it can see the palette and save a copy.`);
+      } catch {
+        showNotice(`The link: ${esc(paletteLink(palette.id))}`);
+      }
+    }
+  });
+}
+
+els.myPalettes.addEventListener("change", (event) => {
+  const el = event.target as HTMLInputElement | HTMLSelectElement;
+  const palette = findMyPalette(palettes, el.closest<HTMLElement>("[data-id]")?.dataset.id ?? "");
+  if (!palette) return;
+  if (el.dataset.field === "name") {
+    const name = el.value.trim();
+    if (name) changePalettes(putMyPalette(palettes, { ...palette, name }));
+    else el.value = palette.name;
+  } else if (el.dataset.field === "visibility" && userId) {
+    const visibility = el.value === "public" ? "public" : "private";
+    changePalettes(putMyPalette(palettes, { ...palette, visibility }));
+    if (visibility === "public") showNotice(`“${esc(palette.name)}” is public: anyone can find it in Browse palettes, with your display name. Copy its link to share it.`);
+  }
+});
+
+els.paletteFromMine.addEventListener("click", () => {
+  const size = resolveBeadSize(catalog, els.size.value);
+  const name = prompt("Name the palette", `My ${size.label} beads`);
+  if (name === null) return;
+  let id = newPaletteId();
+  while (findMyPalette(palettes, id)) id = newPaletteId();
+  const palette = paletteFromEntries(name, ownedColorsFor(list, size).map((c) => c.entry), id);
+  if (palette) changePalettes(putMyPalette(palettes, palette));
 });
 els.search.addEventListener("input", renderColors);
 els.mineFilter.addEventListener("input", renderMine);
@@ -277,18 +376,28 @@ els.exportCopy.addEventListener("click", async () => {
   }
 });
 els.exportDownload.addEventListener("click", () => download(myBeadsText(list, catalog), `my-beads-${today()}.txt`, "text/plain"));
-els.backup.addEventListener("click", () => download(myBeadsToJson(list), `my-beads-${today()}.json`, "application/json"));
+// The backup holds my palettes too, next to the beads: the same file restores both.
+els.backup.addEventListener("click", () =>
+  download(JSON.stringify({ ...JSON.parse(myBeadsToJson(list)), palettes: palettes.palettes }, null, 2), `my-beads-${today()}.json`, "application/json"),
+);
 
 els.restore.addEventListener("change", async () => {
   const file = els.restore.files?.[0];
   els.restore.value = "";
   if (!file) return;
   try {
-    const backup = myBeadsFromJson(await file.text());
+    const text = await file.text();
+    const backup = myBeadsFromJson(text);
     const before = list.beads.length;
+    const palettesBefore = palettes.palettes.length;
+    changePalettes(mergeMyPalettes(palettes, myPalettesFromJson(text)));
     change(mergeMyBeads(list, backup));
     const added = list.beads.length - before;
-    showNotice(`Restored ${esc(file.name)}: ${added} bead${added === 1 ? "" : "s"} added, ${backup.beads.length - added} you already had.`);
+    const newPalettes = palettes.palettes.length - palettesBefore;
+    showNotice(
+      `Restored ${esc(file.name)}: ${added} bead${added === 1 ? "" : "s"} added, ${backup.beads.length - added} you already had` +
+        (newPalettes ? `, and ${newPalettes} palette${newPalettes === 1 ? "" : "s"} (private).` : "."),
+    );
   } catch (e) {
     showNotice(`Couldn't restore ${esc(file.name)}: ${esc(e instanceof Error ? e.message : String(e))}`);
   }
@@ -297,7 +406,12 @@ els.restore.addEventListener("change", async () => {
 // Another tab changed the list: show the new one, unless an amount or note is being typed here.
 onMyBeadsChange(() => {
   list = loadMyBeads();
-  if (!els.mine.contains(document.activeElement)) render();
+  palettes = loadMyPalettes();
+  if (!els.mine.contains(document.activeElement) && !els.myPalettes.contains(document.activeElement)) render();
+void loadAccount().then((account) => {
+  userId = account?.user?.id;
+  if (userId) renderPalettes();
+});
 });
 
 // ---- Helpers ----
@@ -344,3 +458,7 @@ function esc(s: string): string {
 }
 
 render();
+void loadAccount().then((account) => {
+  userId = account?.user?.id;
+  if (userId) renderPalettes();
+});

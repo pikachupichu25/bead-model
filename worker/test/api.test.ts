@@ -132,13 +132,28 @@ describe("the API", () => {
     expect(all.pins).toEqual([{ target: "example:flat:heart-band", pinned: true, pinnedAt: 100, updated: 100 }]);
     expect(all.beads.find((b) => b.key === "catalog:miyuki db-0010")).toMatchObject({ deleted: true, bead: { bead: "miyuki DB-0010" } });
     expect(all.beads.find((b) => b.key === "own:miyuki delica db:dusty rose")?.bead).toMatchObject({ name: "dusty rose" });
-    expect(all.profile).toEqual({ name: "Alice", onlyMyBeads: true, updated: 100 });
+    expect(all.profile).toEqual({ name: "Alice", colorSource: "mine", onlyMyBeads: true, updated: 100 });
     expect((await pull(bob)).beads).toEqual([]);
+  });
+
+  it("keeps palettes and the color source", async () => {
+    const sea = { id: "my-sea", name: "Sea", colors: [{ bead: "miyuki DB-0726" }, { rgb: "#2a6f97", name: "sea blue" }], visibility: "private" };
+    await push(alice, { palettes: [{ palette: sea, updated: 300 }], profile: { name: "Alice", colorSource: "palette:my-sea", updated: 300 } });
+    let all = await pull(alice);
+    expect(all.palettes).toEqual([{ id: "my-sea", palette: sea, updated: 300 }]);
+    expect(all.profile).toMatchObject({ colorSource: "palette:my-sea", onlyMyBeads: false });
+    expect((await pull(bob)).palettes).toEqual([]);
+    // An older page sends only "only my beads".
+    await push(alice, { profile: { name: "Alice", onlyMyBeads: true, updated: 400 } });
+    expect((await pull(alice)).profile?.colorSource).toBe("mine");
+    await push(alice, { palettes: [{ id: "my-sea", deleted: true, updated: 500 }] });
+    all = await pull(alice);
+    expect(all.palettes).toEqual([{ id: "my-sea", updated: 500, deleted: true }]);
   });
 
   it("drops rows it can't read, and refuses too many at once", async () => {
     const result = await push(alice, { designs: [{ id: "bad", kind: "nope", yaml: 1, updated: 1 }], pins: [{}] });
-    expect(result.rejected).toEqual({ designs: [], pins: [], beads: [] });
+    expect(result.rejected).toEqual({ designs: [], pins: [], beads: [], palettes: [] });
     const many = Array.from({ length: 150 }, (_, i) => design(`m${i}`, 1));
     expect((await call("/api/sync", { method: "POST", cookie: alice, body: JSON.stringify({ designs: many }) })).status).toBe(400);
   });

@@ -39,9 +39,9 @@ import {
 import { findDesign } from "../src/collection/designs.js";
 import { loadMyDesigns, openDesign, takeDesignHash } from "./designs-store.js";
 import { findExample } from "./examples.js";
-import { markNotMine, renderColorChoices } from "./color-choices.js";
+import { markNotMine, renderColorChoices, pickedColorSource, saveColorsAsPalette } from "./color-choices.js";
 import { loadColorSource, loadMyBeads, onMyBeadsChange, saveColorSource } from "./my-beads-store.js";
-import { presetPalettes } from "./presets.js";
+import { allPalettes } from "./palettes-store.js";
 import { renderNav } from "./nav.js";
 import { drawNora, RULER_LEFT, RULER_TOP } from "./nora-canvas.js";
 
@@ -89,6 +89,7 @@ const els = {
   addOwn: $<HTMLButtonElement>("add-own"),
   colorSource: $<HTMLSelectElement>("color-source"),
   usePalette: $<HTMLButtonElement>("use-palette"),
+  savePalette: $<HTMLButtonElement>("save-palette"),
   onlyMineCount: $<HTMLAnchorElement>("only-mine-count"),
   ringNote: $("ring-note"),
   ringList: $("ring-list"),
@@ -826,8 +827,21 @@ els.usePalette.addEventListener("click", () => {
 });
 
 els.colorSource.addEventListener("change", () => {
-  colorSource = els.colorSource.value as ColorSource;
+  const picked = pickedColorSource(els.colorSource);
+  if (!picked) return;
+  colorSource = picked;
   saveColorSource(colorSource);
+  renderPanel();
+});
+
+els.savePalette.addEventListener("click", async () => {
+  const saved = await saveColorsAsPalette([...state.design.beads.values()], state.design.title);
+  if (!saved) return;
+  showNotice(
+    saved.saved
+      ? `Saved “${esc(saved.name)}” to <a href="./beads.html#my-palettes">my palettes</a>. Pick it in Colors from in any design.`
+      : "This browser won't keep the palette (storage is off, as in a private window).",
+  );
   renderPanel();
 });
 
@@ -863,7 +877,7 @@ els.newCancel.addEventListener("click", () => els.newDialog.close());
 els.newForm.addEventListener("submit", () => {
   const size = resolveBeadSize(catalog, els.newBead.value);
   const first =
-    offeredColors(colorSource, size, { myBeads, palettes: presetPalettes, catalog })[0]?.entry ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
+    offeredColors(colorSource, size, { myBeads, palettes: allPalettes(), catalog })[0]?.entry ?? catalogColors(size)[0]?.entry ?? { color: "main", display: { rgb: "#4e79a7" } };
   const title = els.newName.value.trim() || "Untitled design";
   state.paint = "A";
   const design: NoraDesign = { ...emptyDesign(els.newBead.value, title), beads: new Map([["A", first]]) };

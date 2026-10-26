@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { loadCatalog, loadPalettes } from "../src/catalog/load-files.js";
 import { isOwned, offeredColors, offeredProducts, readColorSource } from "../src/collection/color-source.js";
 import { addOwned, emptyMyBeads } from "../src/collection/my-beads.js";
+import {
+  copyPalette,
+  emptyMyPalettes,
+  mergeMyPalettes,
+  type MyPalette,
+  myPalettesFromJson,
+  myPalettesToJson,
+  newPaletteId,
+  paletteFromEntries,
+  putMyPalette,
+  removeMyPalette,
+} from "../src/collection/my-palettes.js";
 import { checkPalettes, MAX_DELTA_E, type Palette, PaletteError, paletteColorsFor, palettesFromFiles, parsePalette } from "../src/collection/palettes.js";
 import { resolveBeadSize } from "../src/flat/beads.js";
 
@@ -109,5 +121,45 @@ describe("color source", () => {
   it("knows my own colors", () => {
     expect(isOwned(mine, delica, { color: "rose", display: { rgb: "#c48a90" } })).toBe(true);
     expect(isOwned(mine, delica, "miyuki DB-0010")).toBe(false);
+  });
+});
+
+describe("my palettes", () => {
+  const sea: MyPalette = { id: "my-sea", name: "Sea", colors: [{ bead: "miyuki DB-0726" }], visibility: "public" };
+
+  it("read as private unless they say public, and drop what isn't one", () => {
+    const list = myPalettesFromJson(
+      JSON.stringify({ palettes: [sea, { ...sea, id: "my-b", visibility: "everyone" }, { ...sea, id: "ocean" }, { ...sea, id: "my-sea" }, "x"] }),
+    );
+    expect(list.palettes.map((p) => [p.id, p.visibility])).toEqual([["my-sea", "public"], ["my-b", "private"]]);
+    expect(myPalettesFromJson("not json").palettes).toEqual([]);
+    expect(myPalettesFromJson(myPalettesToJson(list))).toEqual(list);
+  });
+
+  it("are made from a design's beads", () => {
+    const p = paletteFromEntries(" Heart ", ["miyuki DB-0010", { color: "rose", display: { rgb: "#C48A90" } }, "miyuki DB-0010", { brand: "x" }], "my-x");
+    expect(p).toEqual({ id: "my-x", name: "Heart", colors: [{ bead: "miyuki DB-0010" }, { rgb: "#c48a90", name: "rose" }], visibility: "private" });
+    expect(paletteFromEntries("Empty", [{ brand: "x" }])).toBeUndefined();
+    expect(newPaletteId(() => 0)).toBe("my-0000000000");
+  });
+
+  it("come back from a backup as private, without replacing mine", () => {
+    let list = putMyPalette(emptyMyPalettes(), { ...sea, name: "Mine" });
+    list = mergeMyPalettes(list, { version: 1, palettes: [sea, { ...sea, id: "my-new" }] });
+    expect(list.palettes.map((p) => [p.id, p.name, p.visibility])).toEqual([["my-sea", "Mine", "public"], ["my-new", "Sea", "private"]]);
+    expect(removeMyPalette(list, "my-sea").palettes.map((p) => p.id)).toEqual(["my-new"]);
+  });
+
+  it("copy someone's palette as a new private one", () => {
+    expect(copyPalette(sea, "my-copy")).toEqual({ ...sea, id: "my-copy", visibility: "private" });
+  });
+
+  it("can be a color source", () => {
+    expect(readColorSource("palette:my-sea", [...presets, sea])).toBe("palette:my-sea");
+    expect(offeredColors("palette:my-sea", delica, { myBeads: emptyMyBeads(), palettes: [sea], catalog }).map((c) => c.code)).toEqual(["DB-0726"]);
+  });
+
+  it("can't take a preset's place", () => {
+    expect(() => palettesFromFiles([{ name: "a.yaml", text: "id: my-a\nname: A\ncolors: [{ bead: miyuki DB-0010 }]\n" }])).toThrow(/"my-" ids/);
   });
 });

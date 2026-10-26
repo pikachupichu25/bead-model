@@ -4,7 +4,7 @@
 
 import { type ColorSource, readColorSource } from "../src/collection/color-source.js";
 import { emptyMyBeads, type MyBeads, myBeadsFromJson, myBeadsToJson } from "../src/collection/my-beads.js";
-import { presetPalettes } from "./presets.js";
+import { allPalettes, PALETTES_KEY } from "./palettes-store.js";
 import { announceSave, onSynced } from "./store-events.js";
 
 const STORAGE = {
@@ -39,7 +39,7 @@ export function saveMyBeads(list: MyBeads): boolean {
 export function loadColorSource(): ColorSource {
   try {
     const saved = localStorage.getItem(STORAGE.colorSource);
-    if (saved !== null) return readColorSource(saved, presetPalettes);
+    if (saved !== null) return readColorSource(saved, allPalettes());
     return localStorage.getItem(STORAGE.onlyMine) === "true" ? "mine" : "all";
   } catch {
     return "all";
@@ -68,10 +68,10 @@ export function saveOnlyMine(on: boolean): void {
   else if (source === "mine") saveColorSource("all");
 }
 
-/** Calls back when another tab, or a sync with the account, changes the list or the setting. */
+/** Calls back when another tab, or a sync with the account, changes the list, my palettes or the setting. */
 export function onMyBeadsChange(callback: () => void): void {
   window.addEventListener("storage", (event) => {
-    if (event.key === null || event.key === STORAGE.list || event.key === STORAGE.colorSource || event.key === STORAGE.onlyMine) callback();
+    if (event.key === null || event.key === STORAGE.list || event.key === STORAGE.colorSource || event.key === PALETTES_KEY || event.key === STORAGE.onlyMine) callback();
   });
   onSynced(callback);
 }
