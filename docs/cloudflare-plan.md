@@ -36,10 +36,14 @@ worker/
   env.ts            the bindings, vars and secrets
   db.ts             every SQL query, each one filtered by the signed-in user's id
   routes/sync.ts    GET and POST /api/sync
+  routes/palettes.ts GET /api/palettes/public (public palettes, for anyone)
   test/api.test.ts  the API against a real local D1 (wrangler's getPlatformProxy)
 migrations/
   0001_auth.sql     Better Auth's tables (from its getMigrations())
   0002_app.sql      profiles, designs, pins, owned_beads (below)
+  0004_palettes.sql my palettes, with who may see them
+  0005_color_source.sql  profiles.color_source (where the designers take colors from)
+  0006_palette_tags.sql  palettes.tags
 wrangler.jsonc      assets → ./dist/client, run the Worker first for /api/*, the D1 binding
 web/
   account.ts        sign in / sign out / current user (/api/me and Better Auth's endpoints)
@@ -56,14 +60,15 @@ Secrets, set with `wrangler secret put` and never committed: `BETTER_AUTH_SECRET
 
 ## Schema (D1 / SQLite)
 
-Better Auth's tables are `user`, `session`, `account` and `verification` ([`0001_auth.sql`](../migrations/0001_auth.sql)). Ours are in [`0002_app.sql`](../migrations/0002_app.sql) and hang off `user`. D1 enforces foreign keys, so deleting a user deletes their rows.
+Better Auth's tables are `user`, `session`, `account` and `verification` ([`0001_auth.sql`](../migrations/0001_auth.sql)). Ours are in [`0002_app.sql`](../migrations/0002_app.sql) and the migrations after it, and hang off `user`. D1 enforces foreign keys, so deleting a user deletes their rows.
 
 | Table | Key | Holds |
 |---|---|---|
-| `profiles` | `user_id` | display name, `only_my_beads` |
+| `profiles` | `user_id` | display name, `color_source`, and `only_my_beads` kept equal to `color_source = 'mine'` for older pages |
 | `designs` | `(owner_id, id)`, where `id` is the browser's own `d…` id | `kind`, `title`, `yaml`, `is_public` (for later), `created_at` |
 | `pins` | `(owner_id, target)` | `pinned`, `pinned_at` (the newest pin comes first) |
 | `owned_beads` | `(owner_id, bead_key)`, where the key is `ownedId()` | a catalog code, or an own size/name/rgb; `amount`, `note` |
+| `palettes` | `(owner_id, id)`, where `id` is the browser's own `my-…` id | `name`, `description`, `tags`, `colors` (JSON), `visibility` (`private` or `public`). Public ones are read by anyone through `/api/palettes/public`; see [preset-palettes.md](preset-palettes.md) |
 
 Every table also has:
 - **`updated_at`**, when the row last changed on the device that changed it. The newer change wins.

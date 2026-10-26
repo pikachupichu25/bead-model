@@ -1,0 +1,12 @@
+id: pastel
+name: Pastel
+description: Soft pinks, mint, sky blue and buttercream.
+tags: [pink, mint, soft, light, spring, baby]
+colors:
+  - { bead: miyuki DB-2361 }
+  - { bead: miyuki DB-1492 }
+  - { bead: miyuki DB-1491 }
+  - { bead: miyuki DB-1496 }
+  - { bead: miyuki DB-1497 }
+  - { bead: miyuki DB-2524, role: accent }
+  - { bead: miyuki DB-0201, role: light }

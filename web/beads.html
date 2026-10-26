@@ -51,7 +51,10 @@
             <input type="search" id="search" placeholder="code or name, e.g. 0010 or silver" />
           </label>
         </div>
-        <p class="muted beads-count" id="size-count"></p>
+        <div class="ed-head">
+          <p class="muted beads-count" id="size-count"></p>
+          <button type="button" class="button small" id="palette-from-mine" title="Keep my beads in this size as one of my palettes">Save my beads in this size as a palette</button>
+        </div>
         <ul class="color-grid" id="colors" aria-label="Catalog colors"></ul>
         <div class="own-add">
           <span class="muted">Not in the catalog?</span>
@@ -66,7 +69,7 @@
           <h2 id="mine-title">My beads</h2>
           <span class="muted" id="mine-count"></span>
         </div>
-        <p class="muted ed-help">Kept in this browser, so they're here next time you open the page. Back up to move them to another browser. In the Editor and the Flat designer, tick <b>Only my beads</b> to build from these.</p>
+        <p class="muted ed-help">Kept in this browser, so they're here next time you open the page. Back up to move them to another browser. In the designers, set <b>Colors from</b> to <b>My beads</b> to build from these.</p>
         <input type="search" id="mine-filter" class="mine-filter" placeholder="Filter my beads" aria-label="Filter my beads" />
         <div id="mine"></div>
       </section>

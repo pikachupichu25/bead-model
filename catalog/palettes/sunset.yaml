@@ -1,0 +1,12 @@
+id: sunset
+name: Sunset
+description: Warm reds, corals and oranges into a deep purple.
+tags: [red, orange, purple, warm, sky]
+colors:
+  - { bead: miyuki DB-2360, role: dark }
+  - { bead: miyuki DB-2353 }
+  - { bead: miyuki DB-0723 }
+  - { bead: miyuki DB-0727 }
+  - { bead: miyuki DB-0722 }
+  - { bead: miyuki DB-1132 }
+  - { bead: miyuki DB-0721, role: light }

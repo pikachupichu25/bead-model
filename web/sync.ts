@@ -1,4 +1,4 @@
-// Keeps this browser's My designs, pins, My beads and profile in step with the
+// Keeps this browser's My designs, pins, My beads, my palettes and profile in step with the
 // signed-in account. localStorage stays the working copy every page reads and
 // writes at once; this runs alongside: on page load, when the tab comes back
 // into view, and a few seconds after a save. Each time it works out what
@@ -9,6 +9,7 @@ import {
   applyRemote,
   batches,
   changeCount,
+  emptyChanges,
   emptyRecord,
   type LocalState,
   localChanges,
@@ -20,7 +21,8 @@ import {
   type SyncPushResult,
 } from "../src/collection/sync.js";
 import { loadMyDesigns, saveMyDesigns } from "./designs-store.js";
-import { loadMyBeads, loadOnlyMine, saveMyBeads, saveOnlyMine } from "./my-beads-store.js";
+import { loadColorSource, loadMyBeads, saveColorSource, saveMyBeads } from "./my-beads-store.js";
+import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
 import { loadProfileName, saveProfileName } from "./profile-store.js";
 import { announceSynced, onSave, quietly } from "./store-events.js";
 
@@ -82,7 +84,7 @@ async function syncOnce(id: string): Promise<boolean> {
     // On failure nothing is saved: the next sync finds the same changes and pulls again.
     const result = await api<SyncPushResult>("/api/sync", batch);
     if (!result) return false;
-    ({ state } = applyRemote(state, result.rejected, { designs: [], pins: [], beads: [] }, pinTimes));
+    ({ state } = applyRemote(state, result.rejected, emptyChanges(), pinTimes));
   }
 
   // If the page saved something while this ran, start over rather than overwrite it.
@@ -131,7 +133,7 @@ export function hasLocalData(): boolean {
 }
 
 function loadState(): LocalState {
-  return { designs: loadMyDesigns(), beads: loadMyBeads(), name: loadProfileName(), onlyMyBeads: loadOnlyMine() };
+  return { designs: loadMyDesigns(), beads: loadMyBeads(), palettes: loadMyPalettes(), name: loadProfileName(), colorSource: loadColorSource() };
 }
 
 /** Writes what changed, without starting another sync, and tells the page to re-draw. */
@@ -146,12 +148,17 @@ function saveState(before: LocalState, after: LocalState): void {
       saveMyBeads(after.beads);
       changed = true;
     }
+    // Palettes before the color source, which may name one of them.
+    if (JSON.stringify(after.palettes) !== JSON.stringify(before.palettes)) {
+      saveMyPalettes(after.palettes);
+      changed = true;
+    }
     if (after.name !== before.name) {
       saveProfileName(after.name);
       changed = true;
     }
-    if (after.onlyMyBeads !== before.onlyMyBeads) {
-      saveOnlyMine(after.onlyMyBeads);
+    if (after.colorSource !== before.colorSource) {
+      saveColorSource(after.colorSource);
       changed = true;
     }
   });

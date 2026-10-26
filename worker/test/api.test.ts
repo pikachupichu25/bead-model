@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPlatformProxy } from "wrangler";
+import type { PublicPalette, PublicPalettePage } from "../../src/collection/my-palettes.js";
 import type { SyncPull, SyncPushResult } from "../../src/collection/sync.js";
 import type { Env } from "../env.js";
 import app from "../index.js";
@@ -132,13 +133,80 @@ describe("the API", () => {
     expect(all.pins).toEqual([{ target: "example:flat:heart-band", pinned: true, pinnedAt: 100, updated: 100 }]);
     expect(all.beads.find((b) => b.key === "catalog:miyuki db-0010")).toMatchObject({ deleted: true, bead: { bead: "miyuki DB-0010" } });
     expect(all.beads.find((b) => b.key === "own:miyuki delica db:dusty rose")?.bead).toMatchObject({ name: "dusty rose" });
-    expect(all.profile).toEqual({ name: "Alice", onlyMyBeads: true, updated: 100 });
+    expect(all.profile).toEqual({ name: "Alice", colorSource: "mine", onlyMyBeads: true, updated: 100 });
     expect((await pull(bob)).beads).toEqual([]);
+  });
+
+  it("keeps palettes and the color source", async () => {
+    const sea = { id: "my-sea", name: "Sea", colors: [{ bead: "miyuki DB-0726" }, { rgb: "#2a6f97", name: "sea blue" }], visibility: "private" };
+    await push(alice, { palettes: [{ palette: sea, updated: 300 }], profile: { name: "Alice", colorSource: "palette:my-sea", updated: 300 } });
+    let all = await pull(alice);
+    expect(all.palettes).toEqual([{ id: "my-sea", palette: sea, updated: 300 }]);
+    expect(all.profile).toMatchObject({ colorSource: "palette:my-sea", onlyMyBeads: false });
+    expect((await pull(bob)).palettes).toEqual([]);
+    // An older page sends only "only my beads".
+    await push(alice, { profile: { name: "Alice", onlyMyBeads: true, updated: 400 } });
+    expect((await pull(alice)).profile?.colorSource).toBe("mine");
+    await push(alice, { palettes: [{ id: "my-sea", deleted: true, updated: 500 }] });
+    all = await pull(alice);
+    expect(all.palettes).toEqual([{ id: "my-sea", updated: 500, deleted: true }]);
+  });
+
+  it("shows public palettes to anyone, and never a private one", async () => {
+    const colors = [{ bead: "miyuki DB-0010" }];
+    await push(alice, {
+      palettes: [
+        { palette: { id: "my-open", name: "Open sea", description: "blue 100%", tags: ["summer", "cool"], colors, visibility: "public" }, updated: 600 },
+        { palette: { id: "my-shut", name: "Shut sea", colors, visibility: "private" }, updated: 610 },
+      ],
+      profile: { name: "Alice", colorSource: "all", updated: 600 },
+    });
+    await push(bob, { palettes: [{ palette: { id: "my-open", name: "Bob's open", colors, visibility: "public" }, updated: 620 }] });
+
+    const list = async (query = "", cookie?: string) =>
+      (await (await call(`/api/palettes/public?q=${encodeURIComponent(query)}`, cookie ? { cookie } : {})).json()) as PublicPalettePage;
+    // Signed out, and as someone else: the same public list, newest first, with display names (Bob has none).
+    for (const cookie of [undefined, bob]) {
+      const page = await list("", cookie);
+      expect(page.palettes.map((p) => [p.palette.name, p.by])).toEqual([["Bob's open", ""], ["Open sea", "Alice"]]);
+      expect(JSON.stringify(page)).not.toContain("Shut sea");
+      expect(JSON.stringify(page)).not.toContain("alice@example.test");
+    }
+    expect((await list("SEA")).palettes.map((p) => p.palette.id)).toEqual(["my-open"]);
+    expect((await list("summer")).palettes.map((p) => [p.palette.name, p.palette.tags])).toEqual([["Open sea", ["summer", "cool"]]]);
+    expect((await list("100%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
+    // "%" and "_" are plain characters, not wildcards.
+    expect((await list("%")).palettes.map((p) => p.palette.name)).toEqual(["Open sea"]);
+    expect((await list("_")).palettes).toEqual([]);
+
+    const aliceId = (await list("Open sea")).palettes[0]!.owner;
+    const one = await call(`/api/palettes/public/${aliceId}/my-open`);
+    expect(((await one.json()) as PublicPalette).palette).toEqual({ id: "my-open", name: "Open sea", description: "blue 100%", tags: ["summer", "cool"], colors });
+    // Private and missing look the same.
+    for (const path of [`${aliceId}/my-shut`, `${aliceId}/my-gone`, `nobody/my-open`]) {
+      expect((await call(`/api/palettes/public/${path}`, { cookie: bob })).status).toBe(404);
+    }
+
+    // Made private again, or deleted: gone at once.
+    await push(alice, { palettes: [{ palette: { id: "my-open", name: "Open sea", colors, visibility: "private" }, updated: 700 }] });
+    expect((await call(`/api/palettes/public/${aliceId}/my-open`)).status).toBe(404);
+    await push(bob, { palettes: [{ id: "my-open", deleted: true, updated: 710 }] });
+    expect((await list()).palettes).toEqual([]);
+  });
+
+  it("only lets the owner change a palette", async () => {
+    const colors = [{ bead: "miyuki DB-0010" }];
+    await push(alice, { palettes: [{ palette: { id: "my-mine", name: "Mine", colors, visibility: "private" }, updated: 800 }] });
+    // Bob pushing the same id makes his own palette; Alice's stays private.
+    await push(bob, { palettes: [{ palette: { id: "my-mine", name: "Taken?", colors, visibility: "public" }, updated: 900 }] });
+    const alicePalettes = (await pull(alice)).palettes.filter((p) => p.id === "my-mine");
+    expect(alicePalettes.map((p) => [p.palette?.name, p.palette?.visibility])).toEqual([["Mine", "private"]]);
+    expect((await call("/api/palettes/public", { method: "POST", cookie: bob, body: "{}" })).status).toBe(404);
   });
 
   it("drops rows it can't read, and refuses too many at once", async () => {
     const result = await push(alice, { designs: [{ id: "bad", kind: "nope", yaml: 1, updated: 1 }], pins: [{}] });
-    expect(result.rejected).toEqual({ designs: [], pins: [], beads: [] });
+    expect(result.rejected).toEqual({ designs: [], pins: [], beads: [], palettes: [] });
     const many = Array.from({ length: 150 }, (_, i) => design(`m${i}`, 1));
     expect((await call("/api/sync", { method: "POST", cookie: alice, body: JSON.stringify({ designs: many }) })).status).toBe(400);
   });

@@ -201,14 +201,18 @@
           <ul class="flat-beads" id="bead-list" role="radiogroup" aria-label="Paint with"></ul>
           <p class="flat-total muted" id="bead-total"></p>
           <div class="only-mine-row">
-            <label><input type="checkbox" id="only-mine" /> Only my beads</label>
+            <span>Colors from</span>
+            <button type="button" class="button small source-button" id="color-source" aria-haspopup="dialog" title="Pick where the colors come from: every catalog color, my beads, or a palette"></button>
             <a href="./beads.html" class="muted" id="only-mine-count"></a>
           </div>
           <div class="add-color">
-            <select id="add-catalog" aria-label="Add a catalog color"></select>
+            <input type="search" id="add-filter" class="add-filter" placeholder="Find a color: code or name" aria-label="Find a color to paint with" hidden />
+            <div id="add-colors" class="add-colors"></div>
+            <button type="button" class="button small" id="use-palette" hidden></button>
+            <button type="button" class="button small" id="save-palette">Save these colors as a palette…</button>
             <span class="add-own">
               <input type="color" id="add-own-color" value="#c8102e" aria-label="Own color" />
-              <button type="button" class="button small" id="add-own">+ Own color</button>
+              <button type="button" class="button small" id="add-own" title="Paint with this color. It joins the beads once you use it.">Paint with own color</button>
             </span>
           </div>
         </section>
@@ -247,6 +251,7 @@
             <button type="button" class="button small" id="turn-view" title="Turn the view a quarter turn (R). The design doesn't change." aria-pressed="false">Turn ⟳</button>
           </div>
         </div>
+        <div class="palette-bar" id="palette-bar" hidden></div>
         <div class="flat-banner" id="empty-banner" role="alert" hidden>
           <span id="empty-text"></span>
           <span class="spacer"></span>

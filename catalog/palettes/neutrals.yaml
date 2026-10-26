@@ -1,0 +1,11 @@
+id: neutrals
+name: Neutrals
+description: Black, white and the grays and creams between.
+tags: [gray, black, white, cream, calm, basic]
+colors:
+  - { bead: miyuki DB-0010, role: dark }
+  - { bead: miyuki DB-2368 }
+  - { bead: miyuki DB-0731 }
+  - { bead: miyuki DB-2365 }
+  - { bead: miyuki DB-2362 }
+  - { bead: miyuki DB-0200, role: light }

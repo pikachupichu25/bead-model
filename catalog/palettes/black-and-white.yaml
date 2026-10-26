@@ -1,0 +1,7 @@
+id: black-and-white
+name: Black & white
+description: Just black and white, for bold graphic pieces.
+tags: [monochrome, graphic, bold, black, white]
+colors:
+  - { rgb: "#151515", name: black, role: dark }
+  - { rgb: "#f6f6f2", name: white, role: light }

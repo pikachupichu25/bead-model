@@ -1,13 +1,18 @@
 // Every query on the app's tables. Each one takes the signed-in user's id (from
 // the session, never from the request) and only touches that user's rows: D1 has
 // no row level security, so this file is where one account is kept from another.
+// The one exception is reading public palettes, which anyone may do: those
+// queries only ever return rows with visibility = 'public' and deleted = 0.
 
 import type { OwnedBead } from "../src/collection/my-beads.js";
+import { type PublicPalette, type PublicPalettePage, readMyPalette } from "../src/collection/my-palettes.js";
 import {
   emptyChanges,
+  profileOf,
   type SyncBead,
   type SyncChanges,
   type SyncDesign,
+  type SyncPalette,
   type SyncPin,
   type SyncProfile,
   type SyncPull,
@@ -16,10 +21,11 @@ import {
 
 /** Everything of the user's stored at or after `since` (server time), with the time to pull from next. */
 export async function pullChanges(db: D1Database, userId: string, since: number, now = Date.now()): Promise<SyncPull> {
-  const [designs, pins, beads, profiles] = await db.batch([
+  const [designs, pins, beads, palettes, profiles] = await db.batch([
     db.prepare(`select * from designs where owner_id = ? and synced_at >= ?`).bind(userId, since),
     db.prepare(`select * from pins where owner_id = ? and synced_at >= ?`).bind(userId, since),
     db.prepare(`select * from owned_beads where owner_id = ? and synced_at >= ?`).bind(userId, since),
+    db.prepare(`select * from palettes where owner_id = ? and synced_at >= ?`).bind(userId, since),
     db.prepare(`select * from profiles where user_id = ? and synced_at >= ?`).bind(userId, since),
   ]);
   const profile = profiles?.results[0] as ProfileRow | undefined;
@@ -28,7 +34,8 @@ export async function pullChanges(db: D1Database, userId: string, since: number,
     designs: (designs?.results as DesignRow[]).map(designOf),
     pins: (pins?.results as PinRow[]).map(pinOf),
     beads: (beads?.results as BeadRow[]).map(beadOf),
-    ...(profile ? { profile: profileOf(profile) } : {}),
+    palettes: (palettes?.results as PaletteRow[]).map(paletteOf),
+    ...(profile ? { profile: profileFrom(profile) } : {}),
   };
 }
 
@@ -37,7 +44,7 @@ export async function pullChanges(db: D1Database, userId: string, since: number,
  * Returns the stored copies of the rows that were newer, for the browser to take.
  */
 export async function pushChanges(db: D1Database, userId: string, changes: SyncChanges, now = Date.now()): Promise<SyncPushResult> {
-  const statements: { kind: "design" | "pin" | "bead" | "profile"; key: string; statement: D1PreparedStatement }[] = [];
+  const statements: { kind: Kind; key: string; statement: D1PreparedStatement }[] = [];
   for (const d of changes.designs) {
     statements.push({
       kind: "design",
@@ -102,6 +109,36 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
         ),
     });
   }
+  for (const p of changes.palettes) {
+    const palette = p.palette;
+    statements.push({
+      kind: "palette",
+      key: p.id,
+      statement: db
+        .prepare(
+          `insert into palettes (owner_id, id, name, description, tags, colors, visibility, deleted, updated_at, synced_at)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           on conflict (owner_id, id) do update set
+             name = excluded.name, description = excluded.description, tags = excluded.tags, colors = excluded.colors,
+             visibility = excluded.visibility, deleted = excluded.deleted,
+             updated_at = excluded.updated_at, synced_at = excluded.synced_at
+           where excluded.updated_at >= palettes.updated_at`,
+        )
+        .bind(
+          userId,
+          p.id,
+          palette?.name ?? "",
+          palette?.description ?? "",
+          palette?.tags?.join(",") ?? "",
+          palette ? JSON.stringify(palette.colors) : "[]",
+          // A deleted palette is never public, so it can't be served.
+          palette && !p.deleted ? palette.visibility : "private",
+          p.deleted ? 1 : 0,
+          p.updated,
+          now,
+        ),
+    });
+  }
   if (changes.profile) {
     const p = changes.profile;
     statements.push({
@@ -109,14 +146,14 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
       key: userId,
       statement: db
         .prepare(
-          `insert into profiles (user_id, display_name, only_my_beads, updated_at, synced_at)
-           values (?, ?, ?, ?, ?)
+          `insert into profiles (user_id, display_name, only_my_beads, color_source, updated_at, synced_at)
+           values (?, ?, ?, ?, ?, ?)
            on conflict (user_id) do update set
-             display_name = excluded.display_name, only_my_beads = excluded.only_my_beads,
+             display_name = excluded.display_name, only_my_beads = excluded.only_my_beads, color_source = excluded.color_source,
              updated_at = excluded.updated_at, synced_at = excluded.synced_at
            where excluded.updated_at >= profiles.updated_at`,
         )
-        .bind(userId, p.name, p.onlyMyBeads ? 1 : 0, p.updated, now),
+        .bind(userId, p.name, p.onlyMyBeads ? 1 : 0, p.colorSource, p.updated, now),
     });
   }
   const rejected = emptyChanges();
@@ -131,7 +168,8 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
   const designKeys = keys("design");
   const pinKeys = keys("pin");
   const beadKeys = keys("bead");
-  const order: ("design" | "pin" | "bead" | "profile")[] = [];
+  const paletteKeys = keys("palette");
+  const order: Kind[] = [];
   if (designKeys.length) {
     order.push("design");
     lookups.push(db.prepare(`select * from designs where owner_id = ? and id in (${marks(designKeys)})`).bind(userId, ...designKeys));
@@ -144,6 +182,10 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
     order.push("bead");
     lookups.push(db.prepare(`select * from owned_beads where owner_id = ? and bead_key in (${marks(beadKeys)})`).bind(userId, ...beadKeys));
   }
+  if (paletteKeys.length) {
+    order.push("palette");
+    lookups.push(db.prepare(`select * from palettes where owner_id = ? and id in (${marks(paletteKeys)})`).bind(userId, ...paletteKeys));
+  }
   if (keys("profile").length) {
     order.push("profile");
     lookups.push(db.prepare(`select * from profiles where user_id = ?`).bind(userId));
@@ -154,9 +196,44 @@ export async function pushChanges(db: D1Database, userId: string, changes: SyncC
     if (kind === "design") rejected.designs = (found as DesignRow[]).map(designOf);
     if (kind === "pin") rejected.pins = (found as PinRow[]).map(pinOf);
     if (kind === "bead") rejected.beads = (found as BeadRow[]).map(beadOf);
-    if (kind === "profile" && found[0]) rejected.profile = profileOf(found[0] as ProfileRow);
+    if (kind === "palette") rejected.palettes = (found as PaletteRow[]).map(paletteOf);
+    if (kind === "profile" && found[0]) rejected.profile = profileFrom(found[0] as ProfileRow);
   });
   return { now, rejected };
+}
+
+/** Public palettes per page of Browse palettes. */
+export const PUBLIC_PAGE = 50;
+
+/** A page of public palettes, newest first, whose name, description or tags have `query` in them. */
+export async function listPublicPalettes(db: D1Database, query: string, offset: number): Promise<PublicPalettePage> {
+  const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const { results } = await db
+    .prepare(
+      `select palettes.*, coalesce(profiles.display_name, '') as by from palettes
+       left join profiles on profiles.user_id = palettes.owner_id
+       where palettes.visibility = 'public' and palettes.deleted = 0
+         and (?1 = '' or palettes.name like ?2 escape '\\' or palettes.description like ?2 escape '\\' or palettes.tags like ?2 escape '\\')
+       order by palettes.updated_at desc, palettes.owner_id, palettes.id
+       limit ?3 offset ?4`,
+    )
+    .bind(query, like, PUBLIC_PAGE + 1, offset)
+    .all<PaletteRow & { by: string }>();
+  const palettes = results.slice(0, PUBLIC_PAGE).flatMap(publicOf);
+  return results.length > PUBLIC_PAGE ? { palettes, next: offset + PUBLIC_PAGE } : { palettes };
+}
+
+/** One public palette, or undefined when it's private, deleted or missing: the caller can't tell which. */
+export async function getPublicPalette(db: D1Database, owner: string, id: string): Promise<PublicPalette | undefined> {
+  const row = await db
+    .prepare(
+      `select palettes.*, coalesce(profiles.display_name, '') as by from palettes
+       left join profiles on profiles.user_id = palettes.owner_id
+       where palettes.owner_id = ? and palettes.id = ? and palettes.visibility = 'public' and palettes.deleted = 0`,
+    )
+    .bind(owner, id)
+    .first<PaletteRow & { by: string }>();
+  return row ? publicOf(row)[0] : undefined;
 }
 
 /** How many live designs and beads the user has, for the profile. */
@@ -201,9 +278,25 @@ interface BeadRow {
   updated_at: number;
 }
 
+type Kind = "design" | "pin" | "bead" | "palette" | "profile";
+
+interface PaletteRow {
+  owner_id: string;
+  id: string;
+  name: string;
+  description: string;
+  /** Comma-separated. */
+  tags: string;
+  colors: string;
+  visibility: string;
+  deleted: number;
+  updated_at: number;
+}
+
 interface ProfileRow {
   display_name: string;
   only_my_beads: number;
+  color_source: string;
   updated_at: number;
 }
 
@@ -224,8 +317,37 @@ function beadOf(r: BeadRow): SyncBead {
   return { key: r.bead_key, ...(bead ? { bead } : {}), updated: r.updated_at, ...(r.deleted ? { deleted: true as const } : {}) };
 }
 
-function profileOf(r: ProfileRow): SyncProfile {
-  return { name: r.display_name, onlyMyBeads: r.only_my_beads === 1, updated: r.updated_at };
+function paletteOf(r: PaletteRow): SyncPalette {
+  const palette = r.deleted ? undefined : readStoredPalette(r);
+  return palette ? { id: r.id, palette, updated: r.updated_at } : { id: r.id, updated: r.updated_at, deleted: true };
+}
+
+/** A stored palette, read the way the browser reads one. */
+function readStoredPalette(r: PaletteRow) {
+  let colors: unknown;
+  try {
+    colors = JSON.parse(r.colors);
+  } catch {
+    return undefined;
+  }
+  return readMyPalette({ id: r.id, name: r.name, ...(r.description ? { description: r.description } : {}), tags: r.tags, colors, visibility: r.visibility });
+}
+
+function publicOf(r: PaletteRow & { by: string }): PublicPalette[] {
+  const palette = readStoredPalette(r);
+  if (!palette) return [];
+  const shown = {
+    id: palette.id,
+    name: palette.name,
+    ...(palette.description ? { description: palette.description } : {}),
+    ...(palette.tags?.length ? { tags: palette.tags } : {}),
+    colors: palette.colors,
+  };
+  return [{ owner: r.owner_id, by: r.by, updated: r.updated_at, palette: shown }];
+}
+
+function profileFrom(r: ProfileRow): SyncProfile {
+  return profileOf(r.display_name, (r.color_source as SyncProfile["colorSource"]) ?? (r.only_my_beads === 1 ? "mine" : "all"), r.updated_at);
 }
 
 function marks(values: unknown[]): string {

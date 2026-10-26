@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyMyDesigns, type SavedDesign } from "../src/collection/designs.js";
 import { emptyMyBeads } from "../src/collection/my-beads.js";
+import { emptyMyPalettes, type MyPalette } from "../src/collection/my-palettes.js";
 import {
   applyRemote,
   batches,
@@ -26,10 +27,13 @@ const design = (id: string, updated: number, title = "Heart"): SavedDesign => ({
 const state = (patch: Partial<LocalState> = {}): LocalState => ({
   designs: emptyMyDesigns(),
   beads: emptyMyBeads(),
+  palettes: emptyMyPalettes(),
   name: "",
-  onlyMyBeads: false,
+  colorSource: "all",
   ...patch,
 });
+
+const palette = (id: string, name = "Sea"): MyPalette => ({ id, name, colors: [{ bead: "miyuki DB-0726" }], visibility: "private" });
 
 /** Syncs `local` with nothing new on the server, and returns the record. */
 function settle(local: LocalState, since = 10) {
@@ -49,7 +53,7 @@ describe("readSyncChanges", () => {
     expect(changes.designs.map((d) => [d.id, d.deleted ?? false])).toEqual([["d1", false], ["d2", true]]);
     expect(changes.pins).toEqual([{ target: "d1", pinned: true, pinnedAt: 2, updated: 2 }]);
     expect(changes.beads.map((b) => b.key)).toEqual(["catalog:miyuki db-0010", "own:a:b"]);
-    expect(changes.profile).toEqual({ name: "Kim", onlyMyBeads: false, updated: 4 });
+    expect(changes.profile).toEqual({ name: "Kim", colorSource: "all", onlyMyBeads: false, updated: 4 });
   });
 
   it("refuses a push with too many rows", () => {
@@ -70,7 +74,7 @@ describe("localChanges", () => {
     // The newest pin (first) gets the later time.
     expect(changes.pins.map((p) => [p.target, p.pinnedAt])).toEqual([["d1", 102], ["example:flat:heart-band", 101]]);
     expect(changes.beads.map((b) => b.key)).toEqual(["catalog:miyuki db-0010"]);
-    expect(changes.profile).toEqual({ name: "Kim", onlyMyBeads: false, updated: 100 });
+    expect(changes.profile).toEqual({ name: "Kim", colorSource: "all", onlyMyBeads: false, updated: 100 });
   });
 
   it("is nothing right after a sync", () => {
@@ -87,13 +91,48 @@ describe("localChanges", () => {
     const after = state({
       designs: { version: 1, designs: [design("d1", 9, "Edited")], pinned: [] },
       beads: { version: 1, beads: [{ kind: "catalog", bead: "miyuki DB-0010", amount: "5 g" }] },
-      onlyMyBeads: true,
+      colorSource: "mine",
     });
     const changes = localChanges(after, record, 100);
     expect(changes.designs.map((d) => [d.id, d.title, d.deleted ?? false])).toEqual([["d1", "Edited", false], ["d2", "", true]]);
     expect(changes.pins).toEqual([{ target: "d1", pinned: false, pinnedAt: 5 + 1, updated: 100 }]);
     expect(changes.beads.map((b) => [b.key, b.deleted ?? false])).toEqual([["catalog:miyuki db-0010", false], ["catalog:miyuki db-0035", true]]);
-    expect(changes.profile?.onlyMyBeads).toBe(true);
+    expect(changes.profile).toMatchObject({ colorSource: "mine", onlyMyBeads: true });
+  });
+
+  it("finds new, changed and deleted palettes, and a new color source", () => {
+    const before = state({ palettes: { version: 1, palettes: [palette("my-a"), palette("my-b")] } });
+    const record = settle(before);
+    const after = state({ palettes: { version: 1, palettes: [{ ...palette("my-a"), visibility: "public" }, palette("my-c")] }, colorSource: "palette:my-c" });
+    const changes = localChanges(after, record, 100);
+    expect(changes.palettes.map((p) => [p.id, p.palette?.visibility ?? "deleted"])).toEqual([["my-a", "public"], ["my-c", "private"], ["my-b", "deleted"]]);
+    expect(changes.profile).toMatchObject({ colorSource: "palette:my-c", onlyMyBeads: false });
+  });
+
+  it("reads a record from before palettes and the color source", () => {
+    const old = { since: 1, designs: {}, pins: {}, beads: {}, profile: { name: "Kim", onlyMyBeads: true } };
+    expect(localChanges(state({ name: "Kim", colorSource: "mine" }), old, 5).profile).toBeUndefined();
+    expect(localChanges(state({ name: "Kim", colorSource: "all" }), old, 5).profile?.colorSource).toBe("all");
+  });
+});
+
+describe("palettes and profiles from a push", () => {
+  it("reads palettes, private unless public, and drops the rest", () => {
+    const changes = readSyncChanges({
+      palettes: [
+        { palette: { ...palette("my-a"), visibility: "public" }, updated: 2 },
+        { palette: { ...palette("my-b"), visibility: "everyone" }, updated: 2 },
+        { palette: { ...palette("ocean") }, updated: 2 },
+        { id: "my-c", deleted: true, updated: 3 },
+      ],
+    });
+    expect(changes.palettes.map((p) => [p.id, p.palette?.visibility ?? "deleted"])).toEqual([["my-a", "public"], ["my-b", "private"], ["my-c", "deleted"]]);
+  });
+
+  it("gets the color source from a page that only knows only my beads", () => {
+    expect(readSyncChanges({ profile: { name: "", onlyMyBeads: true, updated: 1 } }).profile?.colorSource).toBe("mine");
+    expect(readSyncChanges({ profile: { name: "", colorSource: "palette:my-a", updated: 1 } }).profile).toMatchObject({ colorSource: "palette:my-a", onlyMyBeads: false });
+    expect(readSyncChanges({ profile: { name: "", colorSource: "<script>", updated: 1 } }).profile?.colorSource).toBe("all");
   });
 });
 
@@ -135,11 +174,25 @@ describe("applyRemote", () => {
         { key: "catalog:miyuki db-0010", bead: { kind: "catalog" as const, bead: "miyuki DB-0010", note: "for the whale" }, updated: 20 },
         { key: "catalog:miyuki db-0035", updated: 20, deleted: true as const },
       ],
-      profile: { name: "Kim", onlyMyBeads: true, updated: 20 },
+      profile: { name: "Kim", colorSource: "mine" as const, onlyMyBeads: true, updated: 20 },
     };
     const { state: merged } = applyRemote(local, remote, localChanges(local, record, 21), new Map());
     expect(merged.beads.beads).toEqual([{ kind: "catalog", bead: "miyuki DB-0010", note: "for the whale" }]);
-    expect([merged.name, merged.onlyMyBeads]).toEqual(["Kim", true]);
+    expect([merged.name, merged.colorSource]).toEqual(["Kim", "mine"]);
+  });
+
+  it("replaces and removes palettes", () => {
+    const local = state({ palettes: { version: 1, palettes: [palette("my-a"), palette("my-b")] } });
+    const record = settle(local);
+    const remote = {
+      ...emptyChanges(),
+      palettes: [
+        { id: "my-a", palette: palette("my-a", "Renamed"), updated: 20 },
+        { id: "my-b", updated: 20, deleted: true as const },
+      ],
+    };
+    const { state: merged } = applyRemote(local, remote, localChanges(local, record, 21), new Map());
+    expect(merged.palettes.palettes.map((p) => p.name)).toEqual(["Renamed"]);
   });
 });
 

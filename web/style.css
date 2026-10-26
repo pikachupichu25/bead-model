@@ -2032,6 +2032,367 @@ select:hover {
   margin: 0 0 10px;
 }
 
+/* Palettes on the My beads page: across both columns. */
+.palettes-card {
+  grid-column: 1 / -1;
+}
+
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.palette-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.palette-swatches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.palettes-card h3 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+
+.palettes-head h3 {
+  margin: 0;
+}
+
+.palettes-head {
+  margin: 14px 0 8px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.palette-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.palette-name {
+  font: inherit;
+  font-weight: 600;
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.palette-tags {
+  font: inherit;
+  font-size: 12px;
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.palette-tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.palette-tag {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+.palette-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.browse-more {
+  margin-top: 10px;
+}
+
+/* The Palettes page: one card across the page. */
+.palettes-app {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The page for one public palette (palette.html). */
+.palette-page {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
+}
+
+/* "Colors from" in the designers: a button with the source's colors, opening the palette menu. */
+.source-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-caret {
+  color: var(--muted);
+}
+
+.swatch-strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.swatch-strip .swatch {
+  width: 14px;
+  height: 14px;
+}
+
+.swatch-more {
+  font-size: 11px;
+  margin-left: 3px;
+}
+
+/* The palette menu. */
+.palette-picker {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+}
+
+.picker-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100vh - 90px);
+}
+
+.picker-form h2 {
+  margin: 0;
+}
+
+.picker-quick,
+.picker-search,
+.picker-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-search input[type="search"] {
+  flex: 1 1 260px;
+  min-width: 0;
+  font: inherit;
+}
+
+.picker-color {
+  white-space: nowrap;
+}
+
+.picker-color input[type="color"] {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: none;
+}
+
+.picker-tags .chip {
+  font-size: 12px;
+  padding: 2px 10px;
+}
+
+.picker-tags .chip[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.swatch-strip .swatch,
+.paint-color .swatch {
+  display: inline-block;
+}
+
+.picker-count {
+  margin: 0;
+  font-size: 12px;
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.picker-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.picker-row:hover,
+.picker-row:focus-visible {
+  border-color: var(--muted);
+}
+
+.picker-row[aria-selected="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.picker-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.picker-row .swatch-strip .swatch {
+  width: 18px;
+  height: 18px;
+}
+
+.picker-empty {
+  padding: 12px 4px;
+}
+
+/* The palette bar above the canvas: the picked palette's colors, to paint with. */
+.palette-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.palette-bar[hidden] {
+  display: none;
+}
+
+.palette-bar-name {
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Colors to paint with: under the beads, and in the palette bar. */
+.paint-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.add-colors .paint-colors {
+  max-height: 168px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.paint-note {
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.add-filter {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+}
+
+.paint-color {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.paint-color:hover {
+  border-color: var(--line);
+}
+
+.paint-color[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.paint-color .swatch.big {
+  width: 26px;
+  height: 26px;
+}
+
+/* The bead's key, when the color is already in the design. */
+.paint-color-key {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 3px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.palette-bar-help {
+  font-size: 12px;
+}
+
+/* A palette color that's in My beads. */
+.palette-swatches .swatch.mine {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .beads-count {
   font-size: 13px;
   margin: 0 0 10px;

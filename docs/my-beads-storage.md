@@ -2,7 +2,7 @@
 
 **Status: as built.** Signed out, the list is kept only in the browser, as described below. **Signed in, it also syncs with the account**, one row per bead: see [my-designs.md](my-designs.md#accounts) and [cloudflare-plan.md](cloudflare-plan.md). The last section was the proposal that led to this.
 
-"My beads" is the list of beads someone has at home (see the README). The Editor and the Flat designer use it when **Only my beads** is ticked. This note says where the list lives today, what is in it, what that means for users, and how a backend with user accounts could take over later.
+"My beads" is the list of beads someone has at home (see the README). The designers use it when **Colors from** is set to **My beads** (it can also be every catalog color or a [palette](preset-palettes.md)). This note says where the list lives today, what is in it, what that means for users, and how a backend with user accounts could take over later.
 
 ## Where it lives today
 
@@ -11,7 +11,10 @@ Everything is kept in the browser's **localStorage**, on the user's own device. 
 | Key | What it holds | Example |
 |---|---|---|
 | `bead-model:my-beads` | The list, as JSON (format below) | `{"version":1,"beads":[…]}` |
-| `bead-model:only-my-beads` | Whether the designers offer only my beads | `"true"` or `"false"` |
+| `bead-model:color-source` | Where the designers take their colors from | `"all"`, `"mine"` or `"palette:ocean"` |
+| `bead-model:only-my-beads` | Whether that's My beads. Older than the color source, and kept for the moved-site import | `"true"` or `"false"` |
+| `bead-model:my-palettes` | Palettes I saved ([format](preset-palettes.md#phase-2-my-own-palettes-built)) | `{"version":1,"palettes":[…]}` |
+| `bead-model:used-palettes` | Public palettes picked in a designer's palette menu, the last 20, so Colors from can name them. Not synced | `[{"owner":"…","by":"Kim","palette":{…}}]` |
 | `bead-model:my-beads-size` | The bead size last picked on the My beads page (a convenience only) | `"miyuki delica DB"` |
 
 To look at it: open the site, open DevTools, then go to **Application → Local Storage →** the site's address.
@@ -55,7 +58,7 @@ Rules:
 - **Reading is forgiving.** `myBeadsFromJson` drops entries it can't read instead of failing, so a damaged or newer file still loads what it can.
 - **`version`** is there for a future change of format. Today it is always `1`.
 
-The **Back up (.json)** file uses this same format. **Restore…** merges a backup in: beads you don't have are added, and beads you already have stay as they are.
+The **Back up (.json)** file uses this same format, with my palettes in a `palettes` list next to `beads`. **Restore…** merges a backup in: beads you don't have are added, and beads you already have stay as they are.
 
 The **Export as text…** output is for people to read. It is not read back in; the JSON backup is the file to restore from.
 
@@ -93,7 +96,7 @@ A possible Firestore layout: `users/{uid}/beads/{ownedId}` holding the bead fiel
 
 ### Open questions
 
-- Should "Only my beads" be saved to the account, or stay per device?
+- ~~Should "Only my beads" be saved to the account, or stay per device?~~ Saved to the account: it became the color source (`profiles.color_source`), which syncs.
 - Do users want to share a list (a link, or a list shared by a group)?
 - Should `amount` become structured (grams or a count), so designs can warn when a piece needs more beads than you have?
 - How long to keep the data of a deleted account, and how users export or delete their data.

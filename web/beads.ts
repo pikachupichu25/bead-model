@@ -1,6 +1,6 @@
 // "My beads": the beads someone has at home. Kept in this browser, exported as
-// readable text, and offered by the Editor and the Flat designer when "Only my
-// beads" is ticked.
+// readable text, and offered by the designers when "Colors from" is My beads.
+// My beads in a size can be saved as a palette; palettes are on the Palettes page and My profile.
 
 import { catalogFromFiles } from "../src/catalog/catalog.js";
 import {
@@ -13,13 +13,25 @@ import {
   myBeadsText,
   myBeadsToJson,
   type OwnedBead,
+  ownedColorsFor,
   ownedId,
   removeOwned,
   updateOwned,
 } from "../src/collection/my-beads.js";
+import {
+  findMyPalette,
+  mergeMyPalettes,
+  type MyPalettes,
+  myPalettesFromJson,
+  newPaletteId,
+  paletteFromEntries,
+  putMyPalette,
+} from "../src/collection/my-palettes.js";
 import { allBeadSizes, catalogColors, resolveBeadSize } from "../src/flat/beads.js";
 import { loadMyBeads, onMyBeadsChange, saveMyBeads } from "./my-beads-store.js";
 import { renderNav } from "./nav.js";
+import { loadMyPalettes, saveMyPalettes } from "./palettes-store.js";
+import { MY_PALETTES } from "./palette-list.js";
 
 const catalogFiles = import.meta.glob<string>("../catalog/beads/*.yaml", {
   query: "?raw",
@@ -56,9 +68,16 @@ const els = {
   exportDownload: $<HTMLButtonElement>("export-download"),
   backup: $<HTMLButtonElement>("backup"),
   restore: $<HTMLInputElement>("restore-file"),
+  paletteFromMine: $<HTMLButtonElement>("palette-from-mine"),
 };
 
 let list: MyBeads = loadMyBeads();
+let palettes: MyPalettes = loadMyPalettes();
+
+function changePalettes(next: MyPalettes): void {
+  palettes = next;
+  if (!saveMyPalettes(palettes)) showNotice("This browser won't keep your palettes (storage is off, as in a private window).");
+}
 
 function change(next: MyBeads): void {
   list = next;
@@ -99,6 +118,7 @@ function renderSizes(): void {
 
 function renderColors(): void {
   const size = resolveBeadSize(catalog, els.size.value);
+  els.paletteFromMine.disabled = ownedColorsFor(list, size).length === 0;
   const query = els.search.value.trim().toLowerCase();
   const all = catalogColors(size);
   const shown = all.filter((c) => !query || c.entry.toLowerCase().includes(query) || c.name.toLowerCase().includes(query));
@@ -162,6 +182,18 @@ function renderMine(): void {
 els.size.addEventListener("change", () => {
   writeSize(els.size.value);
   renderColors();
+});
+
+els.paletteFromMine.addEventListener("click", () => {
+  const size = resolveBeadSize(catalog, els.size.value);
+  const name = prompt("Name the palette", `My ${size.label} beads`);
+  if (name === null) return;
+  let id = newPaletteId();
+  while (findMyPalette(palettes, id)) id = newPaletteId();
+  const palette = paletteFromEntries(name, ownedColorsFor(list, size).map((c) => c.entry), id);
+  if (!palette) return;
+  changePalettes(putMyPalette(palettes, palette));
+  showNotice(`Saved “${esc(palette.name)}” to <a href="${MY_PALETTES}">my palettes</a>. Pick it in Colors from in any design.`);
 });
 els.search.addEventListener("input", renderColors);
 els.mineFilter.addEventListener("input", renderMine);
@@ -231,18 +263,28 @@ els.exportCopy.addEventListener("click", async () => {
   }
 });
 els.exportDownload.addEventListener("click", () => download(myBeadsText(list, catalog), `my-beads-${today()}.txt`, "text/plain"));
-els.backup.addEventListener("click", () => download(myBeadsToJson(list), `my-beads-${today()}.json`, "application/json"));
+// The backup holds my palettes too, next to the beads: the same file restores both.
+els.backup.addEventListener("click", () =>
+  download(JSON.stringify({ ...JSON.parse(myBeadsToJson(list)), palettes: palettes.palettes }, null, 2), `my-beads-${today()}.json`, "application/json"),
+);
 
 els.restore.addEventListener("change", async () => {
   const file = els.restore.files?.[0];
   els.restore.value = "";
   if (!file) return;
   try {
-    const backup = myBeadsFromJson(await file.text());
+    const text = await file.text();
+    const backup = myBeadsFromJson(text);
     const before = list.beads.length;
+    const palettesBefore = palettes.palettes.length;
+    changePalettes(mergeMyPalettes(palettes, myPalettesFromJson(text)));
     change(mergeMyBeads(list, backup));
     const added = list.beads.length - before;
-    showNotice(`Restored ${esc(file.name)}: ${added} bead${added === 1 ? "" : "s"} added, ${backup.beads.length - added} you already had.`);
+    const newPalettes = palettes.palettes.length - palettesBefore;
+    showNotice(
+      `Restored ${esc(file.name)}: ${added} bead${added === 1 ? "" : "s"} added, ${backup.beads.length - added} you already had` +
+        (newPalettes ? `, and ${newPalettes} palette${newPalettes === 1 ? "" : "s"} (private).` : "."),
+    );
   } catch (e) {
     showNotice(`Couldn't restore ${esc(file.name)}: ${esc(e instanceof Error ? e.message : String(e))}`);
   }
@@ -251,6 +293,7 @@ els.restore.addEventListener("change", async () => {
 // Another tab changed the list: show the new one, unless an amount or note is being typed here.
 onMyBeadsChange(() => {
   list = loadMyBeads();
+  palettes = loadMyPalettes();
   if (!els.mine.contains(document.activeElement)) render();
 });
 
