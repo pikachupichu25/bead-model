@@ -547,7 +547,7 @@ function moveAxis(p: { x: number; y: number }): void {
   const at = toMm(state.view, p.x, p.y);
   const { symmetry } = state.design;
   const next =
-    state.axis === "column" ? { ...symmetry, column: Math.round(at.x / net().L) } : { ...symmetry, row: Math.round(at.y / net().L) };
+    state.axis === "column" ? { ...symmetry, column: Math.round(at.x / net().L) } : { ...symmetry, row: Math.round(at.y / net().H) };
   if (next.column !== symmetry.column || next.row !== symmetry.row) {
     // Moving the axis replaces the design without an undo step per group; endPointer makes it one.
     state.design = { ...state.design, symmetry: next };
@@ -562,7 +562,7 @@ function axisAt(p: { x: number; y: number }): "column" | "row" | undefined {
     return Math.abs(toScreen(state.view, column * net().L, 0).x - p.x) <= 10 ? "column" : undefined;
   }
   if (p.x <= RULER_LEFT && p.y > RULER_TOP && (mode === "up-down" || mode === "both")) {
-    return Math.abs(toScreen(state.view, 0, row * net().L).y - p.y) <= 10 ? "row" : undefined;
+    return Math.abs(toScreen(state.view, 0, row * net().H).y - p.y) <= 10 ? "row" : undefined;
   }
   return undefined;
 }

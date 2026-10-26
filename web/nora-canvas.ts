@@ -4,6 +4,7 @@
 import type { Shape } from "../src/catalog/catalog.js";
 import type { Symmetry } from "../src/nora/design.js";
 import {
+  DIAGONAL_ANGLE,
   type Group,
   groupOutline,
   isSlot,
@@ -47,7 +48,7 @@ export const RULER_LEFT = 30;
 /** Corner radius as a share of the bead's smaller side. */
 const RADIUS: Record<Shape, number> = { cylinder: 0.2, round: 0.48, demi: 0.48, hex: 0.14, triangle: 0.14, cube: 0.08, bugle: 0.3 };
 
-const ANGLES = [0, Math.PI / 2, -Math.PI / 4, Math.PI / 4];
+const ANGLES = [0, Math.PI / 2, -DIAGONAL_ANGLE, DIAGONAL_ANGLE];
 
 export function visibleGroups(view: View, width: number, height: number, net: NetSize): { i0: number; i1: number; j0: number; j1: number } {
   const a = toMm(view, 0, 0);
@@ -55,8 +56,8 @@ export function visibleGroups(view: View, width: number, height: number, net: Ne
   return {
     i0: Math.floor(Math.min(a.x, b.x) / net.L) - 1,
     i1: Math.ceil(Math.max(a.x, b.x) / net.L) + 1,
-    j0: Math.floor(Math.min(a.y, b.y) / net.L) - 1,
-    j1: Math.ceil(Math.max(a.y, b.y) / net.L) + 1,
+    j0: Math.floor(Math.min(a.y, b.y) / net.H) - 1,
+    j1: Math.ceil(Math.max(a.y, b.y) / net.H) + 1,
   };
 }
 
@@ -164,8 +165,8 @@ export function drawNora(ctx: CanvasRenderingContext2D, scene: NoraScene, dpr: n
     ctx.lineTo(column * net.L, bottom.y);
   }
   if (mode === "up-down" || mode === "both") {
-    ctx.moveTo(top.x, row * net.L);
-    ctx.lineTo(bottom.x, row * net.L);
+    ctx.moveTo(top.x, row * net.H);
+    ctx.lineTo(bottom.x, row * net.H);
   }
   ctx.stroke();
   ctx.setLineDash([]);
@@ -242,7 +243,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, scene: NoraScene, range: { i0
   ctx.textAlign = "right";
   for (let j = range.j0; j <= range.j1; j++) {
     if (mod(j, step) !== 0) continue;
-    const at = toScreen(view, 0, j * net.L);
+    const at = toScreen(view, 0, j * net.H);
     if (at.y > RULER_TOP + 6 && at.y < height) ctx.fillText(num(j), RULER_LEFT - 5, at.y);
   }
 
@@ -259,7 +260,7 @@ function drawRulers(ctx: CanvasRenderingContext2D, scene: NoraScene, range: { i0
     ctx.fill();
   }
   if (mode === "up-down" || mode === "both") {
-    const y = toScreen(view, 0, row * net.L).y;
+    const y = toScreen(view, 0, row * net.H).y;
     ctx.beginPath();
     ctx.moveTo(1, y - 6);
     ctx.lineTo(1, y + 6);

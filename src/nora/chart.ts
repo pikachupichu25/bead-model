@@ -95,7 +95,7 @@ export function renderNoraChartSvg({ design, beads, d, w, shape, sizeLabel }: Ch
       parts.push(`<line x1="${fmt(ax)}" y1="${fmt(y - 2)}" x2="${fmt(ax)}" y2="${fmt(y + pieceH * k + 2)}" stroke="#3c5a99" stroke-width="0.25" stroke-dasharray="1.5 1"/>`);
     }
     if (mode === "up-down" || mode === "both") {
-      const ay = at({ x: 0, y: row * net.L }).y;
+      const ay = at({ x: 0, y: row * net.H }).y;
       parts.push(`<line x1="${fmt(x0 - 2)}" y1="${fmt(ay)}" x2="${fmt(x0 + pieceW * k + 2)}" y2="${fmt(ay)}" stroke="#3c5a99" stroke-width="0.25" stroke-dasharray="1.5 1"/>`);
     }
 

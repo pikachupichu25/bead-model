@@ -58,23 +58,23 @@ Two slots are **ring neighbors** when they are next to each other in some group'
 
 ## 2. Geometry (N3)
 
-The net is drawn as a regular octagon-and-square tiling with one bead on the middle of each edge.
+The net is drawn as an octagon-and-square tiling with one bead on the middle of each edge, then stretched up and down by **STRETCH = √2**, because a Nora net hangs. The octagons are not regular: their sides along the axes are long and their corners short, and the stretch makes them taller than wide, so a group of 8 has three beads in a row along its top and bottom (corner, side, corner) and one alone on each side, and a piece comes out as a diamond, as in the reference earrings. The squares become diamonds a little looser than touching. Bead sizes are not stretched.
 
 ### Sizes
 
 From the piece's bead (`resolveBeadSize`): **d** = outer diameter, **w** = length along the hole.
 
-- **Edge length e = √2 · d.** In a group of 4 the bead centers are e / √2 apart, so this makes them just touch, as they do when the thread is pulled tight. A group of 8 then has small gaps between its beads, as in the reference earrings.
-- **Group spacing L = (1 + √2) · d** ≈ 2.41 d, the distance between the middles of neighboring groups. For a round 8/0 (d = 3.0 mm) that is 7.2 mm.
+- **Edge length e = √2 · d.** Before the stretch, the bead centers of a group of 4 are e / √2 apart, so they just touch.
+- **Group spacing L = (1 + 1/√2) · d** ≈ 1.71 d across and **H = STRETCH · L** ≈ 2.41 d up and down, the distances between the middles of neighboring groups. For a round 8/0 (d = 3.0 mm) that is 5.1 mm and 7.2 mm. Before the stretch this puts an 8's side beads d from its middle and its corner beads L / 2 ≈ 0.85 d out along each axis. Measured across a hanging earring the corners sit 0.85 as far out as the sides (a regular octagon would give 0.71), and the groups are about √2 times further apart up and down than across.
 
 Width and height of a piece in mm come from its painted beads' positions plus one bead diameter.
 
 ### Where a bead sits
 
-Group (i, j) has its middle at (i · L, j · L) mm, y down.
+Group (i, j) has its middle at (i · L, j · H) mm, y down.
 
-- **Side slot**: on the line between its two groups, **L / √2 from the middle of its 8** (and L − L / √2 from the middle of its 4).
-- **Diagonal slot**: halfway between its two 8s, at (x · L / 2, y · L / 2).
+- **Side slot**: on the line between its two groups, on the 4's edge: before the stretch **e / 2 from the middle of its 4**, and L − e / 2 = d from the middle of its 8.
+- **Diagonal slot**: halfway between its two 8s, at (x · L / 2, y · H / 2).
 
 ### Which way a bead points
 
@@ -84,14 +84,14 @@ The hole runs along the edge:
 |---|---|
 | x even, y odd (above or below a 4) | 0° (lies across) |
 | x odd, y even (left or right of a 4) | 90° (stands up) |
-| diagonal, 8s at (i, j) and (i+1, j+1) | −45° (`/`) |
-| diagonal, 8s at (i+1, j) and (i, j+1) | 45° (`\`) |
+| diagonal, 8s at (i, j) and (i+1, j+1) | −atan(STRETCH) ≈ −55° (`/`) |
+| diagonal, 8s at (i+1, j) and (i, j+1) | atan(STRETCH) ≈ 55° (`\`) |
 
 `slotCenter(slot, d)` and `slotAngle(slot)` give these. Each bead is drawn as its catalog `shape` in a `w × d` box turned by its angle.
 
 ### Hit testing
 
-`slotAt(x, y, d)`: the slot whose center is nearest the point, among the slots around the nearest group middle; none if the nearest is more than d away (the point is in a hole).
+`slotAt(x, y, d)`: the slot whose center is nearest the point, among the slots around the nearest group middle; none if the nearest is 3/4 d or more away (the point is in a hole; an 8's side beads are d from its middle).
 
 ## 3. The design model
 
@@ -279,6 +279,6 @@ Also: check the catalog's round 8/0 and 6/0 colors, which Nora work uses most (s
 
 ## Decisions to make in review
 
-1. **Bead spacing.** e = √2 · d makes a group of 4 tight and leaves gaps in a group of 8. Should the spacing be set by the group of 8 instead, or be adjustable?
+1. **Bead spacing.** e = √2 · d, L and STRETCH are set from a photo of hanging earrings. Should STRETCH be adjustable, for a net that lies flat (1) or hangs longer?
 2. **No trim.** The flat designer trims to a rectangle; a Nora piece has no rectangle, so there is none here. Is that right?
 3. **Shared code.** Pull the palette and bead panel out of `web/flat.ts` into a shared module now, or copy them as the flat designer copied from the editor?

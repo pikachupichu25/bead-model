@@ -30,7 +30,7 @@ IDs are referenced from the spec. **Must** is needed for the first version, **Sh
 |---|---|---|
 | N1 | Must | A new design opens on a **blank net**: every slot drawn as a faint outline, so the groups of 4 and 8 are visible before any bead is placed. |
 | N2 | Must | The net is the octagon-and-square layout from the design doc: groups of 4 and 8 alternate like a checkerboard, every slot is shared by two groups, and there is one bead per slot. No other layout or group size is offered. |
-| N3 | Must | Beads are drawn where they sit in the real net, at the size of the chosen bead, with each bead turned along its edge (horizontal, vertical or 45°). |
+| N3 | Must | Beads are drawn where they sit in the real net, at the size of the chosen bead, with each bead turned along its edge (horizontal, vertical or diagonal). |
 | N4 | Must | The canvas has no edges: the designer can pan in any direction and paint anywhere. |
 | N5 | Must | Pan (drag with the hand tool, space + drag, or two fingers) and zoom (wheel, pinch, buttons, "fit to beads") work smoothly up to at least 200 × 200 groups. |
 | N6 | Must | The tool always shows the size of the piece: width × height in groups and in cm, and the number of beads. |

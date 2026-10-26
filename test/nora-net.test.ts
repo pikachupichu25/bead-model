@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  DIAGONAL_ANGLE,
   type Group,
   groupCenter,
+  groupOutline,
   groupKey,
   groupSlots,
   isEight,
@@ -15,6 +17,7 @@ import {
   slotGroups,
   slotKey,
   slotsAlong,
+  STRETCH,
 } from "../src/nora/net.js";
 
 const net = netSize(3);
@@ -65,8 +68,14 @@ describe("lattice", () => {
 });
 
 describe("geometry", () => {
-  it("makes neighboring beads of a group of 4 exactly one bead apart", () => {
-    const ring = groupSlots({ i: 1, j: 0 }).map((s) => slotCenter(s, net));
+  // Before the stretch: undo it to check the layout the net is built from.
+  const flat = (s: Slot) => {
+    const p = slotCenter(s, net);
+    return { x: p.x, y: p.y / STRETCH };
+  };
+
+  it("makes neighboring beads of a group of 4 one bead apart before the stretch", () => {
+    const ring = groupSlots({ i: 1, j: 0 }).map(flat);
     for (let n = 0; n < 4; n++) {
       const a = ring[n]!;
       const b = ring[(n + 1) % 4]!;
@@ -74,23 +83,37 @@ describe("geometry", () => {
     }
   });
 
-  it("puts a group's beads the same distance from its middle", () => {
-    for (const g of [{ i: 0, j: 0 }, { i: 1, j: 0 }, { i: -2, j: 3 }]) {
-      const c = groupCenter(g, net);
-      const r = groupSlots(g).map((s) => {
-        const p = slotCenter(s, net);
-        return Math.hypot(p.x - c.x, p.y - c.y);
-      });
-      // The middles of an octagon's sides are all one apothem away; for a square, half its side.
-      for (const v of r) expect(v).toBeCloseTo(isEight(g) ? net.L - net.e / 2 : net.e / 2);
+  it("puts an 8's side beads one bead out across and its corners 0.85 as far", () => {
+    const ring = groupSlots({ i: 0, j: 0 }).map(flat);
+    for (let n = 0; n < 8; n++) {
+      const dx = Math.abs(ring[n]!.x);
+      const dy = Math.abs(ring[n]!.y);
+      if (n % 2 === 0) expect(Math.max(dx, dy)).toBeCloseTo(net.d);
+      else {
+        expect(dx).toBeCloseTo(dy);
+        expect(dx / net.d).toBeCloseTo(0.854, 3);
+      }
     }
   });
 
-  it("turns beads along their edges", () => {
+  it("stretches the net up and down, so an 8 is taller than wide", () => {
+    expect(net.H).toBeCloseTo(STRETCH * net.L);
+    const ring = groupSlots({ i: 0, j: 0 }).map((s) => slotCenter(s, net));
+    expect(ring[0]!.y).toBeCloseTo(-STRETCH * net.d);
+    expect(ring[2]!.x).toBeCloseTo(net.d);
+    // Three beads still nearly touch along the top: the top bead and its corners.
+    expect(Math.hypot(ring[1]!.x - ring[0]!.x, ring[1]!.y - ring[0]!.y)).toBeLessThan(net.d);
+  });
+
+  it("turns beads along their edges, the diagonals steeper than 45°", () => {
     expect(slotAngle({ x: 2, y: 1 })).toBe(0);
     expect(slotAngle({ x: 1, y: 2 })).toBe(Math.PI / 2);
-    expect(slotAngle({ x: 1, y: 1 })).toBe(-Math.PI / 4);
-    expect(slotAngle({ x: 3, y: 1 })).toBe(Math.PI / 4);
+    expect(slotAngle({ x: 1, y: 1 })).toBe(-DIAGONAL_ANGLE);
+    expect(slotAngle({ x: 3, y: 1 })).toBe(DIAGONAL_ANGLE);
+    expect(DIAGONAL_ANGLE).toBeGreaterThan(Math.PI / 4);
+    // A diagonal bead lies along the edge between its two neighbors' outline corners.
+    const [a, b] = [groupOutline({ i: 0, j: 0 }, net)[1]!, groupOutline({ i: 0, j: 0 }, net)[2]!];
+    expect(Math.atan2(b.y - a.y, b.x - a.x)).toBeCloseTo(DIAGONAL_ANGLE);
   });
 
   it("finds the slot under its own bead, and nothing in the middle of an 8", () => {

@@ -103,47 +103,66 @@ export function ringNeighbors(slot: Slot): Slot[] {
 // ---- Geometry ----
 
 /**
- * Sizes in mm for a bead of diameter d. The edge e = √2 · d makes the beads of
- * a group of 4 just touch; L is the distance between neighboring groups.
+ * How much taller than wide the net is. A Nora net hangs, so its rings are
+ * pulled long: the reference earrings are about √2 times further between
+ * groups up and down than across, which makes the piece a diamond.
+ */
+export const STRETCH = Math.SQRT2;
+
+/** The way a diagonal slot's hole runs, in radians from across: steeper than 45° as the net is stretched. */
+export const DIAGONAL_ANGLE = Math.atan(STRETCH);
+
+/**
+ * Sizes in mm for a bead of diameter d. The edge e = √2 · d is the side of a
+ * group of 4 before the stretch; L is the distance between neighboring groups
+ * across, and H = STRETCH · L up and down.
+ *
+ * L = (1 + 1/√2) · d puts an 8's side beads one bead from its middle across and
+ * its corner beads 0.85 as far, so three beads touch in a row along the top and
+ * bottom of each 8, as in the reference earrings. The net is laid out this way
+ * and then stretched up and down; the beads themselves keep their size.
  */
 export interface NetSize {
   d: number;
   e: number;
   L: number;
+  H: number;
 }
 
 export function netSize(d: number): NetSize {
-  return { d, e: Math.SQRT2 * d, L: (1 + Math.SQRT2) * d };
+  const L = (1 + Math.SQRT1_2) * d;
+  return { d, e: Math.SQRT2 * d, L, H: STRETCH * L };
 }
 
 export function groupCenter({ i, j }: Group, net: NetSize): Point {
-  return { x: i * net.L, y: j * net.L };
+  return { x: i * net.L, y: j * net.H };
 }
 
 /** Where a slot's bead sits: on the middle of its edge. */
 export function slotCenter(slot: Slot, net: NetSize): Point {
-  if (isDiagonal(slot)) return { x: (slot.x * net.L) / 2, y: (slot.y * net.L) / 2 };
+  if (isDiagonal(slot)) return { x: (slot.x * net.L) / 2, y: (slot.y * net.H) / 2 };
   const [a, b] = slotGroups(slot);
   const [eight, four] = isEight(a) ? [a, b] : [b, a];
-  // An octagon is wider than a square, so the bead sits L / √2 from the 8's middle, not halfway.
-  const t = Math.SQRT1_2;
-  return { x: (eight.i + (four.i - eight.i) * t) * net.L, y: (eight.j + (four.j - eight.j) * t) * net.L };
+  // The bead sits on the 4's edge, e / 2 from the 4's middle, so L − e / 2 from the 8's.
+  const t = 1 - net.e / (2 * net.L);
+  return { x: (eight.i + (four.i - eight.i) * t) * net.L, y: (eight.j + (four.j - eight.j) * t) * net.H };
 }
 
-/** The way a slot's hole runs, in radians (y down): 0 across, π/2 up and down, ∓π/4 for `/` and `\`. */
+/** The way a slot's hole runs, in radians (y down): 0 across, π/2 up and down, ∓DIAGONAL_ANGLE for `/` and `\`. */
 export function slotAngle(slot: Slot): number {
   if (!isDiagonal(slot)) return mod(slot.x, 2) === 0 ? 0 : Math.PI / 2;
   const i = (slot.x - 1) / 2;
   const j = (slot.y - 1) / 2;
-  return mod(i + j, 2) === 0 ? -Math.PI / 4 : Math.PI / 4;
+  return mod(i + j, 2) === 0 ? -DIAGONAL_ANGLE : DIAGONAL_ANGLE;
 }
 
-/** The slot whose bead is nearest a point (mm), or undefined in a hole (no bead within d). */
+/** The slot whose bead is nearest a point (mm), or undefined in a hole (no bead within 3/4 d). */
 export function slotAt(p: Point, net: NetSize): Slot | undefined {
   const cx = Math.round((2 * p.x) / net.L);
-  const cy = Math.round((2 * p.y) / net.L);
+  const cy = Math.round((2 * p.y) / net.H);
   let best: Slot | undefined;
-  let bestDistance = net.d;
+  // An 8's side beads are d from its middle, so a hit must be nearer than that.
+  let bestDistance = 0.75 * net.d;
   for (let x = cx - 2; x <= cx + 2; x++) {
     for (let y = cy - 2; y <= cy + 2; y++) {
       if (!isSlot(x, y)) continue;
@@ -158,24 +177,15 @@ export function slotAt(p: Point, net: NetSize): Slot | undefined {
   return best;
 }
 
-/** The corners of a group's outline (mm): its square or octagon, through the ends of its edges. */
+/** The corners of a group's outline (mm): its diamond or octagon, through the ends of its edges, stretched up and down. */
 export function groupOutline(group: Group, net: NetSize): Point[] {
   const c = groupCenter(group, net);
   const h = net.e / 2;
-  if (!isEight(group)) {
-    return [{ x: c.x - h, y: c.y - h }, { x: c.x + h, y: c.y - h }, { x: c.x + h, y: c.y + h }, { x: c.x - h, y: c.y + h }];
-  }
-  const a = net.L - h; // the octagon's apothem
-  return [
-    { x: c.x - h, y: c.y - a },
-    { x: c.x + h, y: c.y - a },
-    { x: c.x + a, y: c.y - h },
-    { x: c.x + a, y: c.y + h },
-    { x: c.x + h, y: c.y + a },
-    { x: c.x - h, y: c.y + a },
-    { x: c.x - a, y: c.y + h },
-    { x: c.x - a, y: c.y - h },
-  ];
+  const a = net.L - h; // the octagon's apothem before the stretch
+  const corners: [number, number][] = isEight(group)
+    ? [[-h, -a], [h, -a], [a, -h], [a, h], [h, a], [-h, a], [-a, h], [-a, -h]]
+    : [[-h, -h], [h, -h], [h, h], [-h, h]];
+  return corners.map(([x, y]) => ({ x: c.x + x, y: c.y + y * STRETCH }));
 }
 
 /**

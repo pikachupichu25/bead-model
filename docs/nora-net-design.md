@@ -59,13 +59,13 @@ Read the square S in the top row: its four beads are the o's left, right and bel
 
 ### Where the beads are drawn
 
-The coarse grid above is for addressing. On screen, beads are drawn where they sit in the real net, the edge midpoints of a regular 4.8.8 tiling:
+The coarse grid above is for addressing. On screen, beads are drawn where they sit in the real net, the edge midpoints of a 4.8.8 tiling whose octagons are not regular, stretched up and down by √2 because the net hangs, so a piece is a diamond as in the reference earrings:
 
-- **L** = distance between neighboring groups (center to center).
-- **Side bead**: on the line from the 8 to the 4, at **L / √2 ≈ 0.71 L** from the center of the 8 (an octagon is wider than a square, so the bead is not halfway).
+- **L** = distance between neighboring groups across (center to center), **H** = √2 · L up and down.
+- **Side bead**: on the line from the 8 to the 4, on the 4's edge, one bead diameter d from the center of the 8.
 - **Diagonal bead**: exactly halfway between the two 8s.
-- **Edge length** e = L · 2 / (2 + √2) ≈ 0.59 L. The spec sets e = √2 · d for a bead of diameter d, so the beads of a group of 4 just touch, which gives **L = (1 + √2) · d** ≈ 2.41 d.
-- **Bead direction**: the hole runs along its edge. Side beads above and below a 4 lie horizontally, those left and right of it lie vertically, and diagonal beads lie at 45°.
+- **Edge length** e = √2 · d for a bead of diameter d, so before the stretch the beads of a group of 4 just touch. **L = (1 + 1/√2) · d** ≈ 1.71 d, so an 8's corner beads sit 0.85 as far out as its side beads and three beads nearly touch along its top and bottom.
+- **Bead direction**: the hole runs along its edge. Side beads above and below a 4 lie horizontally, those left and right of it lie vertically, and diagonal beads lie at about 55°, along the stretched edge.
 
 ## The canvas
 
